@@ -1,0 +1,87 @@
+/* Reset full height */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Container with gradient background */
+.login-container {
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+  padding: 20px; /* ensures breathing room on very small screens */
+}
+
+/* Login Card */
+.login-card {
+  width: 100%;
+  max-width: 450px; /* default max */
+  padding: 30px 25px;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  background: #ffffff;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Title */
+.login-title {
+  text-align: center;
+  margin-bottom: 24px !important;
+  font-weight: bold !important;
+  color: #333 !important;
+}
+
+/* Input fields */
+.ant-input,
+.ant-input-password {
+  border-radius: 8px !important;
+  padding: 10px !important;
+}
+
+/* Button */
+.ant-btn-primary {
+  border-radius: 8px !important;
+  font-weight: 500;
+  height: 40px !important;
+  transition: all 0.3s ease;
+}
+
+.ant-btn-primary:hover {
+  background: #4096ff !important;
+  box-shadow: 0 4px 12px rgba(64, 150, 255, 0.3);
+}
+
+/* Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 📱 Responsive adjustments */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 20px 15px;
+    border-radius: 12px;
+    max-width: 100%;
+  }
+
+  .login-title {
+    font-size: 18px !important;
+  }
+
+  .ant-btn-primary {
+    height: 38px !important;
+    font-size: 14px;
+  }
+}

@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Form, Input, Button, Card, Typography, message } from "antd";
+import { Form, Input, Button, Typography, message, Card, Divider } from "antd";
+import { LockOutlined, UserOutlined } from "@ant-design/icons";
+import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 import { encryptData } from "../../utils/storage";
+import "./login.css";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 function Login() {
   const [loading, setLoading] = useState(false);
@@ -12,46 +14,64 @@ function Login() {
 
   const onFinish = async (values) => {
     setLoading(true);
+
     try {
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/auth/login`,
-        values
+        {
+          Username: values.Username?.trim(),
+          Password: values.Password?.trim(),
+        },
+        { withCredentials: true } // important for cookie
       );
 
-      localStorage.setItem("token", encryptData(res.data.token));
-      localStorage.setItem("user", encryptData(res.data.user));
+      const user = res.data?.data?.user;
+      if (!user) throw new Error("Invalid server response.");
 
-      message.success(`Welcome, ${res.data.user.FullName}`);
-      navigate("/");
+      localStorage.setItem("user", encryptData(user));
+
+      message.success(`Welcome, ${user.FullName || values.Username}`);
+
+      // Optional: validate session immediately
+      await axios.get(`${import.meta.env.VITE_API_URL}/auth/me`, {
+        withCredentials: true,
+      });
+
+      navigate("/"); // redirect to Home
     } catch (err) {
-      console.error(err);
-      message.error(err.response?.data?.message || "Login failed");
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message || "Login failed.";
+
+      if (status === 403 && serverMsg.toLowerCase().includes("not verified")) {
+        message.warning("Account not verified. Check your email.");
+        navigate("/verify-email", { state: { identifier: values.Username } });
+      } else if (status === 401) {
+        message.error("Invalid username or password.");
+      } else {
+        message.error(serverMsg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#f0f2f5",
-      }}
-    >
-      <Card style={{ width: 350 }}>
+    <div className="login-container">
+      <Card className="login-card">
         <Title level={3} style={{ textAlign: "center" }}>
-          Loan Management System
+          RCT Loan Management System
         </Title>
+        <Text type="secondary" style={{ display: "block", textAlign: "center", marginBottom: 24 }}>
+          Secure access to your account
+        </Text>
+
         <Form name="login" layout="vertical" onFinish={onFinish}>
           <Form.Item
             label="Username"
             name="Username"
             rules={[{ required: true, message: "Please enter your username" }]}
           >
-            <Input />
+            <Input prefix={<UserOutlined />} placeholder="Username" size="large" />
           </Form.Item>
 
           <Form.Item
@@ -59,15 +79,30 @@ function Login() {
             name="Password"
             rules={[{ required: true, message: "Please enter your password" }]}
           >
-            <Input.Password />
+            <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
           </Form.Item>
 
+          <div style={{ textAlign: "right", marginBottom: "1rem" }}>
+            <Link to="/forgot-password">Forgot Password?</Link>
+          </div>
+
           <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={loading}>
-              Login
+            <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </Form.Item>
         </Form>
+
+        <Divider plain>or</Divider>
+
+        <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+          <Text>Don’t have an account? </Text>
+          <Link to="/create-account">Create one</Link>
+        </div>
+
+        <Text type="secondary" style={{ display: "block", textAlign: "center", marginTop: 16 }}>
+          © {new Date().getFullYear()} RCT Loan Management System
+        </Text>
       </Card>
     </div>
   );
