@@ -10,6 +10,8 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
 import authRoutes from "./routes/auth.js";
+import announcementRoute from "./routes/announcementRoute.js";
+import loanRateRoute from "./routes/loanRateRoute.js";
 
 const app = express();
 
@@ -32,6 +34,8 @@ if (process.env.NODE_ENV === "development") {
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/announcements", announcementRoute);
+app.use("/api/loan_rates", loanRateRoute);
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {

@@ -20,18 +20,36 @@
 }
 
 .home-content {
-  padding: 20px;
+  flex: 1; /* grow to fill remaining height */
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  min-height: 0; /* important fix for flexbox overflow */
 }
 
 .home-card {
-  width: 100%;
-  max-width: 500px;
+  flex: 1; /* fill height */
+  width: 100%; /* fill width */
+  max-width: none; /* no limit */
+  display: flex;
+  flex-direction: column;
 }
 
 .home-footer {
   text-align: center;
+}
+
+/* Submenu items: smaller font + lighter color */
+.ant-menu-sub .ant-menu-item {
+  font-size: 12px;               /* smaller font */
+  color: rgba(255, 255, 255, 0.75); /* lighter grayish white */
+  padding-left: 36px !important; /* extra indent for hierarchy */
+}
+
+/* On hover or active, keep highlight strong */
+.ant-menu-sub .ant-menu-item:hover,
+.ant-menu-sub .ant-menu-item-selected {
+  color: #fff !important;             /* brighten text */
+  background-color: #1677ff !important; /* Ant Design blue */
 }
 
 @media (max-width: 768px) {

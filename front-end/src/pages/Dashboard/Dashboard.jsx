@@ -1,14 +1,14 @@
-// src/pages/Dashboard/Dashboard.jsx
 import React from "react";
 import { Card, Typography } from "antd";
+import "./dashboard.css";
 
 const { Title, Text } = Typography;
 
 function Dashboard() {
   return (
-    <Card style={{ width: "100%", maxWidth: 800, margin: "0 auto" }}>
+    <Card className="home-card">
       <Title level={3}>Dashboard</Title>
-      <Text>Welcome to the dashboard. Overview of system statistics will appear here.</Text>
+      <Text>Welcome to your dashboard overview.</Text>
     </Card>
   );
 }

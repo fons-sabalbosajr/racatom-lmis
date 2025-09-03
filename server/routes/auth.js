@@ -70,6 +70,7 @@ router.get("/verify-token/:token", async (req, res) => {
 });
 
 // ---------- Login ----------
+// ---------- Login ----------
 router.post("/login", async (req, res) => {
   const { Username, Password } = req.body;
 
@@ -107,19 +108,19 @@ router.post("/login", async (req, res) => {
       expiresIn: "1d",
     });
 
-    // Detect environment
+    // --- FIX: cookie settings for dev ---
     const isProd = process.env.NODE_ENV === "production";
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: false, // must be false for HTTP dev
-      sameSite: "None", // allow cross-origin
+      secure: isProd,          // true only for HTTPS production
+      sameSite: isProd ? "Strict" : "lax", // 'lax' for dev on HTTP
       maxAge: 24 * 60 * 60 * 1000,
     });
 
     const { Password: _, verificationToken, ...userData } = user.toObject();
 
-    // Return only user info, token is in cookie
+    // Return user data; token is in HTTP-only cookie
     res.json({
       success: true,
       message: "Login successful.",
@@ -130,6 +131,7 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error." });
   }
 });
+;
 
 // ---------- Logout ----------
 router.post("/logout", (req, res) => {

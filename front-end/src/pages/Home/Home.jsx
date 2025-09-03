@@ -9,6 +9,7 @@ import {
   Typography,
   Dropdown,
   List,
+  Collapse,
 } from "antd";
 import {
   LogoutOutlined,
@@ -16,13 +17,21 @@ import {
   BellOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  DashboardOutlined,
+  FileTextOutlined,
+  SettingOutlined,
+  DollarOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
 import { decryptData } from "../../utils/storage";
+import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import "./home.css";
+import logo from "../../assets/lmis.svg"; // your logo
 
 const { Header, Sider, Content, Footer } = Layout;
-const { Title, Text } = Typography;
+const { Text } = Typography;
+const { Panel } = Collapse;
 
 function Home() {
   const [collapsed, setCollapsed] = useState(false);
@@ -37,58 +46,55 @@ function Home() {
   });
 
   const [notifications, setNotifications] = useState([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Fetch notifications (simulate dynamic fetching)
+  // Live clock
   useEffect(() => {
-    const fetchNotifications = async () => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
       try {
-        // Replace with your API endpoint
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/notifications`,
+          `${import.meta.env.VITE_API_URL}/announcements`,
           {
             withCredentials: true,
           }
         );
-        setNotifications(res.data?.notifications || []);
+        setNotifications(res.data.announcements || []);
       } catch (err) {
-        console.error("Failed to fetch notifications:", err);
-        // Example fallback notifications
-        setNotifications([
-          { id: 1, message: "New loan request received" },
-          { id: 2, message: "Monthly report is ready" },
-        ]);
+        console.error("Failed to fetch announcements:", err);
+        setNotifications([]);
       }
     };
 
-    fetchNotifications();
-
-    // Optional: poll every 30s
-    const interval = setInterval(fetchNotifications, 30000);
+    fetchAnnouncements();
+    const interval = setInterval(fetchAnnouncements, 30000);
     return () => clearInterval(interval);
   }, []);
 
   // Logout
   const handleLogout = async () => {
     try {
-      // Call backend to clear cookie/session
       await axios.post(
         `${import.meta.env.VITE_API_URL}/auth/logout`,
         {},
         { withCredentials: true }
       );
-
-      // Clear local storage
       localStorage.removeItem("user");
       setUser(null);
       setNotifications([]);
-      // Replace history so back button won't access protected page
       window.location.replace("/login");
     } catch (err) {
       console.error("Logout error:", err);
     }
   };
 
-  // Avatar handling
+  // Avatar source
   const avatarSrc = (() => {
     if (!user?.Photo) return null;
     if (typeof user.Photo === "string") {
@@ -108,11 +114,13 @@ function Home() {
     return null;
   })();
 
-  // User menu (avatar + name dropdown)
+  // User dropdown menu
   const userMenu = (
     <Menu>
       <Menu.Item key="profile" icon={<UserOutlined />}>
-        {user?.FullName || "User"}
+        <Text strong>{user?.FullName || "User"}</Text>
+        <br />
+        <Text type="secondary">{user?.Position || ""}</Text>
       </Menu.Item>
       <Menu.Divider />
       <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
@@ -121,16 +129,43 @@ function Home() {
     </Menu>
   );
 
-  // Notifications dropdown
   const notifMenu = (
-    <Card style={{ width: 300, maxHeight: 400, overflowY: "auto" }}>
-      <List
-        dataSource={notifications}
-        renderItem={(item) => (
-          <List.Item key={item.id}>{item.message}</List.Item>
+    <Card style={{ width: 350, maxHeight: 400, overflowY: "auto" }}>
+      <Collapse
+        bordered={false}
+        accordion
+        style={{ background: "transparent", padding: "0" }}
+      >
+        {notifications.length > 0 ? (
+          notifications.map((item) => (
+            <Panel
+              header={
+                <div>
+                  <strong>{item.Title}</strong>
+                  <br />
+                  <small>
+                    {new Date(item.PostedDate).toLocaleString("en-US", {
+                      month: "short",
+                      day: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      hour12: true,
+                    })}
+                  </small>
+                </div>
+              }
+              key={item._id}
+              style={{ fontSize: "0.9rem", background: "transparent" }}
+            >
+              <p>{item.Content}</p>
+            </Panel>
+          ))
+        ) : (
+          <p style={{ textAlign: "center" }}>No new announcements</p>
         )}
-        locale={{ emptyText: "No new notifications" }}
-      />
+      </Collapse>
     </Card>
   );
 
@@ -145,19 +180,44 @@ function Home() {
       >
         <div
           className="home-logo"
-          style={{ color: "white", textAlign: "center", padding: "16px" }}
+          style={{
+            color: "white",
+            textAlign: "center",
+            padding: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+          }}
         >
-          {collapsed ? "LMS" : "Loan Management System"}
+          <img src={logo} alt="RCT LMS" style={{ width: 32, height: 32 }} />
+          {!collapsed && <span style={{ fontSize: "13px" }}>RACATOM-LMIS</span>}
         </div>
         <Menu
           theme="dark"
           mode="inline"
-          defaultSelectedKeys={["1"]}
+          selectedKeys={[location.pathname]}
+          onClick={({ key }) => navigate(key)}
           items={[
-            { key: "1", label: "Dashboard", icon: <UserOutlined /> },
-            { key: "2", label: "Loans", icon: <UserOutlined /> },
-            { key: "3", label: "Reports", icon: <UserOutlined /> },
-            { key: "4", label: "Settings", icon: <UserOutlined /> },
+            {
+              key: "/dashboard",
+              label: "Dashboard",
+              icon: <DashboardOutlined />,
+            },
+            { key: "/loans", label: "Loans", icon: <DollarOutlined /> },
+            { key: "/reports", label: "Reports", icon: <FileTextOutlined /> },
+            {
+              key: "/settings",
+              label: "Settings",
+              icon: <SettingOutlined />,
+              children: [
+                { key: "/settings/loan-rates", label: "Loan Rates Config" },
+                { key: "/settings/employees", label: "Employee Accounts" },
+                { key: "/settings/database", label: "Database" },
+                { key: "/settings/announcements", label: "Announcements" },
+                { key: "/settings/accounting", label: "Accounting Center" },
+              ],
+            },
           ]}
         />
       </Sider>
@@ -167,36 +227,61 @@ function Home() {
         <Header
           className="home-header"
           style={{
-            background: "#001529",
             padding: "0 16px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: "16px",
           }}
         >
-          {/* Left: toggle + page title */}
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ color: "white", fontSize: "16px", marginRight: "16px" }}
-            />
-            <span
-              style={{ color: "white", fontSize: "1.2rem", fontWeight: "bold" }}
-            >
-              Dashboard
-            </span>
-          </div>
+          {/* Left: menu toggle */}
+          <Button
+            type="text"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed(!collapsed)}
+            style={{ color: "white", fontSize: "16px" }}
+          />
 
-          {/* Right: notifications + user */}
+          {/* Right: date/time + notifications + user */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {/* Date & time */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+                padding: "4px 8px",
+                borderRadius: "4px",
+              }}
+            >
+              <CalendarOutlined />
+              <span>
+                {currentTime.toLocaleString("en-US", {
+                  month: "short",
+                  day: "2-digit",
+                  year: "numeric",
+                })}
+              </span>
+              <span>
+                {currentTime.toLocaleString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: true,
+                })}
+              </span>
+            </div>
+
+            {/* Notifications */}
             <Dropdown
-              overlay={notifMenu}
+              popupRender={() => notifMenu}
               placement="bottomRight"
               trigger={["click"]}
             >
-              <Badge count={notifications.length} offset={[0, 0]}>
+              <Badge count={notifications.length} offset={[-5, 6]} size="small">
                 <Button
                   type="text"
                   icon={
@@ -208,38 +293,24 @@ function Home() {
               </Badge>
             </Dropdown>
 
+            {/* User avatar only */}
             <Dropdown
-              overlay={userMenu}
+              dropdownRender={() => userMenu}
               placement="bottomRight"
               trigger={["click"]}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  gap: "8px",
-                }}
-              >
-                <Avatar src={avatarSrc} icon={!avatarSrc && <UserOutlined />} />
-                <Text style={{ color: "white", fontWeight: "bold" }}>
-                  {user?.FullName || "User"}
-                </Text>
-              </div>
+              <Avatar
+                src={avatarSrc}
+                icon={!avatarSrc && <UserOutlined />}
+                style={{ cursor: "pointer" }}
+              />
             </Dropdown>
           </div>
         </Header>
 
         {/* Content */}
-        <Content className="home-content">
-          <Card className="home-card">
-            <Title level={3}>Welcome, {user?.FullName || "Guest"}</Title>
-            {user?.Position && (
-              <>
-                <Text strong>Position:</Text> <Text>{user.Position}</Text>
-              </>
-            )}
-          </Card>
+        <Content className="home-content" style={{ margin: "16px" }}>
+          <Outlet />
         </Content>
 
         {/* Footer */}
