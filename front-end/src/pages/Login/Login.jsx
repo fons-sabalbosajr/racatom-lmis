@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Form, Input, Button, Typography, message, Card, Divider } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import { encryptData } from "../../utils/storage";
 import "./login.css";
@@ -11,6 +11,21 @@ const { Title, Text } = Typography;
 function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ✅ Handle email verification result
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const verified = params.get("verified");
+
+    if (verified === "success") {
+      message.success("✅ Email verified successfully. You can now log in.");
+    } else if (verified === "failed") {
+      message.error("❌ Verification link is invalid or expired.");
+    } else if (verified === "error") {
+      message.error("⚠️ Something went wrong during verification.");
+    }
+  }, [location]);
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -29,7 +44,8 @@ function Login() {
       if (!user) throw new Error("Invalid server response.");
 
       localStorage.setItem("user", encryptData(user));
-
+      // mark user as online
+      localStorage.setItem("onlineUser", encryptData(user.Username));
       message.success(`Welcome, ${user.FullName || values.Username}`);
 
       // Optional: validate session immediately
@@ -61,7 +77,10 @@ function Login() {
         <Title level={3} style={{ textAlign: "center" }}>
           RCT Loan Management System
         </Title>
-        <Text type="secondary" style={{ display: "block", textAlign: "center", marginBottom: 24 }}>
+        <Text
+          type="secondary"
+          style={{ display: "block", textAlign: "center", marginBottom: 24 }}
+        >
           Secure access to your account
         </Text>
 
@@ -71,7 +90,11 @@ function Login() {
             name="Username"
             rules={[{ required: true, message: "Please enter your username" }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="Username" size="large" />
+            <Input
+              prefix={<UserOutlined />}
+              placeholder="Username"
+              size="large"
+            />
           </Form.Item>
 
           <Form.Item
@@ -79,7 +102,11 @@ function Login() {
             name="Password"
             rules={[{ required: true, message: "Please enter your password" }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="Password"
+              size="large"
+            />
           </Form.Item>
 
           <div style={{ textAlign: "right", marginBottom: "1rem" }}>
@@ -87,7 +114,13 @@ function Login() {
           </div>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block size="large" loading={loading}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              size="large"
+              loading={loading}
+            >
               {loading ? "Logging in..." : "Login"}
             </Button>
           </Form.Item>
@@ -100,7 +133,10 @@ function Login() {
           <Link to="/create-account">Create one</Link>
         </div>
 
-        <Text type="secondary" style={{ display: "block", textAlign: "center", marginTop: 16 }}>
+        <Text
+          type="secondary"
+          style={{ display: "block", textAlign: "center", marginTop: 16 }}
+        >
           © {new Date().getFullYear()} RCT Loan Management System
         </Text>
       </Card>

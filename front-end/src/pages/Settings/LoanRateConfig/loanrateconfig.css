@@ -1,0 +1,52 @@
+.loanrateconfig-container {
+  padding: 5px;
+}
+
+.loanrateconfig-add-btn {
+  margin-bottom: 16px;
+}
+
+.loanrateconfig-table {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.loanrateconfig-table .ant-table-thead > tr > th {
+  background: #f5f5f5;
+  font-weight: bold;
+  text-align: center;
+}
+
+.loanrateconfig-table .ant-table-tbody > tr > td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.loanrateconfig-table .ant-btn-link {
+  padding: 0 4px;
+}
+
+
+.loanrateconfig-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.loanrateconfig-form-grid .ant-form-item {
+  margin-bottom: 16px;
+}
+
+.loanrateconfig-delete-btn hover {
+  color: #fff !important;
+}
+
+
+.loanrateconfig-filterbar {
+  margin-bottom: 12px;
+}
+
+.loanrateconfig-add-btn {
+  float: right;
+}

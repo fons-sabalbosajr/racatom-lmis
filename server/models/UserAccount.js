@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
   SystemID: String,
@@ -9,9 +9,13 @@ const userSchema = new mongoose.Schema({
   Password: String, // hashed password
   Designation: String,
   Photo: Buffer, // store binary photo
-  isVerified: { type: Boolean, default: false },  // NEW
-  verificationToken: String,                      // NEW
+
+  isVerified: { type: Boolean, default: false },
+  verificationToken: String,
+
+  // Needed for password reset
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
 });
 
-
-export default mongoose.model('User', userSchema, 'user_accounts');
+export default mongoose.model("User", userSchema, "user_accounts");

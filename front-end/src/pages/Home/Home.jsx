@@ -80,14 +80,20 @@ function Home() {
   // Logout
   const handleLogout = async () => {
     try {
+      // Call backend to invalidate session/cookie
       await axios.post(
         `${import.meta.env.VITE_API_URL}/auth/logout`,
         {},
         { withCredentials: true }
       );
-      localStorage.removeItem("user");
-      setUser(null);
-      setNotifications([]);
+
+      // Clear all relevant localStorage keys
+      localStorage.removeItem("user"); // logged-in user data
+      localStorage.removeItem("onlineUser"); // encrypted online username
+      setUser(null); // clear user state in frontend
+      setNotifications([]); // clear notifications state
+
+      // Redirect to login
       window.location.replace("/login");
     } catch (err) {
       console.error("Logout error:", err);
@@ -114,64 +120,30 @@ function Home() {
     return null;
   })();
 
-  // User dropdown menu
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="profile" icon={<UserOutlined />}>
-        <Text strong>{user?.FullName || "User"}</Text>
-        <br />
-        <Text type="secondary">{user?.Position || ""}</Text>
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
-        Logout
-      </Menu.Item>
-    </Menu>
-  );
-
-  const notifMenu = (
-    <Card style={{ width: 350, maxHeight: 400, overflowY: "auto" }}>
-      <Collapse
-        bordered={false}
-        accordion
-        style={{ background: "transparent", padding: "0" }}
-      >
-        {notifications.length > 0 ? (
-          notifications.map((item) => (
-            <Panel
-              header={
-                <div>
-                  <strong>{item.Title}</strong>
-                  <br />
-                  <small>
-                    {new Date(item.PostedDate).toLocaleString("en-US", {
-                      month: "short",
-                      day: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: true,
-                    })}
-                  </small>
-                </div>
-              }
-              key={item._id}
-              style={{ fontSize: "0.9rem", background: "transparent" }}
-            >
-              <p>{item.Content}</p>
-            </Panel>
-          ))
-        ) : (
-          <p style={{ textAlign: "center" }}>No new announcements</p>
-        )}
-      </Collapse>
-    </Card>
-  );
+  const userMenuItems = [
+    {
+      key: "profile",
+      icon: <UserOutlined />,
+      label: (
+        <div>
+          <Text strong>{user?.FullName || "User"}</Text>
+          <br />
+          <Text type="secondary">{user?.Position || ""}</Text>
+        </div>
+      ),
+      disabled: true, // make it informational only
+    },
+    { type: "divider" },
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      label: "Logout",
+      onClick: handleLogout,
+    },
+  ];
 
   return (
     <Layout className="home-layout">
-      {/* Side Menu */}
       <Sider
         collapsible
         collapsed={collapsed}
@@ -222,7 +194,6 @@ function Home() {
         />
       </Sider>
 
-      {/* Main Layout */}
       <Layout>
         <Header
           className="home-header"
@@ -234,7 +205,6 @@ function Home() {
             gap: "16px",
           }}
         >
-          {/* Left: menu toggle */}
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -242,9 +212,7 @@ function Home() {
             style={{ color: "white", fontSize: "16px" }}
           />
 
-          {/* Right: date/time + notifications + user */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {/* Date & time */}
             <div
               style={{
                 display: "flex",
@@ -277,25 +245,7 @@ function Home() {
 
             {/* Notifications */}
             <Dropdown
-              popupRender={() => notifMenu}
-              placement="bottomRight"
-              trigger={["click"]}
-            >
-              <Badge count={notifications.length} offset={[-5, 6]} size="small">
-                <Button
-                  type="text"
-                  icon={
-                    <BellOutlined
-                      style={{ color: "white", fontSize: "20px" }}
-                    />
-                  }
-                />
-              </Badge>
-            </Dropdown>
-
-            {/* User avatar only */}
-            <Dropdown
-              dropdownRender={() => userMenu}
+              menu={{ items: userMenuItems }}
               placement="bottomRight"
               trigger={["click"]}
             >
@@ -305,6 +255,7 @@ function Home() {
                 style={{ cursor: "pointer" }}
               />
             </Dropdown>
+            {/* User avatar only */}
           </div>
         </Header>
 
@@ -315,7 +266,7 @@ function Home() {
 
         {/* Footer */}
         <Footer className="home-footer">
-          © {new Date().getFullYear()} Loan Management System
+          © {new Date().getFullYear()} RACATOM Corp. Loan Management System
         </Footer>
       </Layout>
     </Layout>

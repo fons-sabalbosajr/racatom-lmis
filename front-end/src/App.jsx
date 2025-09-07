@@ -7,13 +7,12 @@ import VerifyEmail from "./pages/Login/VerifyEmail";
 import ForgotPassword from "./pages/Login/ForgotPassword";
 import ResetPassword from "./pages/Login/ResetPassword";
 import Verify from "./pages/Home/Verify";
-import ProtectedRoute from "./components/ProtectedRoute"; // separate file
+import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Loans from "./pages/Loans/Loans";
 import Reports from "./pages/Reports/Reports";
-import Settings from "./pages/Settings/Settings";
 
-// ✅ Import your real subpages
+// Settings subpages
 import LoanRates from "./pages/Settings/LoanRateConfig/LoanRateConfig";
 import Accounts from "./pages/Settings/Accounts/Accounts";
 import Database from "./pages/Settings/Database/Database";
@@ -48,16 +47,18 @@ function App() {
         <Route path="loans" element={<Loans />} />
         <Route path="reports" element={<Reports />} />
 
-        {/* Settings + nested children */}
-        <Route path="settings" element={<Settings />}>
-          {/* Redirect /settings to /settings/loan-rates */}
-          <Route index element={<Navigate to="loan-rates" replace />} />
-          <Route path="loan-rates" element={<LoanRates />} />
-          <Route path="employees" element={<Accounts />} />
-          <Route path="database" element={<Database />} />
-          <Route path="announcements" element={<Announcements />} />
-          <Route path="accounting" element={<Accounting />} />
-        </Route>
+        {/* Flattened Settings subpages */}
+        <Route path="settings/loan-rates" element={<LoanRates />} />
+        <Route path="settings/employees" element={<Accounts />} />
+        <Route path="settings/database" element={<Database />} />
+        <Route path="settings/announcements" element={<Announcements />} />
+        <Route path="settings/accounting" element={<Accounting />} />
+
+        {/* Optional: redirect /settings to a default subpage */}
+        <Route
+          path="settings"
+          element={<Navigate to="settings/loan-rates" replace />}
+        />
       </Route>
     </Routes>
   );

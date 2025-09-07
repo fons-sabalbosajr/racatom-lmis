@@ -1,7 +1,5 @@
-// server.js
-
 import dotenv from "dotenv";
-dotenv.config({ override: true }); // load .env first
+dotenv.config({ override: true });
 
 import express from "express";
 import mongoose from "mongoose";
@@ -9,9 +7,12 @@ import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
+
 import authRoutes from "./routes/auth.js";
 import announcementRoute from "./routes/announcementRoute.js";
 import loanRateRoute from "./routes/loanRateRoute.js";
+import userRoutes from "./routes/userRoutes.js";
+
 
 const app = express();
 
@@ -36,6 +37,7 @@ if (process.env.NODE_ENV === "development") {
 app.use("/api/auth", authRoutes);
 app.use("/api/announcements", announcementRoute);
 app.use("/api/loan_rates", loanRateRoute);
+app.use("/api/users", userRoutes);
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {
