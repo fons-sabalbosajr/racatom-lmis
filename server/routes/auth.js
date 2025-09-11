@@ -12,9 +12,6 @@ import {
 
 const router = express.Router();
 
-
-
-
 // ---------- Register ----------
 router.post("/register", async (req, res) => {
   try {
@@ -121,7 +118,6 @@ router.get("/verify-token/:token", async (req, res) => {
       return res.status(200).json({
         success: true,
         code: "ALREADY_VERIFIED",
-        //message: "Your email is already verified. Please log in.",
       });
     }
 
@@ -202,6 +198,8 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error." });
   }
 });
+
+
 // ---------- Logout ----------
 router.post("/logout", (req, res) => {
   const isProd = process.env.NODE_ENV === "production";

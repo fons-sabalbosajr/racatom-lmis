@@ -17,6 +17,7 @@ import LoanRates from "./pages/Settings/LoanRateConfig/LoanRateConfig";
 import Accounts from "./pages/Settings/Accounts/Accounts";
 import Database from "./pages/Settings/Database/Database";
 import Announcements from "./pages/Settings/Annoucements/Announcements";
+import CollectorAccounts from "./pages/Settings/CollectorAccounts/CollectorAccounts";
 import Accounting from "./pages/Settings/AccountingCenter/AccountingCenter";
 
 function App() {
@@ -50,6 +51,7 @@ function App() {
         {/* Flattened Settings subpages */}
         <Route path="settings/loan-rates" element={<LoanRates />} />
         <Route path="settings/employees" element={<Accounts />} />
+        <Route path="settings/collectors" element={<CollectorAccounts />} />
         <Route path="settings/database" element={<Database />} />
         <Route path="settings/announcements" element={<Announcements />} />
         <Route path="settings/accounting" element={<Accounting />} />

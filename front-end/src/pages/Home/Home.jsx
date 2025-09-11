@@ -185,6 +185,7 @@ function Home() {
               children: [
                 { key: "/settings/loan-rates", label: "Loan Rates Config" },
                 { key: "/settings/employees", label: "Employee Accounts" },
+                { key: "/settings/collectors", label: "Collector Accounts" }, // ✅ new
                 { key: "/settings/database", label: "Database" },
                 { key: "/settings/announcements", label: "Announcements" },
                 { key: "/settings/accounting", label: "Accounting Center" },

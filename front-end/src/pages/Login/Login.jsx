@@ -48,11 +48,6 @@ function Login() {
       localStorage.setItem("onlineUser", encryptData(user.Username));
       message.success(`Welcome, ${user.FullName || values.Username}`);
 
-      // Optional: validate session immediately
-      await axios.get(`${import.meta.env.VITE_API_URL}/auth/me`, {
-        withCredentials: true,
-      });
-
       navigate("/"); // redirect to Home
     } catch (err) {
       const status = err?.response?.status;

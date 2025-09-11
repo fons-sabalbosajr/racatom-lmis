@@ -134,6 +134,7 @@ const LoanRateConfig = () => {
       title: "Type",
       dataIndex: "Type",
       key: "Type",
+      width: 120,
       filters: fields
         .find((f) => f.name === "Type")
         .options.map((opt) => ({ text: opt, value: opt })),
@@ -182,6 +183,7 @@ const LoanRateConfig = () => {
         <>
           <Button
             size="small"
+            type="primary"
             onClick={() => openModal(record)}
             style={{ marginRight: 8 }}
           >

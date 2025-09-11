@@ -25,16 +25,13 @@ function Verify() {
         const data = await res.json();
 
         if (res.ok) {
-          message.success(data.message);
           setStatusMessage(data.message);
         } else {
-          message.error(data.message);
           setStatusMessage(data.message);
         }
       } catch (err) {
         console.error(err);
-        message.error("Verification failed. Please try again.");
-        setStatusMessage("Verification failed. Please try again.");
+        setStatusMessage("An error occurred during verification. Please try again.");
       } finally {
         setLoading(false);
 

@@ -1,0 +1,60 @@
+/* src/pages/loan.css */
+
+.loan-card {
+  background: #fff;
+  border-radius: 12px;
+}
+
+.loan-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.loan-search {
+  width: 320px !important;
+  height: 32px !important;
+}
+
+.loan-select {
+  width: 180px !important;
+}
+
+.loan-table .ant-table {
+  border-radius: 8px;
+}
+
+.loan-col-main {
+  font-weight: 600;
+}
+
+.loan-col-sub {
+  font-size: 12px;
+  color: #888;
+}
+
+.loan-modal .ant-modal-body {
+  padding: 20px;
+}
+
+.loan-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 768px) {
+  .loan-filters {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .loan-search {
+    width: 100% !important;
+  }
+
+  .loan-select {
+    width: 100% !important;
+  }
+}

@@ -1,0 +1,98 @@
+/* Main container */
+.collector-container {
+  padding: 5px;
+}
+
+/* Table styling */
+.ant-table {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.ant-table-tbody > tr > td {
+  font-size: 13px;
+}
+
+.collector-actions {
+  display: flex;
+  justify-content: space-between; /* push search left, button right */
+  align-items: center;            /* vertically center them */
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Collector info column */
+.collector-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.collector-name {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.collector-routes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.collector-id {
+  color: #888;
+  font-size: 12px;
+}
+
+/* Area route tags */
+.area-route-tag {
+  margin: 0 4px 4px 0;
+  display: inline-block;
+  font-size: 10px; /* reduced font for small tag */
+  padding: 0 6px;
+  line-height: 18px;
+}
+
+/* Modal styles */
+.ant-modal {
+  border-radius: 12px;
+}
+
+.ant-modal-header {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-modal-title {
+  font-weight: 600;
+}
+
+.ant-modal-footer {
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Form items */
+.ant-form-item-label > label {
+  font-weight: 500;
+}
+
+/* Buttons */
+.ant-btn-primary {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+.ant-btn-primary:hover {
+  background-color: #40a9ff;
+  border-color: #40a9ff;
+}
+
+.ant-btn-link {
+  padding: 0;
+}
