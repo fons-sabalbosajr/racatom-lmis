@@ -105,6 +105,7 @@ export const getLoanColumns = ({ viewLoan, deleteLoan }) => [
         <Button
           icon={<EyeOutlined />}
           size="small"
+          type="primary"
           onClick={() => viewLoan(record)}
         />
         

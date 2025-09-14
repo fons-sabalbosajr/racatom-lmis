@@ -50,3 +50,22 @@
 .loanrateconfig-add-btn {
   float: right;
 }
+
+.loan-rate-config-modal .ant-table-thead > tr > th,
+.loan-rate-config-modal .ant-table-tbody > tr > td {
+  padding: 8px 8px;
+  font-size: 12px;
+}
+
+.loan-rate-config-modal .ant-btn {
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.loan-rate-config-modal .ant-pagination-item,
+.loan-rate-config-modal .ant-pagination-prev .ant-pagination-item-link,
+.loan-rate-config-modal .ant-pagination-next .ant-pagination-item-link {
+  min-width: 24px;
+  height: 24px;
+  line-height: 22px;
+}

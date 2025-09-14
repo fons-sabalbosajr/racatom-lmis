@@ -9,6 +9,7 @@ import {
   Select,
   Tag,
   message,
+  Pagination,
 } from "antd";
 import api from "../../../utils/axios";
 import "./collectoraccounts.css";
@@ -24,6 +25,8 @@ const CollectorAccounts = () => {
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState("");
   const [areaRouteFilter, setAreaRouteFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 6;
 
   // Fetch collectors with optional search
   const fetchCollectors = async () => {
@@ -59,6 +62,10 @@ const CollectorAccounts = () => {
 
     return searchMatch && routeMatch;
   });
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
 
   const openModal = (collector = null) => {
     setEditingCollector(collector);
@@ -240,14 +247,22 @@ const CollectorAccounts = () => {
         >
           Add Collector
         </Button>
+        <Pagination
+          current={currentPage}
+          pageSize={pageSize}
+          total={filteredCollectors.length}
+          onChange={handlePageChange}
+          size="small"
+        />
       </div>
 
       <Table
         columns={columns}
-        dataSource={filteredCollectors}
+        dataSource={filteredCollectors.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         rowKey="_id"
         loading={loading}
-        pagination={{ pageSize: 6 }}
+        pagination={false}
+        scroll={{ x: 'max-content' }}
       />
 
       <Modal

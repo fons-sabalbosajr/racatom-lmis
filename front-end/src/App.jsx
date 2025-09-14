@@ -53,6 +53,7 @@ function App() {
         <Route path="settings/employees" element={<Accounts />} />
         <Route path="settings/collectors" element={<CollectorAccounts />} />
         <Route path="settings/database" element={<Database />} />
+        <Route path="settings/announcements/:id" element={<Announcements />} />
         <Route path="settings/announcements" element={<Announcements />} />
         <Route path="settings/accounting" element={<Accounting />} />
 

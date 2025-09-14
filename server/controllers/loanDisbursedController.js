@@ -15,10 +15,17 @@ export const getAllLoanDisbursed = async (req, res) => {
 export const getLoanDisbursedByClientNo = async (req, res) => {
   try {
     const { clientNo } = req.params;
-    const loans = await LoanDisbursed.find({ ClientNo: clientNo }).sort({ Date_Encoded: -1 });
+    const loans = await LoanDisbursed.find({ ClientNo: clientNo }).sort({
+      Date_Encoded: -1,
+    });
 
     if (!loans || loans.length === 0) {
-      return res.status(404).json({ success: false, message: "No disbursed loans found for this client" });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "No disbursed loans found for this client",
+        });
     }
 
     res.json({ success: true, data: loans });
@@ -35,12 +42,39 @@ export const getLoanDisbursedByAccountId = async (req, res) => {
     const loan = await LoanDisbursed.findOne({ AccountId: accountId });
 
     if (!loan) {
-      return res.status(404).json({ success: false, message: "No disbursed loan found with this AccountId" });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "No disbursed loan found with this AccountId",
+        });
     }
 
     res.json({ success: true, data: loan });
   } catch (err) {
     console.error("Error fetching loan_disbursed by account:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Update a loan disbursed record by ID
+export const updateLoanDisbursed = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedLoan = await LoanDisbursed.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedLoan) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan disbursed record not found" });
+    }
+
+    res.json({ success: true, data: updatedLoan });
+  } catch (err) {
+    console.error("Error updating loan disbursed record:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

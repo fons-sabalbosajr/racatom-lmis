@@ -3,6 +3,7 @@ import {
   getAllLoanDisbursed,
   getLoanDisbursedByClientNo,
   getLoanDisbursedByAccountId,
+  updateLoanDisbursed,
 } from "../controllers/loanDisbursedController.js";
 
 const router = express.Router();
@@ -15,5 +16,8 @@ router.get("/client/:clientNo", getLoanDisbursedByClientNo);
 
 // GET by account ID
 router.get("/account/:accountId", getLoanDisbursedByAccountId);
+
+// PUT to update a loan disbursed record by ID
+router.put("/:id", updateLoanDisbursed);
 
 export default router;

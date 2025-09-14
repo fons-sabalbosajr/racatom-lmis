@@ -9,7 +9,7 @@ import {
   Typography,
   Dropdown,
   List,
-  Collapse,
+  Collapse, Popover
 } from "antd";
 import {
   LogoutOutlined,
@@ -20,8 +20,9 @@ import {
   DashboardOutlined,
   FileTextOutlined,
   SettingOutlined,
-  DollarOutlined,
+  FundViewOutlined, // ✅ Peso replacement
   CalendarOutlined,
+  MessageOutlined, // ✅ Message icon
 } from "@ant-design/icons";
 import axios from "axios";
 import { decryptData } from "../../utils/storage";
@@ -176,7 +177,7 @@ function Home() {
               label: "Dashboard",
               icon: <DashboardOutlined />,
             },
-            { key: "/loans", label: "Loans", icon: <DollarOutlined /> },
+            { key: "/loans", label: "Loans", icon: <FundViewOutlined/> }, // ✅ Changed
             { key: "/reports", label: "Reports", icon: <FileTextOutlined /> },
             {
               key: "/settings",
@@ -185,7 +186,7 @@ function Home() {
               children: [
                 { key: "/settings/loan-rates", label: "Loan Rates Config" },
                 { key: "/settings/employees", label: "Employee Accounts" },
-                { key: "/settings/collectors", label: "Collector Accounts" }, // ✅ new
+                { key: "/settings/collectors", label: "Collector Accounts" },
                 { key: "/settings/database", label: "Database" },
                 { key: "/settings/announcements", label: "Announcements" },
                 { key: "/settings/accounting", label: "Accounting Center" },
@@ -214,6 +215,7 @@ function Home() {
           />
 
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {/* ✅ Date/Time */}
             <div
               style={{
                 display: "flex",
@@ -244,7 +246,89 @@ function Home() {
               </span>
             </div>
 
-            {/* Notifications */}
+            {/* ✅ Messages Popover */}
+            <Popover
+              placement="bottomRight"
+              title="Messages"
+              trigger="click"
+              content={
+                <List
+                  size="small"
+                  dataSource={[
+                    { text: "New loan request pending", link: "/loans" },
+                    {
+                      text: "Reminder: Update employee info",
+                      link: "/settings/employees",
+                    },
+                  ]}
+                  renderItem={(item) => (
+                    <List.Item
+                      style={{ cursor: "pointer" }}
+                      onClick={() => {
+                        navigate(item.link);
+                      }}
+                    >
+                      {item.text}
+                    </List.Item>
+                  )}
+                />
+              }
+            >
+              <Badge count={2} size="small">
+                <MessageOutlined
+                  style={{
+                    fontSize: "18px",
+                    color: "white",
+                    cursor: "pointer",
+                  }}
+                />
+              </Badge>
+            </Popover>
+
+            {/* ✅ Notifications Popover */}
+            <Popover
+              placement="bottomRight"
+              title="Notifications"
+              trigger="click"
+              content={
+                <List
+                  size="small"
+                  dataSource={
+                    notifications.length
+                      ? notifications.map((n) => ({
+                          text: n.title,
+                          link: `/settings/announcements/${n._id || ""}`,
+                        }))
+                      : [{ text: "No notifications", link: "" }]
+                  }
+                  renderItem={(item) => (
+                    <List.Item
+                      style={{
+                        cursor: item.link ? "pointer" : "default",
+                        color: item.link ? "#1677ff" : "inherit",
+                      }}
+                      onClick={() => {
+                        if (item.link) navigate(item.link);
+                      }}
+                    >
+                      {item.text}
+                    </List.Item>
+                  )}
+                />
+              }
+            >
+              <Badge count={notifications.length} size="small">
+                <BellOutlined
+                  style={{
+                    fontSize: "18px",
+                    color: "white",
+                    cursor: "pointer",
+                  }}
+                />
+              </Badge>
+            </Popover>
+
+            {/* ✅ User Avatar Dropdown */}
             <Dropdown
               menu={{ items: userMenuItems }}
               placement="bottomRight"
@@ -256,7 +340,6 @@ function Home() {
                 style={{ cursor: "pointer" }}
               />
             </Dropdown>
-            {/* User avatar only */}
           </div>
         </Header>
 

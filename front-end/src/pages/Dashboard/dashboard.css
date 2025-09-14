@@ -1,0 +1,21 @@
+.dashboard-container {
+  padding: 24px;
+  background: #f0f2f5;
+}
+
+.dashboard-title {
+  margin-bottom: 24px !important;
+}
+
+.dashboard-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.chart-card {
+  height: 400px;
+}
+
+.recent-applications-card {
+    height: 400px;
+}

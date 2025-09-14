@@ -6,12 +6,16 @@ import axios from "axios";
 import { encryptData } from "../../utils/storage";
 import "./login.css";
 
+import lmisLogo from "../../assets/lmis.svg";
+
 const { Title, Text } = Typography;
 
 function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  
 
   // ✅ Handle email verification result
   useEffect(() => {
@@ -69,7 +73,10 @@ function Login() {
   return (
     <div className="login-container">
       <Card className="login-card">
-        <Title level={3} style={{ textAlign: "center" }}>
+        <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+          <img src={lmisLogo} alt="LMIS Logo" style={{ height: "80px" }} />
+        </div>
+        <Title level={3} style={{ textAlign: "center", marginTop: 0 }}>
           RCT Loan Management System
         </Title>
         <Text

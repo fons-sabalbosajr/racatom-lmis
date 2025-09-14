@@ -46,7 +46,7 @@ const fields = [
   { name: "Misc. Rate", label: "Misc. Rate", type: "number" },
 ];
 
-const LoanRateConfig = () => {
+const LoanRateConfig = ({ isModal = false }) => {
   const [loanRates, setLoanRates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -207,7 +207,8 @@ const LoanRateConfig = () => {
   return (
     <Card
       title="Loan Rates Configuration"
-      style={{ width: "100%", minHeight: "80vh" }}
+      className={isModal ? "loan-rate-config-modal" : ""}
+      style={{ width: "100%", minHeight: isModal ? "auto" : "80vh" }}
     >
       {/* Filter Bar */}
       <Row gutter={12} align="middle" style={{ marginBottom: 16 }}>
