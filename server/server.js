@@ -10,6 +10,7 @@ import cron from "node-cron";
 import moment from "moment";
 
 import Announcement from "./models/Announcement.js"; // Import model for cron
+import requireAuth from "./middleware/requireAuth.js";
 
 import authRoutes from "./routes/auth.js";
 import announcementRoute from "./routes/announcementRoute.js";
@@ -40,7 +41,7 @@ if (process.env.NODE_ENV === "development") {
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/announcements", announcementRoute);
+app.use("/api/announcements", requireAuth, announcementRoute);
 app.use("/api/loan_rates", loanRateRoute);
 app.use("/api/users", userRoutes);
 app.use("/api/collectors", collectorRoutes);

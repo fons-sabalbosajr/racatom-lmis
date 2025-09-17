@@ -28,23 +28,27 @@ const transformLoan = (doc) => {
     CompanyName: loan.CompanyName,
     WorkAddress: loan.WorkAddress,
 
-    loanInfo: {
-      type: loan.LoanType,
-      status: loan.LoanStatus,
-      processStatus: loan.LoanProcessStatus,
-      term: loan.LoanTerm,
-      amount: loan.LoanAmount,
-      amortization: loan.LoanAmortization,
-      balance: loan.LoanBalance,
-      penalty: loan.Penalty,
-      interest: loan.LoanInterest,
-      paymentMode: loan.PaymentMode,
-      startPaymentDate: loan.StartPaymentDate,
-      maturityDate: loan.MaturityDate,
-      dateEncoded: loan.Date_Encoded,
-      dateModified: loan.Date_Modified,
-      collectorName: loan.CollectorName,
-    },
+    LoanType: loan.LoanType,
+    LoanStatus: loan.LoanStatus || "Unknown",
+    LoanProcessStatus: loan.LoanProcessStatus,
+    LoanTerm: loan.LoanTerm,
+    LoanAmount: (() => {
+      console.log(`Raw LoanAmount for ${loan.LoanNo}:`, loan.LoanAmount);
+      const convertedAmount = Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, ""));
+      console.log(`Converted LoanAmount for ${loan.LoanNo}:`, convertedAmount);
+      return convertedAmount;
+    })(),
+    LoanAmortization: Number(String(loan.LoanAmortization || 0).replace(/[₱,]/g, "")),
+    LoanBalance: Number(String(loan.LoanBalance || 0).replace(/[₱,]/g, "")),
+    Penalty: Number(String(loan.Penalty || 0).replace(/[₱,]/g, "")),
+    LoanInterest: Number(String(loan.LoanInterest || 0).replace(/[₱,]/g, "")),
+
+    PaymentMode: loan.PaymentMode,
+    StartPaymentDate: loan.StartPaymentDate,
+    MaturityDate: loan.MaturityDate,
+    Date_Encoded: loan.Date_Encoded,
+    Date_Modified: loan.Date_Modified,
+    CollectorName: loan.CollectorName,
 
     address: {
       barangay: loan.Barangay,
@@ -118,7 +122,7 @@ export const getLoans = async (req, res) => {
     }
 
     const loans = await LoanApproved.find(query)
-      .collation({ locale: "en", numericOrdering: true }) // ✅ numeric-aware sorting
+      .collation({ locale: "en", numericOrdering: true })
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .sort(sortOptions);

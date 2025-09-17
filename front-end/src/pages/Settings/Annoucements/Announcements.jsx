@@ -26,7 +26,7 @@ const Announcements = () => {
   const fetchAnnouncements = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get("/announcements");
+      const { data } = await api.get("/announcements/all");
       setAnnouncements(data.announcements);
     } catch (err) {
       console.error(err);

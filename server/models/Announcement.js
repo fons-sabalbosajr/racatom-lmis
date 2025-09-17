@@ -7,6 +7,7 @@ const announcementSchema = new mongoose.Schema(
     PostedDate: { type: Date, default: Date.now },
     isActive: { type: Boolean, default: true }, // Display on bulletin
     ExpirationDate: { type: Date }, // Optional expiration
+    readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'UserAccount' }]
   },
   { collection: "announcements" }
 );

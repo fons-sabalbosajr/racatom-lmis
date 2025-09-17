@@ -1,5 +1,5 @@
 .dashboard-container {
-  padding: 24px;
+  padding: 10px;
   background: #f0f2f5;
 }
 
@@ -17,5 +17,5 @@
 }
 
 .recent-applications-card {
-    height: 400px;
+  height: 500px;
 }

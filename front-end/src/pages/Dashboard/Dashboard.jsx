@@ -1,197 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Typography, List, message } from 'antd';
-import { UserOutlined, TransactionOutlined, ScheduleOutlined, DollarCircleOutlined } from '@ant-design/icons';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import api from '../../utils/axios';
-import './dashboard.css';
+import React, { useState, useEffect } from "react";
+import { Typography, message, Row, Col } from "antd";
+import api from "../../utils/axios";
+import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
+import "./dashboard.css";
 
-const { Title, Text } = Typography;
+// Import new components
+import DashboardStats from "./components/DashboardStats";
+import LoanStatusChart from "./components/LoanStatusChart";
+import LoanTypeChart from "./components/LoanTypeChart";
+import RecentLoansTable from "./components/RecentLoansTable";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const { Title } = Typography;
 
 function Dashboard() {
-  const [stats, setStats] = useState({ totalLoans: 0, totalDisbursed: 0, upcomingPayments: 0, averageLoanAmount: 0 });
+  const [stats, setStats] = useState({
+    totalLoans: 0,
+    totalDisbursed: 0,
+    upcomingPayments: 0,
+    averageLoanAmount: 0,
+  });
   const [chartData, setChartData] = useState([]);
   const [loanTypeData, setLoanTypeData] = useState([]);
+  const [allLoans, setAllLoans] = useState([]);
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [meta, setMeta] = useState({ page: 1, limit: 5, total: 0 });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const res = await api.get('/loans?limit=10000'); // Fetch a large number of loans to calculate stats
-        if (res.data.success) {
-          const loans = res.data.data;
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
 
-          // Calculate stats
-          const totalLoans = loans.length;
-          const totalDisbursed = loans.reduce((acc, loan) => acc + (loan.netProceeds || 0), 0);
-          const upcomingPayments = loans.filter(loan => new Date(loan.dueDate) > new Date()).length; // Example logic
-          const totalLoanAmount = loans.reduce((acc, loan) => acc + (loan.LoanAmount || 0), 0);
-          const averageLoanAmount = totalLoans > 0 ? totalLoanAmount / totalLoans : 0;
+  const viewLoan = async (record) => {
+    setLoading(true);
+    try {
+      const loansRes = await api.get(`/loans/client/${record.clientNo}`);
+      const docsRes = await api.get(
+        `/loans/client/${record.clientNo}/documents`
+      );
 
-          setStats({ totalLoans, totalDisbursed, upcomingPayments, averageLoanAmount });
+      if (loansRes.data.success && docsRes.data.success) {
+        const currentLoan = loansRes.data.data.find(
+          (loan) => loan._id === record._id
+        );
+        if (currentLoan) {
+          setSelectedLoan({
+            ...currentLoan,
+            allClientLoans: loansRes.data.data,
+            clientDocuments: docsRes.data.data,
+          });
+          setModalVisible(true);
+        } else {
+          message.error("Loan details not found.");
+        }
+      } else {
+        message.error("Failed to fetch client data.");
+      }
+    } catch (err) {
+      console.error(err);
+      message.error("Error fetching client data.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-          // Prepare data for the bar chart
-          const statusCounts = loans.reduce((acc, loan) => {
-            const status = loan.LoanStatus || 'Unknown';
-            acc[status] = (acc[status] || 0) + 1;
-            return acc;
-          }, {});
+  const fetchAllLoansData = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/loans");
+      if (res.data.success) {
+        const loans = res.data.data;
+        setAllLoans(loans);
 
-          const chartData = Object.keys(statusCounts).map(status => ({
+        const totalLoans = loans.length;
+        const totalDisbursed = loans.reduce(
+          (acc, loan) =>
+            acc +
+            Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+          0
+        );
+        const upcomingPayments = loans.filter(
+          (loan) => new Date(loan.MaturityDate) > new Date()
+        ).length;
+        const totalLoanAmount = loans.reduce(
+          (acc, loan) =>
+            acc +
+            Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+          0
+        );
+        const averageLoanAmount =
+          totalLoans > 0 ? totalLoanAmount / totalLoans : 0;
+
+        setStats({
+          totalLoans,
+          totalDisbursed,
+          upcomingPayments,
+          averageLoanAmount,
+        });
+
+        const statusCounts = loans.reduce((acc, loan) => {
+          const status = loan.LoanStatus || "Unknown";
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+        setChartData(
+          Object.keys(statusCounts).map((status) => ({
             name: status,
             count: statusCounts[status],
-          }));
-          setChartData(chartData);
+          }))
+        );
 
-          // Prepare data for the pie chart
-          const loanTypeCounts = loans.reduce((acc, loan) => {
-            const type = loan.LoanType || 'Unknown';
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          }, {});
-
-          const loanTypeData = Object.keys(loanTypeCounts).map(type => ({
+        const loanTypeCounts = loans.reduce((acc, loan) => {
+          const type = loan.LoanType || "Unknown";
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        }, {});
+        setLoanTypeData(
+          Object.keys(loanTypeCounts).map((type) => ({
             name: type,
             value: loanTypeCounts[type],
-          }));
-          setLoanTypeData(loanTypeData);
-
-          // Set recent loans
-          setRecentLoans(loans.slice(0, 5));
-        } else {
-          message.error('Failed to load dashboard data');
-        }
-      } catch (err) {
-        console.error(err);
-        message.error('Error loading dashboard data');
-      } finally {
-        setLoading(false);
+          }))
+        );
+      } else {
+        message.error("Failed to load all dashboard data");
       }
-    };
+    } catch (err) {
+      console.error(err);
+      message.error("Error loading all dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchData();
+  const fetchRecentLoans = async (page, limit) => {
+    setLoading(true);
+    try {
+      const res = await api.get("/loans", {
+        params: {
+          page,
+          limit,
+        },
+      });
+      if (res.data.success) {
+        setRecentLoans(res.data.data);
+        setMeta({
+          page: Number(res.data.currentPage || 1),
+          limit: Number(limit || 1),
+          total: Number(res.data.totalLoans || 0),
+        });
+      } else {
+        message.error("Failed to load recent loans");
+      }
+    } catch (err) {
+      console.error(err);
+      message.error("Error loading recent loans");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllLoansData();
+    fetchRecentLoans(meta.page, meta.limit);
   }, []);
+
+  const handleTableChange = (pagination) => {
+    console.log("Pagination change:", pagination);
+    fetchRecentLoans(pagination.current, pagination.pageSize);
+  };
 
   return (
     <div className="dashboard-container">
-      <Title level={2} className="dashboard-title">Dashboard</Title>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-card">
-            <Statistic
-              title="Total Loans"
-              value={stats.totalLoans}
-              precision={0}
-              loading={loading}
-              valueStyle={{ color: '#3f8600' }}
-              prefix={<TransactionOutlined />}
-              suffix="loans"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-card">
-            <Statistic
-              title="Total Disbursed"
-              value={stats.totalDisbursed}
-              precision={2}
-              loading={loading}
-              valueStyle={{ color: '#cf1322' }}
-              prefix="₱"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-card">
-            <Statistic
-              title="Upcoming Payments"
-              value={stats.upcomingPayments}
-              precision={0}
-              loading={loading}
-              valueStyle={{ color: '#d48806' }}
-              prefix={<ScheduleOutlined />}
-              suffix="payments"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dashboard-card">
-            <Statistic
-              title="Average Loan Amount"
-              value={stats.averageLoanAmount}
-              precision={2}
-              loading={loading}
-              valueStyle={{ color: '#1890ff' }}
-              prefix="₱"
-            />
-          </Card>
-        </Col>
-      </Row>
-      <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+      <Title level={2} className="dashboard-title">
+        Loan Management Dashboard
+      </Title>
+      <DashboardStats stats={stats} loading={loading} />
+      <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
         <Col xs={24} md={16}>
-          <Card className="dashboard-card chart-card">
-            <Title level={4}>Loan Status Overview</Title>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="count" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
+          <LoanStatusChart chartData={chartData} />
         </Col>
         <Col xs={24} md={8}>
-          <Card className="dashboard-card chart-card">
-            <Title level={4}>Loans by Type</Title>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={loanTypeData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {
-                    loanTypeData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)
-                  }
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </Card>
+          <LoanTypeChart loanTypeData={loanTypeData} />
         </Col>
       </Row>
-      <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
-        <Col xs={24}>
-          <Card className="dashboard-card recent-applications-card">
-            <Title level={4}>Recent Loan Applications</Title>
-            <List
-              loading={loading}
-              itemLayout="horizontal"
-              dataSource={recentLoans}
-              renderItem={item => (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={<UserOutlined />}
-                    title={<a href="#">{`${item.FirstName} ${item.LastName}`}</a>}
-                    description={`Applied for a loan of ₱${item.LoanAmount}`}
-                  />
-                  <Text type={item.LoanStatus === 'Pending' ? 'warning' : item.LoanStatus === 'Approved' ? 'success' : 'danger'}>{item.LoanStatus}</Text>
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
+      <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
+        <RecentLoansTable
+          recentLoans={recentLoans}
+          loading={loading}
+          meta={meta}
+          handleTableChange={handleTableChange}
+          viewLoan={viewLoan}
+        />
       </Row>
+
+      <LoanDetailsModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        loan={selectedLoan}
+        loading={loading}
+      />
     </div>
   );
 }

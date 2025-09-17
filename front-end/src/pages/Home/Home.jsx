@@ -9,7 +9,8 @@ import {
   Typography,
   Dropdown,
   List,
-  Collapse, Popover
+  Collapse,
+  Popover,
 } from "antd";
 import {
   LogoutOutlined,
@@ -29,6 +30,9 @@ import { decryptData } from "../../utils/storage";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import "./home.css";
 import logo from "../../assets/lmis.svg"; // your logo
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Text } = Typography;
@@ -61,15 +65,29 @@ function Home() {
     const fetchAnnouncements = async () => {
       try {
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/announcements`,
+          `${import.meta.env.VITE_API_URL}/announcements`, // gets unread
           {
             withCredentials: true,
           }
         );
-        setNotifications(res.data.announcements || []);
+        const newUnread = res.data.announcements || [];
+        
+        setNotifications(prev => {
+          // 1. Get notifications that were marked as read during this session
+          const sessionReadNotifications = prev.filter(p => p.read);
+          const sessionReadIds = new Set(sessionReadNotifications.map(n => n._id));
+
+          // 2. Filter the newly fetched unread announcements to ensure they are not already in our sessionReadNotifications
+          // This handles the case where an announcement might have been marked read locally, but the backend still sends it (e.g., if the backend update failed)
+          const uniqueNewUnread = newUnread.filter(n => !sessionReadIds.has(n._id));
+
+          // 3. Combine the session-read notifications with the unique new unread notifications
+          // The 'read' property for newUnread items will be false by default, which is correct.
+          return [...sessionReadNotifications, ...uniqueNewUnread];
+        });
+
       } catch (err) {
         console.error("Failed to fetch announcements:", err);
-        setNotifications([]);
       }
     };
 
@@ -77,6 +95,38 @@ function Home() {
     const interval = setInterval(fetchAnnouncements, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleMarkAsRead = async (announcementId, link) => {
+    try {
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n._id === announcementId ? { ...n, read: true } : n
+        )
+      );
+      navigate(link);
+
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/announcements/${announcementId}/mark-as-read`,
+        {},
+        { withCredentials: true }
+      );
+    } catch (err) {
+      console.error("Failed to mark announcement as read:", err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/announcements/mark-all-as-read`,
+        {},
+        { withCredentials: true }
+      );
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.error("Failed to mark all announcements as read:", err);
+    }
+  };
 
   // Logout
   const handleLogout = async () => {
@@ -177,7 +227,7 @@ function Home() {
               label: "Dashboard",
               icon: <DashboardOutlined />,
             },
-            { key: "/loans", label: "Loans", icon: <FundViewOutlined/> }, // ✅ Changed
+            { key: "/loans", label: "Loans", icon: <FundViewOutlined /> }, // ✅ Changed
             { key: "/reports", label: "Reports", icon: <FileTextOutlined /> },
             {
               key: "/settings",
@@ -203,17 +253,9 @@ function Home() {
             padding: "0 16px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
             gap: "16px",
           }}
         >
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ color: "white", fontSize: "16px" }}
-          />
-
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             {/* ✅ Date/Time */}
             <div
@@ -288,36 +330,111 @@ function Home() {
             {/* ✅ Notifications Popover */}
             <Popover
               placement="bottomRight"
-              title="Notifications"
               trigger="click"
+              overlayClassName="notif-popover"
               content={
-                <List
-                  size="small"
-                  dataSource={
-                    notifications.length
-                      ? notifications.map((n) => ({
-                          text: n.title,
-                          link: `/settings/announcements/${n._id || ""}`,
-                        }))
-                      : [{ text: "No notifications", link: "" }]
-                  }
-                  renderItem={(item) => (
-                    <List.Item
-                      style={{
-                        cursor: item.link ? "pointer" : "default",
-                        color: item.link ? "#1677ff" : "inherit",
-                      }}
-                      onClick={() => {
-                        if (item.link) navigate(item.link);
-                      }}
+                <div>
+                  {/* Header */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "6px 12px",
+                      borderBottom: "1px solid #f0f0f0",
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span>Notifications</span>
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ padding: 0 }}
+                      onClick={handleMarkAllAsRead}
                     >
-                      {item.text}
-                    </List.Item>
-                  )}
-                />
+                      Mark all as read
+                    </Button>
+                  </div>
+
+                  {/* List */}
+                  <List
+                    className="notif-list"
+                    itemLayout="horizontal"
+                    dataSource={notifications
+                      .filter((n) => {
+                        const expired =
+                          n.ExpirationDate &&
+                          dayjs().isAfter(dayjs(n.ExpirationDate));
+                        return n.isActive && !expired;
+                      })
+                      .map((n) => ({
+                        key: n._id,
+                        title: n.Title || "Untitled announcement",
+                        content: n.Content || "",
+                        time: n.PostedDate
+                          ? dayjs(n.PostedDate).fromNow()
+                          : "Just now",
+                        link: `/settings/announcements/${n._id}`,
+                        read: n.read || false,
+                      }))}
+                    locale={{ emptyText: "No notifications" }}
+                    renderItem={(item) => (
+                      <List.Item
+                        key={item.key}
+                        className={item.read ? "notif-read" : "notif-unread"}
+                        style={{
+                          cursor: "pointer",
+                          padding: "10px 12px",
+                          borderBottom: "1px solid #f0f0f0",
+                        }}
+                        onClick={() => handleMarkAsRead(item.key, item.link)}
+                      >
+                        <List.Item.Meta
+                          title={
+                            <div
+                              style={{
+                                fontWeight: item.read ? 500 : 600,
+                                fontSize: "14px",
+                                color: item.read ? "#888" : "#000",
+                              }}
+                            >
+                              {item.title}
+                            </div>
+                          }
+                          description={
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  color: item.read ? "#aaa" : "#444",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {item.content.length > 60
+                                  ? item.content.substring(0, 60) + "..."
+                                  : item.content}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#999",
+                                }}
+                              >
+                                {item.time}
+                              </div>
+                            </div>
+                          }
+                        />
+                      </List.Item>
+                    )}
+                  />
+                </div>
               }
             >
-              <Badge count={notifications.length} size="small">
+              <Badge
+                count={notifications.filter((n) => !n.read).length}
+                size="small"
+              >
                 <BellOutlined
                   style={{
                     fontSize: "18px",

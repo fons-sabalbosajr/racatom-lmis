@@ -1,7 +1,69 @@
 import Announcement from "../models/Announcement.js";
 
-// GET all
+// GET all unread for the current user
 export const getAnnouncements = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.json({ success: true, announcements: [] });
+    }
+
+    const announcements = await Announcement.find({
+      readBy: { $ne: userId },
+      isActive: true,
+    }).sort({ PostedDate: -1 });
+
+    res.json({ success: true, announcements });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Mark all announcements as read for the current user
+export const markAllAsRead = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    await Announcement.updateMany(
+      { readBy: { $ne: userId } },
+      { $addToSet: { readBy: userId } }
+    );
+
+    res.json({ success: true, message: "All announcements marked as read." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Mark a single announcement as read
+export const markAsRead = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const announcementId = req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    await Announcement.findByIdAndUpdate(
+      announcementId,
+      { $addToSet: { readBy: userId } }
+    );
+
+    res.json({ success: true, message: "Announcement marked as read." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// GET all announcements for admin view
+export const getAllAnnouncementsAdmin = async (req, res) => {
   try {
     const announcements = await Announcement.find().sort({ PostedDate: -1 });
     res.json({ success: true, announcements });
