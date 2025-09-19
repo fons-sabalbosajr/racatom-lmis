@@ -24,29 +24,39 @@ function Dashboard() {
   const [allLoans, setAllLoans] = useState([]);
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [meta, setMeta] = useState({ page: 1, limit: 5, total: 0 });
+  const [meta, setMeta] = useState({ page: 1, limit: 5, total: 0, pageSizeOptions: ["5", "10", "20", "50"] });
+  const [sort, setSort] = useState({ sortBy: "LoanStatus", sortDir: "asc" });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
 
   const viewLoan = async (record) => {
     setLoading(true);
+    //console.log("Viewing loan record:", record);
     try {
       const loansRes = await api.get(`/loans/client/${record.clientNo}`);
+      //console.log("Loans response:", loansRes.data);
       const docsRes = await api.get(
         `/loans/client/${record.clientNo}/documents`
       );
+      //console.log("Documents response:", docsRes.data);
 
       if (loansRes.data.success && docsRes.data.success) {
         const currentLoan = loansRes.data.data.find(
           (loan) => loan._id === record._id
         );
+        //console.log("Current loan found:", currentLoan);
         if (currentLoan) {
           setSelectedLoan({
             ...currentLoan,
             allClientLoans: loansRes.data.data,
             clientDocuments: docsRes.data.data,
           });
+          // console.log("Selected loan set:", {
+          //   ...currentLoan,
+          //   allClientLoans: loansRes.data.data,
+          //   clientDocuments: docsRes.data.data,
+          // });
           setModalVisible(true);
         } else {
           message.error("Loan details not found.");
@@ -73,8 +83,7 @@ function Dashboard() {
         const totalLoans = loans.length;
         const totalDisbursed = loans.reduce(
           (acc, loan) =>
-            acc +
-            Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+            acc + Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
           0
         );
         const upcomingPayments = loans.filter(
@@ -82,8 +91,7 @@ function Dashboard() {
         ).length;
         const totalLoanAmount = loans.reduce(
           (acc, loan) =>
-            acc +
-            Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+            acc + Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
           0
         );
         const averageLoanAmount =
@@ -130,22 +138,27 @@ function Dashboard() {
     }
   };
 
-  const fetchRecentLoans = async (page, limit) => {
+  const fetchRecentLoans = async (page, limit, sortBy, sortDir, filters = {}) => {
     setLoading(true);
     try {
       const res = await api.get("/loans", {
         params: {
           page,
           limit,
+          sortBy,
+          sortDir,
+          ...filters, // Spread the filters here
         },
       });
       if (res.data.success) {
         setRecentLoans(res.data.data);
         setMeta({
-          page: Number(res.data.currentPage || 1),
-          limit: Number(limit || 1),
-          total: Number(res.data.totalLoans || 0),
+          page: Number(res.data.meta.page || 1),
+          limit: Number(res.data.meta.limit || 5),
+          total: Number(res.data.meta.total || 0),
+          pageSizeOptions: ["5", "10", "20", "50"],
         });
+        //console.log(`Total rows loaded: ${res.data.data.length}`);
       } else {
         message.error("Failed to load recent loans");
       }
@@ -159,12 +172,20 @@ function Dashboard() {
 
   useEffect(() => {
     fetchAllLoansData();
-    fetchRecentLoans(meta.page, meta.limit);
+    fetchRecentLoans(meta.page, meta.limit, sort.sortBy, sort.sortDir);
   }, []);
 
-  const handleTableChange = (pagination) => {
-    console.log("Pagination change:", pagination);
-    fetchRecentLoans(pagination.current, pagination.pageSize);
+  const handleTableChange = (pagination, filters, sorter) => {
+    let sortBy = sort.sortBy;
+    let sortDir = sort.sortDir;
+
+    if (sorter && sorter.field) {
+      sortBy = sorter.field;
+      sortDir = sorter.order === "ascend" ? "asc" : "desc";
+    }
+
+    setSort({ sortBy, sortDir });
+    fetchRecentLoans(pagination.current, pagination.pageSize, sortBy, sortDir, filters);
   };
 
   return (
@@ -188,6 +209,7 @@ function Dashboard() {
           meta={meta}
           handleTableChange={handleTableChange}
           viewLoan={viewLoan}
+          sort={sort}
         />
       </Row>
 

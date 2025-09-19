@@ -334,24 +334,24 @@ export default function LoanDetailsModal({
     const merged = [
       ...(loan?.allClientLoans?.map((l) => ({
         ...l,
-        LoanNo: l.loanInfo?.loanNo || l.LoanNo,
-        LoanType: l.loanInfo?.type,
-        LoanStatus: l.loanInfo?.status,
-        LoanAmount: l.loanInfo?.amount,
-        LoanBalance: l.loanInfo?.balance,
-        LoanAmortization: l.loanInfo?.amortization || "",
-        PaymentMode: l.loanInfo?.paymentMode,
-        StartPaymentDate: l.loanInfo?.startPaymentDate || "",
-        MaturityDate: l.loanInfo?.maturityDate || "",
+        LoanNo: l.loanNo,
+        LoanType: l.LoanType,
+        LoanStatus: l.LoanStatus,
+        LoanAmount: l.LoanAmount,
+        LoanBalance: l.LoanBalance,
+        LoanAmortization: l.LoanAmortization || "",
+        PaymentMode: l.PaymentMode,
+        StartPaymentDate: l.StartPaymentDate || "",
+        MaturityDate: l.MaturityDate || "",
         Source: "Client Loan",
-        PrincipalAmount: l.loanInfo?.principalAmount || "",
-        LoanInterest: l.loanInfo?.interest || "",
-        Penalty: l.loanInfo?.penalty || "",
-        LoanTerm: l.loanInfo?.term || "",
-        LoanProcessStatus: l.loanInfo?.processStatus || "",
-        Date_Encoded: l.loanInfo?.dateEncoded || "",
-        Date_Modified: l.loanInfo?.dateModified || "",
-        CollectorName: l.loanInfo?.collectorName || "",
+        PrincipalAmount: l.PrincipalAmount || "",
+        LoanInterest: l.LoanInterest || "",
+        Penalty: l.Penalty || "",
+        LoanTerm: l.LoanTerm || "",
+        LoanProcessStatus: l.LoanProcessStatus || "",
+        Date_Encoded: l.Date_Encoded || "",
+        Date_Modified: l.Date_Modified || "",
+        CollectorName: l.CollectorName || "",
       })) || []),
       ...(loanDisbursed?.map((d) => ({ ...d, Source: "Disbursed" })) || []),
     ];
@@ -400,6 +400,17 @@ export default function LoanDetailsModal({
     }
   }, [isAddLoanModalVisible]);
 
+  const formatCurrency = (val) => {
+    if (val === undefined || val === null || val === "") {
+      return "₱0.00";
+    }
+    const numericVal = Number(String(val).replace(/[₱,]/g, ""));
+    return `₱${numericVal.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
   const loanInfoColumns = [
     {
       title: "Loan No. & Status",
@@ -407,7 +418,7 @@ export default function LoanDetailsModal({
       render: (record) => (
         <>
           <div>
-            <strong>Loan No:</strong> {record.loanNo || "N/A"}
+            <strong>Loan No:</strong> {record.LoanNo || "N/A"}
           </div>
           <div style={{ fontSize: "12px", color: "#888", marginTop: 4 }}>
             <strong>Loan Type:</strong> {record.LoanType}
@@ -430,14 +441,14 @@ export default function LoanDetailsModal({
       width: 250,
       render: (record) => (
         <>
-          <div>Loan: {record.LoanAmount}</div>
+          <div>Loan: {formatCurrency(record.LoanAmount)}</div>
           {record.PrincipalAmount && (
-            <div>Principal: {record.PrincipalAmount}</div>
+            <div>Principal: {formatCurrency(record.PrincipalAmount)}</div>
           )}
-          <div>Balance: {record.LoanBalance}</div>
-          <div>Interest: {record.LoanInterest}</div>
-          <div>Penalty: {record.Penalty}</div>
-          <div>Amort: {record.LoanAmortization}</div>
+          <div>Balance: {formatCurrency(record.LoanBalance)}</div>
+          <div>Interest: {formatCurrency(record.LoanInterest)}</div>
+          <div>Penalty: {formatCurrency(record.Penalty)}</div>
+          <div>Amort: {formatCurrency(record.LoanAmortization)}</div>
         </>
       ),
     },

@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 
 // Merge / reshape function
 const transformLoan = (doc) => {
-  const loan = doc.toObject();
+  const loan = doc.toObject ? doc.toObject() : doc;
 
   const fullName = [loan.FirstName, loan.MiddleName, loan.LastName]
     .filter(Boolean)
@@ -32,13 +32,10 @@ const transformLoan = (doc) => {
     LoanStatus: loan.LoanStatus || "Unknown",
     LoanProcessStatus: loan.LoanProcessStatus,
     LoanTerm: loan.LoanTerm,
-    LoanAmount: (() => {
-      console.log(`Raw LoanAmount for ${loan.LoanNo}:`, loan.LoanAmount);
-      const convertedAmount = Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, ""));
-      console.log(`Converted LoanAmount for ${loan.LoanNo}:`, convertedAmount);
-      return convertedAmount;
-    })(),
-    LoanAmortization: Number(String(loan.LoanAmortization || 0).replace(/[₱,]/g, "")),
+    LoanAmount: Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+    LoanAmortization: Number(
+      String(loan.LoanAmortization || 0).replace(/[₱,]/g, "")
+    ),
     LoanBalance: Number(String(loan.LoanBalance || 0).replace(/[₱,]/g, "")),
     Penalty: Number(String(loan.Penalty || 0).replace(/[₱,]/g, "")),
     LoanInterest: Number(String(loan.LoanInterest || 0).replace(/[₱,]/g, "")),
@@ -75,57 +72,80 @@ const transformLoan = (doc) => {
   };
 };
 
-
 // GET all loans (with full filtering)
 export const getLoans = async (req, res) => {
   try {
     const {
       page = 1,
       limit = 20,
-      q = "",
+      searchTerm = "",
       loanStatus,
       paymentMode,
-      year, // ✅ new year filter
-      sortBy = "AccountId", // ✅ default sorting
-      sortDir = "asc", // ✅ default ASC
+      year,
+      sortBy = "AccountId",
+      sortDir = "asc",
     } = req.query;
 
     const query = {};
 
-    // 🔎 Full-text search
-    if (q) {
-      query.$text = { $search: q };
+    if (searchTerm) {
+      const searchRegex = new RegExp(searchTerm, 'i'); // Case-insensitive search
+      query.$or = [
+        { LoanNo: { $regex: searchRegex } },
+        { ClientNo: { $regex: searchRegex } },
+        { LastName: { $regex: searchRegex } },
+        { FirstName: { $regex: searchRegex } },
+        { MiddleName: { $regex: searchRegex } },
+        { CollectorName: { $regex: searchRegex } },
+        { LoanStatus: { $regex: searchRegex } },
+        { LoanType: { $regex: searchRegex } },
+        { Barangay: { $regex: searchRegex } },
+        { City: { $regex: searchRegex } },
+        { Province: { $regex: searchRegex } },
+        { PaymentMode: { $regex: searchRegex } },
+        { LoanProcessStatus: { $regex: searchRegex } },
+      ];
     }
 
-    // 🔎 Filter by LoanStatus
-    if (loanStatus) {
-      query.LoanStatus = loanStatus;
-    }
+    
+    
+    
+    
 
-    // 🔎 Filter by PaymentMode
-    if (paymentMode) {
-      query.PaymentMode = paymentMode;
-    }
+    const pipeline = [{ $match: query }];
 
-    // 🔎 Filter by Year (from AccountId e.g. "RCT-2024DB-0001")
-    if (year) {
-      query.AccountId = new RegExp(`^RCT-${year}`, "i");
-    }
-
-    // 🔹 Sort options
-    let sortOptions = {};
-    if (sortBy === "accountId" || sortBy === "AccountId") {
-      // ✅ Natural sort for AccountId
-      sortOptions = { AccountId: sortDir === "asc" ? 1 : -1 };
+    // ✅ in getLoans
+    if (sortBy === "LoanStatus") {
+      const customOrder = [
+        "UPDATED",
+        "PAST DUE",
+        "ARREARS",
+        "LITIGATION",
+        "DORMANT",
+      ];
+      pipeline.push({
+        $addFields: {
+          __sortOrder: {
+            $indexOfArray: [customOrder, { $toUpper: "$LoanStatus" }],
+          },
+        },
+      });
+      pipeline.push({ $sort: { __sortOrder: 1 } }); // ascending by custom order
+    } else if (sortBy === "MaturityDate") {
+      pipeline.push({ $sort: { MaturityDate: -1 } }); // latest first
     } else {
+      const sortOptions = {};
       sortOptions[sortBy] = sortDir === "asc" ? 1 : -1;
+      pipeline.push({ $sort: sortOptions });
     }
 
-    const loans = await LoanApproved.find(query)
-      .collation({ locale: "en", numericOrdering: true })
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .sort(sortOptions);
+    pipeline.push({ $skip: (page - 1) * limit });
+    pipeline.push({ $limit: Number(limit) });
+
+    const loans = await LoanApproved.aggregate(pipeline).collation({
+      locale: "en",
+      numericOrdering: true,
+    });
 
     const total = await LoanApproved.countDocuments(query);
 
@@ -139,7 +159,6 @@ export const getLoans = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
 
 // GET loan by id
 export const getLoanById = async (req, res) => {
@@ -166,7 +185,9 @@ export const updateLoan = async (req, res) => {
     });
 
     if (!updatedLoan) {
-      return res.status(404).json({ success: false, message: "Loan not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan not found" });
     }
 
     res.json({ success: true, data: transformLoan(updatedLoan) });
@@ -220,7 +241,6 @@ export const getLoanYears = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
 
 // DELETE loan
 export const deleteLoan = async (req, res) => {
@@ -294,7 +314,9 @@ export const getLoansByClientNo = async (req, res) => {
     const loans = await LoanApproved.find({ ClientNo: clientNo });
 
     if (!loans || loans.length === 0) {
-      return res.status(404).json({ success: false, message: "No loans found for this client." });
+      return res
+        .status(404)
+        .json({ success: false, message: "No loans found for this client." });
     }
 
     res.json({ success: true, data: loans.map(transformLoan) });
@@ -304,18 +326,20 @@ export const getLoansByClientNo = async (req, res) => {
   }
 };
 
-// Assuming a Document model exists
-// import Document from "../models/Document.js"; // Placeholder import
-
 // GET documents by ClientNo
 export const getDocumentsByClientNo = async (req, res) => {
   try {
     const { clientNo } = req.params;
     // Placeholder: Replace with actual Document model query
-    const documents = []; // await Document.find({ ClientNo: clientNo });
+    // const documents = await Document.find({ ClientNo: clientNo });
+    const documents = []; // No Document model available, returning empty array
 
     if (!documents || documents.length === 0) {
-      return res.json({ success: true, data: [], message: "No documents found for this client." });
+      return res.json({
+        success: true,
+        data: [],
+        message: "No documents found for this client.",
+      });
     }
 
     res.json({ success: true, data: documents });
