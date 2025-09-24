@@ -19,6 +19,7 @@ import userRoutes from "./routes/userRoutes.js";
 import collectorRoutes from "./routes/collectorRoutes.js";
 import loanRoutes from "./routes/loanRoutes.js";
 import loanDisbursedRoutes from "./routes/loanDisburseRoutes.js";
+import loanCollectionRoutes from "./routes/loanCollectionRoutes.js";
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/collectors", collectorRoutes);
 app.use("/api/loans", loanRoutes);
 app.use("/api/loan_disbursed", loanDisbursedRoutes);
+app.use("/api/loan-collections", loanCollectionRoutes);
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {
@@ -59,10 +61,10 @@ const PORT = process.env.PORT || 5000;
 mongoose
   .connect(process.env.MONGO_URI, { dbName: process.env.MONGO_DB_NAME })
   .then(() => {
-    console.log("✅ MongoDB connected");
+    console.log("MongoDB connected");
 
     // Start server
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
     // Cron job: daily at 2:00 AM
     cron.schedule("0 2 * * *", async () => {

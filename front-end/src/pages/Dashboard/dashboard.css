@@ -1,7 +1,4 @@
-.dashboard-container {
-  padding: 10px;
-  background: #f0f2f5;
-}
+
 
 .dashboard-title {
   margin-bottom: 24px !important;
@@ -10,12 +7,35 @@
 .dashboard-card {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-bottom: 20px; /* Add margin for spacing */
 }
 
 .chart-card {
-  height: 400px;
+  /* height: 400px; */ /* Remove fixed height */
 }
 
 .recent-applications-card {
-  height: 500px;
+  /* height: 600px; */ /* Remove fixed height */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 5px;
+  }
+
+  .dashboard-title {
+    margin-bottom: 10px !important;
+  }
+
+  .chart-card,
+  .recent-applications-card {
+    height: auto; /* Allow height to be auto */
+  }
+}
+
+@media (max-width: 576px) {
+  .dashboard-card {
+    margin-bottom: 15px;
+  }
 }

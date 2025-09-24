@@ -50,7 +50,7 @@ function Login() {
       localStorage.setItem("user", encryptData(user));
       // mark user as online
       localStorage.setItem("onlineUser", encryptData(user.Username));
-      message.success(`Welcome, ${user.FullName || values.Username}`);
+      //message.success(`Welcome, ${user.FullName || values.Username}`);
 
       navigate("/"); // redirect to Home
     } catch (err) {

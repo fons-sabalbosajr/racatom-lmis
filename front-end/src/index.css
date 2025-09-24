@@ -35,29 +35,6 @@ a:hover {
   color-scheme: light;
 }
 
-.ant-btn {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  height: 32px !important;       /* standard button height */
-  padding: 0 16px !important;    /* horizontal padding */
-  font-size: 12px !important;
-}
-
-.ant-btn > span {
-  line-height: 32px !important;  /* align text vertically */
-}
-
-/* Small variant */
-.ant-btn.ant-btn-sm {
-  height: 30px !important;
-  border-radius: 6px !important;
-}
-
-.ant-btn.ant-btn-sm > span {
-  line-height: 28px !important;
-}
-
 /* Global Responsiveness */
 
 /* Tablets (e.g., iPads in portrait and landscape) */
@@ -80,17 +57,10 @@ a:hover {
   .ant-layout-content {
     padding: 8px !important;
   }
-  /* Adjust button sizes if needed */
-  .ant-btn {
-    height: 28px !important;
-    padding: 0 12px !important;
-    font-size: 11px !important;
-  }
-  .ant-btn > span {
-    line-height: 28px !important;
-  }
   /* Adjust input sizes if needed */
-  .ant-input, .ant-select-selector, .ant-picker {
+  .ant-input,
+  .ant-select-selector,
+  .ant-picker {
     height: 30px !important;
     font-size: 13px !important;
   }
@@ -111,15 +81,9 @@ a:hover {
   .ant-layout-content {
     padding: 4px !important;
   }
-  .ant-btn {
-    height: 24px !important;
-    padding: 0 8px !important;
-    font-size: 10px !important;
-  }
-  .ant-btn > span {
-    line-height: 24px !important;
-  }
-  .ant-input, .ant-select-selector, .ant-picker {
+  .ant-input,
+  .ant-select-selector,
+  .ant-picker {
     height: 28px !important;
     font-size: 12px !important;
   }

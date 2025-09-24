@@ -4,6 +4,7 @@ import {
   getLoanDisbursedByClientNo,
   getLoanDisbursedByAccountId,
   updateLoanDisbursed,
+  deleteLoanDisbursed,
 } from "../controllers/loanDisbursedController.js";
 
 const router = express.Router();

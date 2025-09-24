@@ -9,7 +9,24 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
+
+// Function to determine bar color based on loan status
+const getStatusColor = (status) => {
+  if (!status) return "#1890ff"; // Default blue
+  const lowerStatus = status.toLowerCase();
+
+  if (lowerStatus.includes("updated")) return "#52c41a"; // Green for updated/paid
+  if (lowerStatus.includes("pending")) return "#faad14"; // Orange for pending
+  if (lowerStatus.includes("rejected")) return "#f5222d"; // Red for rejected
+  if (lowerStatus.includes("past due")) return "#ff7a45"; // Lighter red/orange for past due
+  if (lowerStatus.includes("arrears")) return "#cf1322"; // Darker red for arrears
+  if (lowerStatus.includes("litigation")) return "#820014"; // Very dark red for litigation
+  if (lowerStatus.includes("dormant")) return "#d9d9d9"; // Grey for dormant
+
+  return "#1890ff"; // Default blue for any other status
+};
 
 function LoanStatusChart({ chartData }) {
   return (
@@ -21,7 +38,11 @@ function LoanStatusChart({ chartData }) {
           <YAxis />
           <Tooltip />
           <Legend />
-          <Bar dataKey="count" fill="#8884d8" />
+          <Bar dataKey="count" name="No. of Loan Applications">
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={getStatusColor(entry.name)} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </Card>

@@ -1,0 +1,29 @@
+.collections-filters {
+  display: flex;
+  flex-wrap: wrap; /* Allow items to wrap to the next line */
+  gap: 10px; /* Space between items */
+  margin-bottom: 20px; /* Space below the filter section */
+  align-items: center; /* Vertically align items in the center */
+}
+
+/* Optional: Adjust width for smaller screens if needed */
+@media (max-width: 768px) {
+  .collections-filters .ant-input-search,
+  .collections-filters .ant-select,
+  .collections-filters .ant-picker-range {
+    width: 100% !important; /* Make filter inputs full width on small screens */
+  }
+}
+
+.disbursement-row {
+  background-color: #e6f7ff; /* Light blue for disbursement */
+  font-weight: bold;
+}
+
+.late-payment-row {
+  background-color: #fff1f0; /* Light red for late payments */
+}
+
+.advanced-payment-row {
+  background-color: #f6ffed; /* Light green for advanced payments */
+}

@@ -5,6 +5,8 @@ import dayjs from "dayjs";
 const { Text } = Typography;
 
 export default function LoanPersonalInfoTab({ editedLoan, handleChange }) {
+  const { person, address } = editedLoan || {};
+
   const renderField = (
     label,
     field,
@@ -20,7 +22,7 @@ export default function LoanPersonalInfoTab({ editedLoan, handleChange }) {
           <DatePicker
             value={value ? dayjs(value) : null}
             onChange={(date) =>
-              onChangeHandler(field, date ? date.format("YYYY-MM-DD") : null)
+              onChangeHandler(field, date ? date.toISOString() : null)
             }
             disabled={disabled}
             style={{ width: "100%" }}
@@ -56,52 +58,41 @@ export default function LoanPersonalInfoTab({ editedLoan, handleChange }) {
       <Divider orientation="left">Basic Info</Divider>
       <Row gutter={16}>
         <Col span={8}>
-          {renderField("Last Name", "LastName", editedLoan?.LastName)}
+          {renderField("Last Name", "person.lastName", person?.lastName)}
         </Col>
         <Col span={8}>
-          {renderField("First Name", "FirstName", editedLoan?.FirstName)}
+          {renderField("First Name", "person.firstName", person?.firstName)}
         </Col>
         <Col span={8}>
-          {renderField(
-            "Middle Name",
-            "MiddleName",
-            editedLoan?.MiddleName
-          )}
+          {renderField("Middle Name", "person.middleName", person?.middleName)}
         </Col>
       </Row>
       <Row gutter={16}>
         <Col span={8}>
-          {renderField("Gender", "Gender", editedLoan?.Gender)}
+          {renderField("Gender", "person.gender", person?.gender)}
         </Col>
         <Col span={8}>
           {renderField(
             "Date of Birth",
-            "DateOfBirth",
-            editedLoan?.DateOfBirth,
+            "person.dateOfBirth",
+            person?.dateOfBirth,
             "date"
           )}
         </Col>
         <Col span={8}>
-          {renderField(
-            "Civil Status",
-            "CivilStatus",
-            editedLoan?.CivilStatus
-          )}
+          {renderField("Civil Status", "person.civilStatus", person?.civilStatus)}
         </Col>
       </Row>
       <Row gutter={16}>
         <Col span={12}>
-          {renderField(
-            "Monthly Income",
-            "MonthlyIncome",
-            editedLoan?.MonthlyIncome
-          )}
+          {renderField("Monthly Income", "person.monthlyIncome", person?.monthlyIncome, "number")}
         </Col>
         <Col span={12}>
           {renderField(
             "No. of Children",
-            "NumberOfChildren",
-            editedLoan?.NumberOfChildren
+            "person.numberOfChildren",
+            person?.numberOfChildren,
+            "number"
           )}
         </Col>
       </Row>
@@ -111,89 +102,53 @@ export default function LoanPersonalInfoTab({ editedLoan, handleChange }) {
         <Col span={12}>
           {renderField(
             "Contact Number",
-            "contact.contactNumber",
-            editedLoan?.contact?.contactNumber
+            "person.contactNo",
+            person?.contactNo
           )}
         </Col>
         <Col span={12}>
           {renderField(
             "Alternate Contact",
-            "contact.alternateContactNumber",
-            editedLoan?.contact?.alternateContactNumber
+            "person.alternateContactNo",
+            person?.alternateContactNo
           )}
         </Col>
       </Row>
-      {renderField("Email", "contact.email", editedLoan?.contact?.email)}
+      {renderField("Email", "person.email", person?.email)}
 
       <Divider orientation="left">Address Info</Divider>
       <Row gutter={16}>
         <Col span={8}>
-          {renderField(
-            "Barangay",
-            "address.barangay",
-            editedLoan?.address?.barangay
-          )}
+          {renderField("Barangay", "address.barangay", address?.barangay)}
         </Col>
         <Col span={8}>
-          {renderField("City", "address.city", editedLoan?.address?.city)}
+          {renderField("City", "address.city", address?.city)}
         </Col>
         <Col span={8}>
-          {renderField(
-            "Province",
-            "address.province",
-            editedLoan?.address?.province
-          )}
+          {renderField("Province", "address.province", address?.province)}
         </Col>
       </Row>
-      {renderField(
-        "Birth Address",
-        "BirthAddress",
-        editedLoan?.BirthAddress
-      )}
-      {renderField(
-        "Work Address",
-        "WorkAddress",
-        editedLoan?.WorkAddress
-      )}
+      {renderField("Birth Address", "person.birthAddress", person?.birthAddress)}
+      {renderField("Work Address", "person.workAddress", person?.workAddress)}
 
       <Divider orientation="left">Spouse Info</Divider>
       <Row gutter={16}>
         <Col span={8}>
-          {renderField(
-            "Spouse Last Name",
-            "SpouseLastName",
-            editedLoan?.SpouseLastName
-          )}
+          {renderField("Spouse Last Name", "person.spouseLastName", person?.spouseLastName)}
         </Col>
         <Col span={8}>
-          {renderField(
-            "Spouse First Name",
-            "SpouseFirstName",
-            editedLoan?.SpouseFirstName
-          )}
+          {renderField("Spouse First Name", "person.spouseFirstName", person?.spouseFirstName)}
         </Col>
         <Col span={8}>
-          {renderField(
-            "Spouse Middle Name",
-            "SpouseMiddleName",
-            editedLoan?.SpouseMiddleName
-          )}
+          {renderField("Spouse Middle Name", "person.spouseMiddleName", person?.spouseMiddleName)}
         </Col>
       </Row>
       <Row gutter={16}>
         <Col span={12}>
-          {renderField(
-            "Occupation",
-            "Occupation",
-            editedLoan?.Occupation
-          )}
+          {renderField("Occupation", "person.occupation", person?.occupation)}
         </Col>
         <Col span={12}>
-          {renderField(
-            "Company Name",
-            "CompanyName",
-            editedLoan?.CompanyName
-          )}
+          {renderField("Company Name", "person.companyName", person?.companyName)}
         </Col>
       </Row>
     </>

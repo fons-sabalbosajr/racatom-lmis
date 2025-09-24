@@ -1,10 +1,11 @@
 // src/pages/Loans.jsx
 import React, { useEffect, useState } from "react";
-import { Card, Table, Typography, message } from "antd";
+import { Card, Table, Typography, message, Pagination, Select } from "antd";
 import api from "../../utils/axios";
 import { getLoanColumns } from "./components/LoanColumns";
 import LoanFilters from "./components/LoanFilters";
 import LoanDetailsModal from "./components/LoanDetailsModal";
+import UpdateLoanNoModal from "./components/UpdateLoanNoModal"; // New import
 import "./loan.css";
 
 const { Title } = Typography;
@@ -13,6 +14,15 @@ export default function Loans() {
   const [data, setData] = useState([]);
   const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0 });
   const [loading, setLoading] = useState(false);
+  const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
+  const [singleLoanToUpdate, setSingleLoanToUpdate] = useState(null); // For single loan update from table
+
+  // States for total loans needing update (for the warning)
+  const [totalLoansNeedingUpdateCount, setTotalLoansNeedingUpdateCount] =
+    useState(0);
+  const [allLoansNeedingUpdate, setAllLoansNeedingUpdate] = useState([]);
+  const [fetchingTotalLoansNeedingUpdate, setFetchingTotalLoansNeedingUpdate] =
+    useState(false);
 
   // filters
   const [q, setQ] = useState("");
@@ -29,6 +39,7 @@ export default function Loans() {
 
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
   const [tableParams, setTableParams] = useState({
     current: 1,
     pageSize: 20,
@@ -55,6 +66,7 @@ export default function Loans() {
       if (res.data.success) {
         setData(res.data.data);
         setMeta(res.data.meta);
+        // loansNeedingUpdateCount is now handled by a separate useEffect
       } else {
         message.error("Failed to load loans");
       }
@@ -63,6 +75,31 @@ export default function Loans() {
       message.error("Error loading loans");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔹 Fetch total count of loans needing update (for the warning)
+  const fetchTotalLoansNeedingUpdate = async () => {
+    try {
+      setFetchingTotalLoansNeedingUpdate(true);
+      // Assuming an API endpoint or parameter to get all loans needing update
+      const res = await api.get("/loans", {
+        params: { needsUpdate: true, limit: 10000 },
+      }); // Adjust limit as needed or use a dedicated endpoint
+      if (res.data.success) {
+        const loans = res.data.data.filter(
+          (loan) => loan.loanInfo?.loanNo && loan.loanInfo.loanNo.includes("-R")
+        );
+        setAllLoansNeedingUpdate(loans);
+        setTotalLoansNeedingUpdateCount(loans.length);
+      } else {
+        message.error("Failed to fetch total loans needing update");
+      }
+    } catch (err) {
+      console.error("Error fetching total loans needing update:", err);
+      message.error("Error fetching total loans needing update");
+    } finally {
+      setFetchingTotalLoansNeedingUpdate(false);
     }
   };
 
@@ -87,7 +124,10 @@ export default function Loans() {
       setPaymentModeLoading(true);
       const res = await api.get("/loans/payment-modes");
       if (res.data.success) {
-        setPaymentModeOptions(res.data.data);
+        const filteredPaymentModes = res.data.data.filter(
+          (mode) => mode !== null && mode !== undefined && mode !== ""
+        );
+        setPaymentModeOptions(filteredPaymentModes);
       }
     } catch (err) {
       message.error("Failed to load payment modes");
@@ -120,6 +160,7 @@ export default function Loans() {
       // Fetch other dropdown options concurrently
       fetchStatuses();
       fetchPaymentModes();
+      fetchTotalLoansNeedingUpdate(); // Fetch total count for warning
     };
 
     initialLoad();
@@ -155,29 +196,50 @@ export default function Loans() {
 
   const viewLoan = async (record) => {
     try {
-      setLoading(true);
-      // Fetch all loans for this client
-      const loansRes = await api.get(`/loans/client/${record.clientNo}`);
-      // Fetch documents for this client
-      const docsRes = await api.get(`/loans/client/${record.clientNo}/documents`);
+      setIsModalLoading(true);
+
+      // Fetch full details for this loan
+      const [loansRes, docsRes] = await Promise.all([
+        api.get(`/loans/account/${record.accountId}`),
+        api.get(
+          `/loans/client/${
+            record.clientNo || record.loanInfo?.clientNo
+          }/documents`
+        ),
+      ]);
 
       if (loansRes.data.success && docsRes.data.success) {
-        const currentLoan = loansRes.data.data.find(loan => loan._id === record._id);
-        setSelectedLoan({
-          ...currentLoan,
-          allClientLoans: loansRes.data.data,
-          clientDocuments: docsRes.data.data // Add documents here
-        });
-        setModalVisible(true);
+        const currentLoan = loansRes.data.data.find(
+          (loan) => loan._id === record._id
+        );
+
+        if (currentLoan) {
+          const combinedLoanData = {
+            ...currentLoan,
+            person: record.person,
+            address: record.address,
+            allClientLoans: loansRes.data.data,
+            clientDocuments: docsRes.data.data,
+          };
+          setSelectedLoan(combinedLoanData);
+          setModalVisible(true);
+        } else {
+          message.error("Loan details not found.");
+        }
       } else {
-        message.error("Failed to fetch client data.");
+        message.error("Failed to fetch loan details.");
       }
     } catch (err) {
-      console.error(err);
-      message.error("Error fetching client data.");
+      console.error("Error fetching loan details:", err);
+      message.error("Error fetching loan details.");
     } finally {
-      setLoading(false);
+      setIsModalLoading(false);
     }
+  };
+
+  const onUpdateSingleLoan = (record) => {
+    setSingleLoanToUpdate(record);
+    setIsUpdateModalVisible(true);
   };
 
   const deleteLoan = async (id) => {
@@ -185,6 +247,7 @@ export default function Loans() {
       await api.delete(`/loans/${id}`);
       message.success("Deleted");
       fetchLoans({ page: tableParams.current });
+      fetchTotalLoansNeedingUpdate(); // Refresh total count after delete
     } catch (err) {
       message.error("Delete failed");
     }
@@ -197,11 +260,54 @@ export default function Loans() {
     );
   };
 
-  const columns = getLoanColumns({ viewLoan, deleteLoan });
+  const refreshSelectedLoan = async () => {
+    if (selectedLoan) {
+      try {
+        setIsModalLoading(true);
+        const [loansRes, docsRes] = await Promise.all([
+          api.get(`/loans/account/${selectedLoan.accountId}`),
+          api.get(`/loans/client/${selectedLoan.clientNo}/documents`),
+        ]);
+
+        if (loansRes.data.success && docsRes.data.success) {
+          const currentLoan = loansRes.data.data.find(
+            (loan) => loan._id === selectedLoan._id
+          );
+
+          if (currentLoan) {
+            const combinedLoanData = {
+              ...currentLoan,
+              person: selectedLoan.person,
+              address: selectedLoan.address,
+              allClientLoans: loansRes.data.data,
+              clientDocuments: docsRes.data.data,
+            };
+            setSelectedLoan(combinedLoanData);
+          } else {
+            message.error(
+              "Could not find the specific loan details after refresh."
+            );
+          }
+        } else {
+          message.error("Failed to refresh client data.");
+        }
+      } catch (err) {
+        console.error("Error refreshing client data:", err);
+        message.error("Error refreshing client data.");
+      } finally {
+        setIsModalLoading(false);
+      }
+    }
+  };
+
+  const columns = getLoanColumns({ viewLoan, deleteLoan, onUpdateSingleLoan });
 
   return (
     <Card className="loan-card">
-      <Title level={3}>Loans</Title>
+      <Title level={3} style={{ marginTop: -10 }}>
+        Loan Account Management
+      </Title>
+
       <LoanFilters
         q={q}
         loanStatus={loanStatus}
@@ -220,6 +326,11 @@ export default function Loans() {
         paymentModeLoading={paymentModeLoading}
         yearLoading={yearLoading}
         tableLoading={loading}
+        loansNeedingUpdateCount={totalLoansNeedingUpdateCount} // Use total count
+        onViewUpdateLoans={() => {
+          setSingleLoanToUpdate(null); // Clear single loan selection
+          setIsUpdateModalVisible(true);
+        }}
       />
 
       <Table
@@ -227,21 +338,80 @@ export default function Loans() {
         columns={columns}
         dataSource={data}
         loading={loading}
-        pagination={{
-          current: meta.page,
-          pageSize: meta.limit,
-          total: meta.total,
-        }}
+        pagination={false}
         onChange={handleTableChange}
         scroll={{ x: 1100 }}
         className="loan-table"
+        rowClassName={(record) =>
+          record.loanInfo?.loanNo && record.loanInfo.loanNo.includes("-R")
+            ? "loan-needs-update"
+            : ""
+        }
+        footer={() => (
+          <div
+            style={{ display: "flex", alignItems: "center", padding: "10px 0" }}
+          >
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <Typography.Text italic>
+                Total Loan Accounts: {meta.total}
+              </Typography.Text>
+            </div>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <Pagination
+                current={meta.page}
+                pageSize={meta.limit}
+                total={meta.total}
+                onChange={(page, pageSize) =>
+                  handleTableChange(
+                    { current: page, pageSize: pageSize },
+                    {},
+                    {}
+                  )
+                }
+                showSizeChanger={false} // Disable default size changer
+                showTotal={false} // Disable default total display
+              />
+            </div>
+            <div style={{ flex: 1, textAlign: "right" }}>
+              <Select
+                value={meta.limit}
+                onChange={(value) =>
+                  handleTableChange({ current: 1, pageSize: value }, {}, {})
+                }
+                style={{ width: 120 }}
+              >
+                <Select.Option value={10}>10 / page</Select.Option>
+                <Select.Option value={20}>20 / page</Select.Option>
+                <Select.Option value={50}>50 / page</Select.Option>
+                <Select.Option value={100}>100 / page</Select.Option>
+              </Select>
+            </div>
+          </div>
+        )}
       />
 
       <LoanDetailsModal
-        visible={modalVisible}
+        visible={modalVisible} // <-- FIXED
         onClose={() => setModalVisible(false)}
         loan={selectedLoan}
-        loading={loading}
+        loading={isModalLoading} // optional: pass loading state too
+        onLoanUpdate={refreshSelectedLoan}
+      />
+
+      <UpdateLoanNoModal
+        visible={isUpdateModalVisible}
+        onCancel={() => {
+          setIsUpdateModalVisible(false);
+          setSingleLoanToUpdate(null); // Clear single loan selection on close
+        }}
+        loansToUpdate={
+          singleLoanToUpdate ? [singleLoanToUpdate] : allLoansNeedingUpdate
+        }
+        onLoanUpdated={() => {
+          fetchLoans({ page: tableParams.current }); // Refresh current page
+          fetchTotalLoansNeedingUpdate(); // Refresh total count for warning
+          refreshSelectedLoan(); // Refresh the currently selected loan in the modal
+        }}
       />
     </Card>
   );

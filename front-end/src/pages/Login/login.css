@@ -73,7 +73,6 @@ body,
 .ant-btn-primary {
   border-radius: 8px !important;
   font-weight: 500;
-  height: 40px !important;
   transition: all 0.3s ease;
 }
 

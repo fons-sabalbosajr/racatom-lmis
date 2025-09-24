@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login/Login";
@@ -23,6 +24,9 @@ import Accounting from "./pages/Settings/AccountingCenter/AccountingCenter";
 function App() {
   return (
     <Routes>
+      {/* Default redirect if hitting root */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/create-account" element={<CreateAccount />} />
@@ -40,15 +44,18 @@ function App() {
           </ProtectedRoute>
         }
       >
-        {/* Redirect / to /dashboard */}
-        <Route index element={<Navigate to="dashboard" replace />} />
+        {/* Redirect / to /dashboard (inside protected area) */}
+        <Route index element={<Navigate to="/dashboard" replace />} />
 
-        {/* Nested routes inside Home layout */}
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="loans" element={<Loans />} />
+        <Route
+          path="loans/update-needed"
+          element={<Navigate to="/loans" replace />}
+        />
         <Route path="reports" element={<Reports />} />
 
-        {/* Flattened Settings subpages */}
+        {/* Settings subpages */}
         <Route path="settings/loan-rates" element={<LoanRates />} />
         <Route path="settings/employees" element={<Accounts />} />
         <Route path="settings/collectors" element={<CollectorAccounts />} />
@@ -57,10 +64,10 @@ function App() {
         <Route path="settings/announcements" element={<Announcements />} />
         <Route path="settings/accounting" element={<Accounting />} />
 
-        {/* Optional: redirect /settings to a default subpage */}
+        {/* Default redirect inside settings */}
         <Route
           path="settings"
-          element={<Navigate to="settings/loan-rates" replace />}
+          element={<Navigate to="/settings/loan-rates" replace />}
         />
       </Route>
     </Routes>

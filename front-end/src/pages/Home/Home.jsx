@@ -146,6 +146,7 @@ function Home() {
 
       // Redirect to login
       window.location.replace("/login");
+      
     } catch (err) {
       console.error("Logout error:", err);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Typography, message, Row, Col } from "antd";
 import api from "../../utils/axios";
 import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
@@ -21,10 +21,14 @@ function Dashboard() {
   });
   const [chartData, setChartData] = useState([]);
   const [loanTypeData, setLoanTypeData] = useState([]);
-  const [allLoans, setAllLoans] = useState([]);
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [meta, setMeta] = useState({ page: 1, limit: 5, total: 0, pageSizeOptions: ["5", "10", "20", "50"] });
+  const [meta, setMeta] = useState({
+    page: 1,
+    limit: 5,
+    total: 0,
+    pageSizeOptions: ["5", "10", "20", "50"],
+  });
   const [sort, setSort] = useState({ sortBy: "LoanStatus", sortDir: "asc" });
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -32,31 +36,22 @@ function Dashboard() {
 
   const viewLoan = async (record) => {
     setLoading(true);
-    //console.log("Viewing loan record:", record);
     try {
       const loansRes = await api.get(`/loans/client/${record.clientNo}`);
-      //console.log("Loans response:", loansRes.data);
       const docsRes = await api.get(
         `/loans/client/${record.clientNo}/documents`
       );
-      //console.log("Documents response:", docsRes.data);
 
       if (loansRes.data.success && docsRes.data.success) {
         const currentLoan = loansRes.data.data.find(
           (loan) => loan._id === record._id
         );
-        //console.log("Current loan found:", currentLoan);
         if (currentLoan) {
           setSelectedLoan({
             ...currentLoan,
             allClientLoans: loansRes.data.data,
             clientDocuments: docsRes.data.data,
           });
-          // console.log("Selected loan set:", {
-          //   ...currentLoan,
-          //   allClientLoans: loansRes.data.data,
-          //   clientDocuments: docsRes.data.data,
-          // });
           setModalVisible(true);
         } else {
           message.error("Loan details not found.");
@@ -72,120 +67,134 @@ function Dashboard() {
     }
   };
 
-  const fetchAllLoansData = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get("/loans");
-      if (res.data.success) {
-        const loans = res.data.data;
-        setAllLoans(loans);
-
-        const totalLoans = loans.length;
-        const totalDisbursed = loans.reduce(
-          (acc, loan) =>
-            acc + Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
-          0
-        );
-        const upcomingPayments = loans.filter(
-          (loan) => new Date(loan.MaturityDate) > new Date()
-        ).length;
-        const totalLoanAmount = loans.reduce(
-          (acc, loan) =>
-            acc + Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
-          0
-        );
-        const averageLoanAmount =
-          totalLoans > 0 ? totalLoanAmount / totalLoans : 0;
-
-        setStats({
-          totalLoans,
-          totalDisbursed,
-          upcomingPayments,
-          averageLoanAmount,
+  const fetchDashboardData = useCallback(
+    async (page, limit, sortBy, sortDir, filters) => {
+      setLoading(true);
+      try {
+        // Fetch paginated data for the table first to get meta
+        const recentLoansRes = await api.get("/loans", {
+          params: { page, limit, sortBy, sortDir, ...filters },
         });
 
-        const statusCounts = loans.reduce((acc, loan) => {
-          const status = loan.LoanStatus || "Unknown";
-          acc[status] = (acc[status] || 0) + 1;
-          return acc;
-        }, {});
-        setChartData(
-          Object.keys(statusCounts).map((status) => ({
-            name: status,
-            count: statusCounts[status],
-          }))
-        );
+        if (!recentLoansRes.data.success) {
+          message.error("Failed to load recent loans data.");
+          return;
+        }
 
-        const loanTypeCounts = loans.reduce((acc, loan) => {
-          const type = loan.LoanType || "Unknown";
-          acc[type] = (acc[type] || 0) + 1;
-          return acc;
-        }, {});
-        setLoanTypeData(
-          Object.keys(loanTypeCounts).map((type) => ({
-            name: type,
-            value: loanTypeCounts[type],
-          }))
-        );
-      } else {
-        message.error("Failed to load all dashboard data");
-      }
-    } catch (err) {
-      console.error(err);
-      message.error("Error loading all dashboard data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRecentLoans = async (page, limit, sortBy, sortDir, filters = {}) => {
-    setLoading(true);
-    try {
-      const res = await api.get("/loans", {
-        params: {
-          page,
-          limit,
-          sortBy,
-          sortDir,
-          ...filters, // Spread the filters here
-        },
-      });
-      if (res.data.success) {
-        setRecentLoans(res.data.data);
-        setMeta({
-          page: Number(res.data.meta.page || 1),
-          limit: Number(res.data.meta.limit || 5),
-          total: Number(res.data.meta.total || 0),
+        const newMeta = {
+          page: Number(recentLoansRes.data.meta.page) || 1,
+          limit: Number(recentLoansRes.data.meta.limit) || 5,
+          total: Number(recentLoansRes.data.meta.total) || 0,
           pageSizeOptions: ["5", "10", "20", "50"],
-        });
-        //console.log(`Total rows loaded: ${res.data.data.length}`);
-      } else {
-        message.error("Failed to load recent loans");
+        };
+
+        setRecentLoans(recentLoansRes.data.data);
+        setMeta(newMeta);
+
+        const totalLoans = newMeta.total;
+
+        if (totalLoans > 0) {
+          // If there are loans, fetch all of them to calculate stats
+          const allLoansRes = await api.get("/loans", {
+            params: { ...filters, limit: totalLoans },
+          });
+
+          if (allLoansRes.data.success) {
+            const allLoans = allLoansRes.data.data;
+
+            const totalDisbursed = allLoans.reduce(
+              (acc, loan) =>
+                acc +
+                Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+              0
+            );
+            const upcomingPayments = allLoans.filter(
+              (loan) => new Date(loan.MaturityDate) > new Date()
+            ).length;
+            const totalLoanAmount = allLoans.reduce(
+              (acc, loan) =>
+                acc +
+                Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
+              0
+            );
+            const averageLoanAmount =
+              allLoans.length > 0 ? totalLoanAmount / allLoans.length : 0;
+
+            setStats({
+              totalLoans,
+              totalDisbursed,
+              upcomingPayments,
+              averageLoanAmount,
+            });
+
+            const statusCounts = allLoans.reduce((acc, loan) => {
+              const status = loan.LoanStatus || "Unknown";
+              acc[status] = (acc[status] || 0) + 1;
+              return acc;
+            }, {});
+            setChartData(
+              Object.keys(statusCounts).map((status) => ({
+                name: status,
+                count: statusCounts[status],
+              }))
+            );
+
+            const loanTypeCounts = allLoans.reduce((acc, loan) => {
+              const type = loan.LoanType || "Unknown";
+              acc[type] = (acc[type] || 0) + 1;
+              return acc;
+            }, {});
+            setLoanTypeData(
+              Object.keys(loanTypeCounts).map((type) => ({
+                name: type,
+                value: loanTypeCounts[type],
+              }))
+            );
+          } else {
+            message.error("Failed to load full loan data for statistics.");
+          }
+        } else {
+          // No loans match the filter, reset stats
+          setStats({
+            totalLoans: 0,
+            totalDisbursed: 0,
+            upcomingPayments: 0,
+            averageLoanAmount: 0,
+          });
+          setChartData([]);
+          setLoanTypeData([]);
+        }
+      } catch (err) {
+        console.error(err);
+        message.error("An error occurred while fetching dashboard data.");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error(err);
-      message.error("Error loading recent loans");
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    []
+  );
 
   useEffect(() => {
-    fetchAllLoansData();
-    fetchRecentLoans(meta.page, meta.limit, sort.sortBy, sort.sortDir);
-  }, []);
+    fetchDashboardData(meta.page, meta.limit, sort.sortBy, sort.sortDir, {});
+  }, [fetchDashboardData]);
 
   const handleTableChange = (pagination, filters, sorter) => {
-    let sortBy = sort.sortBy;
-    let sortDir = sort.sortDir;
+    let newSortBy = sort.sortBy;
+    let newSortDir = sort.sortDir;
 
     if (sorter && sorter.field) {
-      sortBy = sorter.field;
-      sortDir = sorter.order === "ascend" ? "asc" : "desc";
+      newSortBy = sorter.field;
+      newSortDir = sorter.order === "ascend" ? "asc" : "desc";
     }
 
-    setSort({ sortBy, sortDir });
-    fetchRecentLoans(pagination.current, pagination.pageSize, sortBy, sortDir, filters);
+    setSort({ sortBy: newSortBy, sortDir: newSortDir });
+    fetchDashboardData(
+      pagination.current,
+      pagination.pageSize,
+      newSortBy,
+      newSortDir,
+      filters
+    );
   };
 
   return (

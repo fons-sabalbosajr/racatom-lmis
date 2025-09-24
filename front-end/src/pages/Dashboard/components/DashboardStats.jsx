@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Card, Col, Row, Statistic } from "antd";
 import { UserOutlined, ScheduleOutlined } from "@ant-design/icons";
 
 function DashboardStats({ stats, loading }) {
+  useEffect(() => {
+    //console.log("DashboardStats props:", { stats, loading });
+  }, [stats, loading]);
+
   return (
     <Row gutter={[16, 16]}>
       <Col xs={24} sm={12} md={6}>

@@ -16,7 +16,17 @@ const statusColor = (status) => {
   return "blue";
 };
 
-export const getLoanColumns = ({ viewLoan, deleteLoan }) => [
+const formatCurrency = (value) => {
+  const number = Number(value) || 0;
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(number);
+};
+
+export const getLoanColumns = ({ viewLoan, deleteLoan, onUpdateSingleLoan }) => [
   {
     title: "Account / Loan",
     dataIndex: "accountId", // ✅ set actual field for sorter
@@ -71,8 +81,10 @@ export const getLoanColumns = ({ viewLoan, deleteLoan }) => [
     key: "loanInfo",
     render: (li) => (
       <div className="loan-col-info">
-        <div>{li?.amount}</div>
-        <div className="loan-col-sub">Balance: {li?.balance}</div>
+        <div>{formatCurrency(li?.amount)}</div>
+        <div className="loan-col-sub">
+          Balance: {formatCurrency(li?.balance)}
+        </div>
         <div>
           <Tag>{li?.paymentMode}</Tag>
         </div>
@@ -103,11 +115,19 @@ export const getLoanColumns = ({ viewLoan, deleteLoan }) => [
     render: (_, record) => (
       <Space>
         <Button
+          type="primary"
           icon={<EyeOutlined />}
           size="small"
-          type="primary"
           onClick={() => viewLoan(record)}
         />
+        {record.loanInfo?.loanNo && record.loanInfo.loanNo.includes("-R") && (
+          <Button
+            className="update-loan-button"
+            icon={<EditOutlined />}
+            size="small"
+            onClick={() => onUpdateSingleLoan(record)}
+          />
+        )}
         
         <Popconfirm
           title="Delete loan?"

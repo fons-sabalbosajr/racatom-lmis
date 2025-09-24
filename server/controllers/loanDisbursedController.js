@@ -78,3 +78,22 @@ export const updateLoanDisbursed = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// Delete a loan disbursed record by ID
+export const deleteLoanDisbursed = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedLoan = await LoanDisbursed.findByIdAndDelete(id);
+
+    if (!deletedLoan) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan disbursed record not found" });
+    }
+
+    res.json({ success: true, message: "Loan disbursed record deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting loan disbursed record:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

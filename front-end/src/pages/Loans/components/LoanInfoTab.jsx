@@ -4,46 +4,21 @@ import dayjs from "dayjs";
 
 const { Text } = Typography;
 
-export default function LoanInfoTab({
-  mergedLoans,
-  loanInfoColumns,
-  setIsAddLoanModalVisible,
-  handleEditLoanRecord,
-}) {
-  const columns = loanInfoColumns.map((col) => {
-    if (col.key === "action") {
-      return {
-        ...col,
-        render: (text, record) => (
-          <Space size="middle">
-            <Button type="primary" onClick={() => handleEditLoanRecord(record)}>
-              Edit
-            </Button>
-            <Button danger>Delete</Button>
-          </Space>
-        ),
-      };
-    }
-    return col;
-  });
-
+export default function LoanInfoTab({ mergedLoans, loanInfoColumns }) {
   return (
     <>
-      <Divider orientation="left">Loan Records</Divider>
-      <Button
-        type="primary"
-        onClick={() => setIsAddLoanModalVisible(true)}
-        style={{ marginBottom: 16 }}
-      >
-        Add Loan Record
-      </Button>
       <Table
         dataSource={mergedLoans}
-        columns={columns}
+        columns={loanInfoColumns}
         rowKey={(record) => record._id || `${record.Source}-${record.LoanNo}`}
         pagination={false}
         size="small"
         scroll={{ y: 250 }}
+        footer={() => (
+          <Text italic style={{ fontSize: "11px" }}>
+            Total Loan Cycles: {mergedLoans.length}
+          </Text>
+        )}
       />
     </>
   );

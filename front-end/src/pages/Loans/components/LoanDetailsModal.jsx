@@ -15,12 +15,15 @@ import {
   Card,
   Tag,
   Tooltip,
+  Popconfirm,
 } from "antd";
 import {
   EditOutlined,
   SaveOutlined,
   CloseOutlined,
   InfoCircleOutlined,
+  PlusOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
@@ -29,6 +32,7 @@ import LoanRateConfig from "../../Settings/LoanRateConfig/LoanRateConfig";
 import LoanPersonalInfoTab from "./LoanPersonalInfoTab";
 import LoanInfoTab from "./LoanInfoTab";
 import LoanDocumentsTab from "./LoanDocumentsTab";
+import Collections from "../../Collections/Collections";
 
 const { Text } = Typography;
 const { TabPane } = Tabs;
@@ -77,6 +81,12 @@ const LOAN_PROCESS_STATUS_COLORS = {
   Releasing: "purple",
 };
 
+// Colors for Loan Type
+const LOAN_TYPE_COLORS = {
+  New: "blue",
+  Renewal: "purple",
+};
+
 export default function LoanDetailsModal({
   visible,
   onClose,
@@ -112,8 +122,10 @@ export default function LoanDetailsModal({
     Date_Encoded: null,
     Date_Modified: null,
     CollectorName: "",
+    Remarks: "",
   });
   const [mergedLoans, setMergedLoans] = useState([]);
+  const [loanCollections, setLoanCollections] = useState([]); // New state for collections
   const [isLoanRateModalVisible, setIsLoanRateModalVisible] = useState(false);
 
   useEffect(() => {
@@ -146,24 +158,45 @@ export default function LoanDetailsModal({
   }, [visible]);
 
   useEffect(() => {
-    if (loan?.ClientNo) {
-      //console.log("Fetching disbursed loans for ClientNo:", loan.ClientNo);
-      api
-        .get(`/loan_disbursed/client/${loan.ClientNo}`)
-        .then((res) => {
-          //console.log("API response for disbursed loans:", res.data);
-          if (res.data.success) {
-            setLoanDisbursed(res.data.data);
-            //console.log("Loan disbursed data set:", res.data.data);
+    if (loan?.clientNo) {
+      const fetchLoanData = async () => {
+        try {
+          const [disbursedRes] = await Promise.all([
+            api.get(`/loan_disbursed/client/${loan.clientNo}`),
+          ]);
+
+          if (disbursedRes.data.success) {
+            setLoanDisbursed(disbursedRes.data.data);
           } else {
             setLoanDisbursed([]);
-            //console.log("API call for disbursed loans not successful.");
           }
-        })
-        .catch((err) => {
-          console.error("Error fetching disbursed loans:", err);
+
+          // Get all unique LoanCycleNos from clientLoans and disbursedLoans
+          const allLoanCycleNos = new Set();
+          loan?.allClientLoans?.forEach((l) => {
+            if (l.LoanCycleNo) allLoanCycleNos.add(l.LoanCycleNo);
+          });
+          disbursedRes.data.data?.forEach((d) => {
+            if (d.LoanCycleNo) allLoanCycleNos.add(d.LoanCycleNo);
+          });
+
+          const collectionPromises = Array.from(allLoanCycleNos).map((cycleNo) =>
+            api.get(`/loan-collections/${cycleNo}`, { params: { limit: 0 } }) // Fetch all collections for running balance calculation
+          );
+
+          const collectionsResults = await Promise.all(collectionPromises);
+          const allCollections = collectionsResults.flatMap((res) =>
+            res.data.success ? res.data.data : []
+          );
+          setLoanCollections(allCollections);
+        } catch (err) {
+          console.error("Error fetching loan data:", err);
+          message.error("Error fetching loan data.");
           setLoanDisbursed([]);
-        });
+          setLoanCollections([]);
+        }
+      };
+      fetchLoanData();
     }
   }, [loan]);
 
@@ -212,10 +245,14 @@ export default function LoanDetailsModal({
     setNewLoanRecord((prev) => {
       let updatedRecord = { ...prev, [field]: value };
 
-      if (field === "LoanType" && value === "Renewal" && loan?.LoanNo) {
-        // Find the highest renewal number for this loan
-        const renewalLoans = loanDisbursed.filter(
-          (d) => d.LoanNo && d.LoanNo.startsWith(`${loan.LoanNo}-R`)
+      if (
+        field === "LoanType" &&
+        value === "Renewal" &&
+        loan?.loanInfo.loanNo
+      ) {
+        const baseLoanNo = loan.loanInfo.loanNo.split("-R")[0];
+        const renewalLoans = mergedLoans.filter(
+          (d) => d.LoanNo && d.LoanNo.startsWith(`${baseLoanNo}-R`)
         );
         let maxRenewalNum = 0;
         renewalLoans.forEach((rl) => {
@@ -224,9 +261,13 @@ export default function LoanDetailsModal({
             maxRenewalNum = Math.max(maxRenewalNum, parseInt(match[1], 10));
           }
         });
-        updatedRecord.LoanNo = `${loan.LoanNo}-R${maxRenewalNum + 1}`;
-      } else if (field === "LoanType" && value === "New" && loan?.LoanNo) {
-        updatedRecord.LoanNo = loan.LoanNo; // Reset to original loan number for new loans
+        updatedRecord.LoanNo = `${baseLoanNo}-R${maxRenewalNum + 1}`;
+      } else if (
+        field === "LoanType" &&
+        value === "New" &&
+        loan?.loanInfo.loanNo
+      ) {
+        updatedRecord.LoanNo = loan.loanInfo.loanNo.split("-R")[0];
       }
 
       return updatedRecord;
@@ -235,57 +276,21 @@ export default function LoanDetailsModal({
 
   const handleAddLoanRecordSubmit = async () => {
     try {
-      let baseLoanNo = newLoanRecord.loanNo; // e.g., RCT-2024-11546
-
-      // ✅ Check existing disbursed loans of this client
-      const existingLoans = loanDisbursed.filter((l) =>
-        l.LoanNo?.startsWith(baseLoanNo)
-      );
-
-      let newLoanNo = baseLoanNo;
-
-      if (existingLoans.length > 0) {
-        // Extract renewal suffix numbers (-R1, -R2, etc.)
-        const renewalNumbers = existingLoans
-          .map((l) => {
-            const match = l.LoanNo?.match(/-R(\d+)$/);
-            return match ? parseInt(match[1], 10) : 0;
-          })
-          .filter((num) => num > 0);
-
-        const nextRenewal =
-          renewalNumbers.length > 0 ? Math.max(...renewalNumbers) + 1 : 1;
-
-        newLoanNo = `${baseLoanNo}-R${nextRenewal}`;
-      }
-
-      // ✅ Call API with generated LoanNo
       const res = await api.post("/loan_disbursed", {
         ...newLoanRecord,
-        LoanNo: newLoanNo, // always system-generated
-        ClientNo: loan.ClientNo,
+        ClientNo: loan.clientNo,
+        AccountId: loan.accountId,
       });
 
       if (res.data.success) {
-        message.success(
-          `New loan record added successfully! LoanNo: ${newLoanNo}`
-        );
+        message.success("New loan record added successfully!");
         setIsAddLoanModalVisible(false);
-
-        // Refresh the loan disbursed list
-        if (loan?.ClientNo) {
-          try {
-            const refreshRes = await api.get(
-              `/loan_disbursed/client/${loan.ClientNo}`
-            );
-            if (refreshRes.data.success) {
-              setLoanDisbursed(refreshRes.data.data);
-            } else {
-              setLoanDisbursed([]);
-            }
-          } catch (err) {
-            console.error("Error fetching disbursed loans:", err);
-            setLoanDisbursed([]);
+        if (loan?.clientNo) {
+          const refreshRes = await api.get(
+            `/loan_disbursed/client/${loan.clientNo}`
+          );
+          if (refreshRes.data.success) {
+            setLoanDisbursed(refreshRes.data.data);
           }
         }
       } else {
@@ -302,75 +307,171 @@ export default function LoanDetailsModal({
     setIsEditLoanRecordModalVisible(true);
   };
 
+  const handleDeleteLoanRecord = async (record) => {
+    try {
+      if (record.Source === "Client Loan") {
+        await api.delete(`/loans/${record._id}`);
+      } else if (record.Source === "Disbursed") {
+        await api.delete(`/loan_disbursed/${record._id}`);
+      } else {
+        message.error("Unknown loan source, cannot delete.");
+        return;
+      }
+
+      message.success("Loan record deleted successfully.");
+
+      setMergedLoans((prev) => prev.filter((item) => item._id !== record._id));
+    } catch (err) {
+      console.error("Error deleting loan record:", err);
+      message.error(
+        err.response?.data?.message || "Failed to delete loan record."
+      );
+    }
+  };
+
   const handleEditLoanRecordChange = (field, value) => {
+    //console.log(`Updating field: ${field}, with value: ${value}`);
     setEditingLoanRecord((prev) => ({
       ...prev,
       [field]: value,
     }));
-
-    setMergedLoans((prevLoans) =>
-      prevLoans.map((loan) =>
-        loan._id === editingLoanRecord._id ? { ...loan, [field]: value } : loan
-      )
-    );
   };
 
-  const handleUpdateLoanRecord = () => {
+  const handleUpdateLoanRecord = async () => {
     try {
-      // await api.updateLoan(editingLoanRecord);
-      setMergedLoans((prevLoans) =>
-        prevLoans.map((loan) =>
-          loan._id === editingLoanRecord._id ? editingLoanRecord : loan
-        )
-      );
-      setIsEditLoanRecordModalVisible(false);
-      message.success("Loan record updated successfully!");
+      let res;
+      const payload = { ...editingLoanRecord };
+
+      if (payload.Source === "Disbursed") {
+        // Convert numeric fields to strings for LoanDisbursed schema
+        const numericFields = [
+          "LoanAmount",
+          "PrincipalAmount",
+          "LoanBalance",
+          "LoanInterest",
+          "Penalty",
+          "LoanAmortization",
+        ];
+        numericFields.forEach((field) => {
+          if (typeof payload[field] === "number") {
+            payload[field] = String(payload[field]);
+          }
+        });
+        res = await api.put(`/loan_disbursed/${payload._id}`, payload);
+      } else if (payload.Source === "Client Loan") {
+        res = await api.put(`/loans/${payload._id}`, payload);
+      }
+
+      if (res.data.success) {
+        message.success("Loan record updated successfully!");
+        setIsEditLoanRecordModalVisible(false);
+        if (onLoanUpdate) {
+          onLoanUpdate(); // Call parent's update handler
+        }
+      } else {
+        message.error(res.data.message || "Failed to update loan record.");
+      }
     } catch (err) {
+      console.error("Error updating loan record:", err);
       message.error("Failed to update loan record. Please try again.");
     }
   };
 
   useEffect(() => {
-    const merged = [
-      ...(loan?.allClientLoans?.map((l) => ({
-        ...l,
-        LoanNo: l.loanNo,
-        LoanType: l.LoanType,
-        LoanStatus: l.LoanStatus,
-        LoanAmount: l.LoanAmount,
-        LoanBalance: l.LoanBalance,
-        LoanAmortization: l.LoanAmortization || "",
-        PaymentMode: l.PaymentMode,
-        StartPaymentDate: l.StartPaymentDate || "",
-        MaturityDate: l.MaturityDate || "",
-        Source: "Client Loan",
-        PrincipalAmount: l.PrincipalAmount || "",
-        LoanInterest: l.LoanInterest || "",
-        Penalty: l.Penalty || "",
-        LoanTerm: l.LoanTerm || "",
-        LoanProcessStatus: l.LoanProcessStatus || "",
-        Date_Encoded: l.Date_Encoded || "",
-        Date_Modified: l.Date_Modified || "",
-        CollectorName: l.CollectorName || "",
-      })) || []),
-      ...(loanDisbursed?.map((d) => ({ ...d, Source: "Disbursed" })) || []),
-    ];
+    const clientLoans =
+      loan?.allClientLoans?.map((l) => {
+        const latestCollection = loanCollections
+          .filter((collection) => collection.LoanCycleNo === l.LoanCycleNo)
+          .sort((a, b) => {
+            // Sort by PaymentDate descending, then createdAt descending
+            const dateA = dayjs(a.PaymentDate || a.createdAt);
+            const dateB = dayjs(b.PaymentDate || b.createdAt);
+            if (dateA.isBefore(dateB)) return 1;
+            if (dateA.isAfter(dateB)) return -1;
+
+            const createdA = dayjs(a.createdAt);
+            const createdB = dayjs(b.createdAt);
+            if (createdA.isBefore(createdB)) return 1;
+            if (createdA.isAfter(createdB)) return -1;
+            return 0;
+          })[0];
+
+        return {
+          _id: l._id,
+          LoanNo: l.loanInfo?.loanNo,
+          LoanType: l.loanInfo?.type,
+          LoanStatus: l.loanInfo?.status,
+          LoanAmount: l.loanInfo?.amount,
+          PrincipalAmount: l.loanInfo?.principal,
+          LoanInterest: l.loanInfo?.interest,
+          Penalty: l.loanInfo?.penalty,
+          LoanTerm: l.loanInfo?.term,
+          LoanProcessStatus: l.loanInfo?.processStatus,
+          CollectorName: l.loanInfo?.collectorName,
+          Remarks: l.loanInfo?.remarks,
+          Source: "Client Loan",
+          PaymentMode: l.loanInfo?.paymentMode,
+          StartPaymentDate: l.loanInfo?.startPaymentDate,
+          MaturityDate: l.loanInfo?.maturityDate,
+          // Use RunningBalance from latest collection, or default to LoanBalance
+          RunningBalance: latestCollection
+            ? parseFloat(latestCollection.RunningBalance)
+            : l.loanInfo?.balance,
+        };
+      }) || [];
+
+    const clientLoanNos = new Set(clientLoans.map((l) => l.LoanNo));
+
+    const disbursedLoans =
+      loanDisbursed
+        ?.filter((d) => !clientLoanNos.has(d.LoanNo))
+        .map((d) => {
+          const latestCollection = loanCollections
+            .filter((collection) => collection.LoanCycleNo === d.LoanCycleNo)
+            .sort((a, b) => {
+              const dateA = dayjs(a.PaymentDate || a.createdAt);
+              const dateB = dayjs(b.PaymentDate || b.createdAt);
+              if (dateA.isBefore(dateB)) return 1;
+              if (dateA.isAfter(dateB)) return -1;
+
+              const createdA = dayjs(a.createdAt);
+              const createdB = dayjs(b.createdAt);
+              if (createdA.isBefore(createdB)) return 1;
+              if (createdA.isAfter(createdB)) return -1;
+              return 0;
+            })[0];
+
+          return {
+            ...d,
+            StartPaymentDate: d.StartPaymentDate
+              ? dayjs(d.StartPaymentDate).toISOString()
+              : null,
+            MaturityDate: d.MaturityDate
+              ? dayjs(d.MaturityDate).toISOString()
+              : null,
+            Remarks: d.Remarks,
+            Source: "Disbursed",
+            // Use RunningBalance from latest collection, or default to LoanBalance
+            RunningBalance: latestCollection
+              ? parseFloat(latestCollection.RunningBalance)
+              : d.LoanBalance,
+          };
+        }) || [];
+
+    const merged = [...clientLoans, ...disbursedLoans];
 
     setMergedLoans(merged);
-  }, [loan, loanDisbursed]);
+  }, [loan, loanDisbursed, loanCollections]);
 
-  // utility function to generate new loan number
   const generateLoanNo = (lastLoanNo, isRenewal = false) => {
     const year = new Date().getFullYear();
     let baseNumber;
 
     if (!lastLoanNo) {
-      // first loan case
-      baseNumber = 11546; // or fetch from DB / increment logic
+      baseNumber = 11546;
       return `RCT-${year}-${baseNumber}`;
     }
 
-    // if renewal, add/increment R suffix
     if (isRenewal) {
       const renewalMatch = lastLoanNo.match(/-R(\d+)$/);
       if (renewalMatch) {
@@ -381,7 +482,6 @@ export default function LoanDetailsModal({
       }
     }
 
-    // default incrementing the sequence number
     const parts = lastLoanNo.split("-");
     baseNumber = parseInt(parts[2], 10) + 1;
     return `RCT-${year}-${baseNumber}`;
@@ -389,16 +489,17 @@ export default function LoanDetailsModal({
 
   useEffect(() => {
     if (isAddLoanModalVisible) {
-      // assume you have loanDisbursed as the current list
-      const lastLoan = loanDisbursed?.[loanDisbursed.length - 1];
+      const lastLoan =
+        mergedLoans.filter((l) => l.Source === "Disbursed").slice(-1)[0] ||
+        mergedLoans.slice(-1)[0];
       const lastLoanNo = lastLoan?.LoanNo;
 
       setNewLoanRecord((prev) => ({
         ...prev,
-        LoanNo: generateLoanNo(lastLoanNo, false), // false = new, not renewal
+        LoanNo: generateLoanNo(lastLoanNo, false),
       }));
     }
-  }, [isAddLoanModalVisible]);
+  }, [isAddLoanModalVisible, mergedLoans]);
 
   const formatCurrency = (val) => {
     if (val === undefined || val === null || val === "") {
@@ -421,14 +522,35 @@ export default function LoanDetailsModal({
             <strong>Loan No:</strong> {record.LoanNo || "N/A"}
           </div>
           <div style={{ fontSize: "12px", color: "#888", marginTop: 4 }}>
-            <strong>Loan Type:</strong> {record.LoanType}
+            <strong>Loan Type:</strong>{" "}
+            <Tag
+              style={{ fontSize: "10px" }}
+              color={LOAN_TYPE_COLORS[record.LoanType] || "default"}
+            >
+              {record.LoanType}
+            </Tag>
           </div>
           <div style={{ marginTop: 8 }}>
-            <strong>Status:</strong> {record.LoanStatus}
+            <strong>Status:</strong>{" "}
+            <Tag
+              style={{ fontSize: "10px" }}
+              color={LOAN_STATUS_COLORS[record.LoanStatus] || "default"}
+            >
+              {record.LoanStatus}
+            </Tag>
           </div>
           {record.LoanProcessStatus && (
-            <div style={{ fontSize: "12px", color: "#888" }}>
-              <strong>Process Status:</strong> {record.LoanProcessStatus}
+            <div style={{ fontSize: "12px", color: "#888", marginTop: 4 }}>
+              <strong>Process Status:</strong>{" "}
+              <Tag
+                style={{ fontSize: "10px" }}
+                color={
+                  LOAN_PROCESS_STATUS_COLORS[record.LoanProcessStatus] ||
+                  "default"
+                }
+              >
+                {record.LoanProcessStatus}
+              </Tag>
             </div>
           )}
         </>
@@ -438,14 +560,14 @@ export default function LoanDetailsModal({
     {
       title: "Amounts",
       key: "amounts",
-      width: 250,
+      width: 180,
       render: (record) => (
         <>
           <div>Loan: {formatCurrency(record.LoanAmount)}</div>
           {record.PrincipalAmount && (
             <div>Principal: {formatCurrency(record.PrincipalAmount)}</div>
           )}
-          <div>Balance: {formatCurrency(record.LoanBalance)}</div>
+          <div>Balance: {formatCurrency(record.RunningBalance)}</div>
           <div>Interest: {formatCurrency(record.LoanInterest)}</div>
           <div>Penalty: {formatCurrency(record.Penalty)}</div>
           <div>Amort: {formatCurrency(record.LoanAmortization)}</div>
@@ -455,6 +577,7 @@ export default function LoanDetailsModal({
     {
       title: "Dates, Term & Collector",
       key: "datesTermAndCollector",
+      width: 200,
       render: (record) => (
         <>
           {record.StartPaymentDate && (
@@ -482,14 +605,36 @@ export default function LoanDetailsModal({
       ),
     },
     {
+      title: "Remarks",
+      dataIndex: "Remarks", // Assuming the field name is 'Remarks'
+      key: "remarks",
+      width: 150, // Adjust width as needed
+      render: (text) => text || "N/A", // Display "N/A" if remarks are empty
+    },
+    {
       title: "Action",
       key: "action",
+      width: 100, // Adjusted width for icons
       render: (text, record) => (
-        <Space size="middle">
-          <Button type="primary" onClick={() => handleEditLoanRecord(record)}>
-            Edit
-          </Button>
-          <Button danger>Delete</Button>
+        <Space size="small">
+          <Tooltip title="Edit">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => handleEditLoanRecord(record)}
+              size="small"
+            />
+          </Tooltip>
+          <Popconfirm
+            title="Are you sure you want to delete this record?"
+            onConfirm={() => handleDeleteLoanRecord(record)}
+            okText="Yes"
+            cancelText="No"
+          >
+            <Tooltip title="Delete">
+              <Button danger icon={<DeleteOutlined />} size="small" />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -506,24 +651,22 @@ export default function LoanDetailsModal({
   ) => {
     const handleChange = (val) => {
       if (field === "LoanType") {
-        // Special handling for LoanType
         setNewLoanRecord((prev) => {
           let updatedRecord = { ...prev, LoanType: val };
-
-          let baseLoanNo = prev.LoanNo ? prev.LoanNo.split("-R")[0] : "";
+          const baseLoanNo = loan.loanInfo.loanNo.split("-R")[0];
 
           if (val === "Renewal") {
-            // Scan existing renewals
-            const existingRenewals = loanDisbursed
-              .map((loan) => loan.LoanNo)
-              .filter((ln) => ln.startsWith(baseLoanNo) && ln.includes("-R"))
-              .map((ln) => parseInt(ln.split("-R")[1] || "0", 10));
-
-            const nextRenewal = existingRenewals.length
-              ? Math.max(...existingRenewals) + 1
-              : 1;
-
-            updatedRecord.LoanNo = `${baseLoanNo}-R${nextRenewal}`;
+            const renewalLoans = mergedLoans.filter(
+              (d) => d.LoanNo && d.LoanNo.startsWith(`${baseLoanNo}-R`)
+            );
+            let maxRenewalNum = 0;
+            renewalLoans.forEach((rl) => {
+              const match = rl.LoanNo.match(/-R(\d+)$/);
+              if (match) {
+                maxRenewalNum = Math.max(maxRenewalNum, parseInt(match[1], 10));
+              }
+            });
+            updatedRecord.LoanNo = `${baseLoanNo}-R${maxRenewalNum + 1}`;
           } else {
             updatedRecord.LoanNo = baseLoanNo;
           }
@@ -558,7 +701,7 @@ export default function LoanDetailsModal({
           <DatePicker
             value={value ? dayjs(value) : null}
             onChange={(date) =>
-              handleChange(date ? date.format("MM/DD/YYYY") : null)
+              handleChange(field, date ? date.toISOString() : null)
             }
             disabled={disabled}
             style={{ width: "100%" }}
@@ -566,7 +709,7 @@ export default function LoanDetailsModal({
         ) : type === "number" ? (
           <InputNumber
             value={value || 0}
-            onChange={(val) => handleChange(val)}
+            onChange={(val) => handleChange(field, val)}
             disabled={disabled}
             style={{ width: "100%" }}
             size="small"
@@ -575,8 +718,8 @@ export default function LoanDetailsModal({
           />
         ) : type === "select" ? (
           <Select
-            value={value || undefined}
-            onChange={(val) => handleChange(val)}
+            value={value === null || value === undefined ? null : value}
+            onChange={(val) => onChangeHandler(field, val)}
             disabled={disabled}
             style={{ width: "100%" }}
             placeholder={`Select ${label}`}
@@ -612,7 +755,7 @@ export default function LoanDetailsModal({
         ) : (
           <Input
             value={value || ""}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={(e) => handleChange(field, e.target.value)}
             disabled={disabled}
             size="small"
             style={{ width: "100%", height: 32 }}
@@ -627,15 +770,28 @@ export default function LoanDetailsModal({
     <Modal
       title="Loan Details"
       open={visible}
-      width={950}
+      width={1200}
       onCancel={onClose}
       footer={[
-        activeTabKey !== "2" && !isEditing && (
+        // Add Loan Record button (only for Loan Information tab when not editing)
+        activeTabKey === "2" && !isEditing && (
+          <Button
+            key="addLoanRecord"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setIsAddLoanModalVisible(true)}
+          >
+            Add Loan Record
+          </Button>
+        ),
+        // Edit button (for tabs 1, 2, 3 when not editing)
+        activeTabKey !== "4" && !isEditing && (
           <Button key="edit" icon={<EditOutlined />} onClick={handleEdit}>
             Edit
           </Button>
         ),
-        activeTabKey !== "2" && isEditing && (
+        // Save button (for tabs 1, 2, 3 when editing)
+        activeTabKey !== "4" && isEditing && (
           <Button
             key="save"
             type="primary"
@@ -645,14 +801,18 @@ export default function LoanDetailsModal({
             Save
           </Button>
         ),
-        activeTabKey !== "2" && isEditing && (
+        // Cancel button (for tabs 1, 2, 3 when editing)
+        activeTabKey !== "4" && isEditing && (
           <Button key="cancel" icon={<CloseOutlined />} onClick={handleCancel}>
             Cancel
           </Button>
         ),
-        <Button key="close" onClick={onClose}>
-          Close
-        </Button>,
+        // Close button (for tabs 1, 2, 3)
+        activeTabKey !== "4" && (
+          <Button key="close" onClick={onClose}>
+            Close
+          </Button>
+        ),
       ].filter(Boolean)}
     >
       {loading ? (
@@ -663,7 +823,6 @@ export default function LoanDetailsModal({
           activeKey={activeTabKey}
           onChange={setActiveTabKey}
         >
-          {/* Personal Info */}
           <TabPane tab="Personal Information" key="1">
             <LoanPersonalInfoTab
               editedLoan={editedLoan}
@@ -671,26 +830,27 @@ export default function LoanDetailsModal({
             />
           </TabPane>
 
-          {/* Loan Info */}
           <TabPane tab="Loan Information" key="2">
             <LoanInfoTab
-              mergedLoans={mergedLoans} // ✅ now state-driven
+              mergedLoans={mergedLoans}
               loanInfoColumns={loanInfoColumns}
               setIsAddLoanModalVisible={setIsAddLoanModalVisible}
               handleEditLoanRecord={handleEditLoanRecord}
+              handleDeleteLoanRecord={handleDeleteLoanRecord} // Pass down the delete handler
             />
           </TabPane>
 
-          {/* Documents */}
           <TabPane tab="Documents" key="3">
-            <LoanDocumentsTab />
+            <LoanDocumentsTab documents={loan.clientDocuments} />
+          </TabPane>
+          <TabPane tab="Collections" key="4">
+            {loan && <Collections loan={loan} />}
           </TabPane>
         </Tabs>
       ) : (
         <div>No loan details</div>
       )}
 
-      {/* Modal for Adding New Loan Record */}
       <Modal
         title="Add New Loan Record"
         open={isAddLoanModalVisible}
@@ -700,7 +860,6 @@ export default function LoanDetailsModal({
       >
         <>
           <Row gutter={16} align="stretch">
-            {/* Loan Details */}
             <Col span={12}>
               <Card
                 title="Loan Details"
@@ -715,7 +874,7 @@ export default function LoanDetailsModal({
                       newLoanRecord.LoanNo,
                       "text",
                       handleNewLoanRecordChange,
-                      true // ✅ mark as disabled so user can’t change it
+                      true
                     )}
                   </Col>
                   <Col span={12}>
@@ -754,10 +913,20 @@ export default function LoanDetailsModal({
                     )}
                   </Col>
                 </Row>
+                <Row gutter={16}>
+                  <Col span={24}>
+                    {renderField(
+                      "Remarks",
+                      "Remarks",
+                      newLoanRecord.Remarks,
+                      "text",
+                      handleNewLoanRecordChange
+                    )}
+                  </Col>
+                </Row>
               </Card>
             </Col>
 
-            {/* Loan Amount Details */}
             <Col span={12}>
               <Card
                 title="Loan Amount Details"
@@ -829,7 +998,6 @@ export default function LoanDetailsModal({
           </Row>
 
           <Row gutter={16} align="stretch">
-            {/* Terms and Payments */}
             <Col span={12}>
               <Card
                 title="Terms and Payments"
@@ -876,7 +1044,6 @@ export default function LoanDetailsModal({
               </Card>
             </Col>
 
-            {/* Loan Collection Date */}
             <Col span={12}>
               <Card
                 title="Loan Collection Date"
@@ -903,7 +1070,6 @@ export default function LoanDetailsModal({
         </>
       </Modal>
 
-      {/* Modal for Editing Loan Record */}
       <Modal
         title="Edit Loan Record"
         open={isEditLoanRecordModalVisible}
@@ -925,9 +1091,10 @@ export default function LoanDetailsModal({
                       {renderField(
                         "Loan No",
                         "LoanNo",
-                        editingLoanRecord.loanNo,
+                        editingLoanRecord.LoanNo,
                         "text",
-                        handleEditLoanRecordChange
+                        handleEditLoanRecordChange,
+                        true // Disable Loan No in edit modal
                       )}
                     </Col>
                     <Col span={12}>
@@ -966,8 +1133,20 @@ export default function LoanDetailsModal({
                       )}
                     </Col>
                   </Row>
+                  <Row gutter={16}>
+                    <Col span={24}>
+                      {renderField(
+                        "Remarks",
+                        "Remarks",
+                        editingLoanRecord.Remarks,
+                        "text",
+                        handleEditLoanRecordChange
+                      )}
+                    </Col>
+                  </Row>
                 </Card>
               </Col>
+
               <Col span={12}>
                 <Card
                   title="Loan Amount Details"
@@ -1071,8 +1250,6 @@ export default function LoanDetailsModal({
                   </Row>
                   <Row gutter={16}>
                     <Col span={24}>
-                      {" "}
-                      {/* Adjusted span to 24 as it's the only element in this row now */}
                       {renderField(
                         "Collector Name",
                         "CollectorName",
@@ -1086,6 +1263,7 @@ export default function LoanDetailsModal({
                   </Row>
                 </Card>
               </Col>
+
               <Col span={12}>
                 <Card
                   title="Loan Collection Date"
