@@ -1,8 +1,11 @@
 import express from 'express';
 import requireAuth from '../middleware/requireAuth.js';
-import User from '../models/User.js';
+import User from '../models/UserAccount.js';
+import { getDashboardStats } from '../controllers/dashboardController.js';
 
 const router = express.Router();
+
+router.get('/stats', requireAuth, getDashboardStats);
 
 router.get('/', requireAuth, async (req, res) => {
   try {

@@ -44,14 +44,14 @@ function RecentLoansTable({
       render: (text, record) => (
         <div>
           <div>{text}</div>
-          {record.loanNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Loan No: {record.loanNo}</div>}
+          {record.loanInfo.loanNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Loan No: {record.loanInfo.loanNo}</div>}
           {record.clientNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Client No: {record.clientNo}</div>}
         </div>
       ),
     },
     {
       title: "Loan Amount",
-      dataIndex: "LoanAmount",
+      dataIndex: ["loanInfo", "amount"],
       key: "amount",
       render: (val) => {
         if (val === undefined || val === null || val === "") {
@@ -64,24 +64,10 @@ function RecentLoansTable({
         })}`;
       },
     },
-    {
-      title: "Loan Amort.",
-      dataIndex: "LoanAmortization",
-      key: "amortization",
-      render: (val) => {
-        if (val === undefined || val === null || val === "") {
-          return "₱0.00";
-        }
-        const numericVal = Number(String(val).replace(/[₱,]/g, ""));
-        return `₱${numericVal.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`;
-      },
-    },
+    
     {
       title: "Loan Balance",
-      dataIndex: "LoanBalance",
+      dataIndex: ["loanInfo", "balance"],
       key: "balance",
       render: (val) => {
         if (val === undefined || val === null || val === "") {
@@ -96,7 +82,7 @@ function RecentLoansTable({
     },
     {
       title: "Penalty",
-      dataIndex: "Penalty",
+      dataIndex: ["loanInfo", "penalty"],
       key: "penalty",
       render: (val) => {
         if (val === undefined || val === null || val === "") {
@@ -111,7 +97,7 @@ function RecentLoansTable({
     },
     {
       title: "Status",
-      dataIndex: "LoanStatus",
+      dataIndex: ["loanInfo", "status"],
       key: "status",
       render: (status) => <Tag color={statusColor(status)}>{status}</Tag>,
       sorter: true,
@@ -119,7 +105,7 @@ function RecentLoansTable({
     },
     {
       title: "Due Date",
-      dataIndex: "MaturityDate",
+      dataIndex: ["loanInfo", "maturityDate"],
       key: "dueDate",
       render: (date) => (date ? new Date(date).toLocaleDateString() : "—"),
       sorter: true,

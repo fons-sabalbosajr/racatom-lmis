@@ -20,6 +20,7 @@ import collectorRoutes from "./routes/collectorRoutes.js";
 import loanRoutes from "./routes/loanRoutes.js";
 import loanDisbursedRoutes from "./routes/loanDisburseRoutes.js";
 import loanCollectionRoutes from "./routes/loanCollectionRoutes.js";
+import dashboardRoutes from "./routes/dashboard.js";
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/api/collectors", collectorRoutes);
 app.use("/api/loans", loanRoutes);
 app.use("/api/loan_disbursed", loanDisbursedRoutes);
 app.use("/api/loan-collections", loanCollectionRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {

@@ -28,11 +28,17 @@ const getStatusColor = (status) => {
   return "#1890ff"; // Default blue for any other status
 };
 
-function LoanStatusChart({ chartData }) {
+function LoanStatusChart({ chartData, onDataClick }) {
+  const handleBarClick = (data) => {
+    if (data && onDataClick) {
+      onDataClick({ loanStatus: data.activeLabel }, `Loans with Status: ${data.activeLabel}`);
+    }
+  };
+
   return (
     <Card className="dashboard-card chart-card" title="Loan Status Overview">
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData}>
+        <BarChart data={chartData} onClick={handleBarClick}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" />
           <YAxis />
@@ -40,7 +46,7 @@ function LoanStatusChart({ chartData }) {
           <Legend />
           <Bar dataKey="count" name="No. of Loan Applications">
             {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={getStatusColor(entry.name)} />
+              <Cell key={`cell-${index}`} fill={getStatusColor(entry.name)} style={{ cursor: 'pointer' }} />
             ))}
           </Bar>
         </BarChart>

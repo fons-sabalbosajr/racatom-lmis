@@ -258,6 +258,9 @@ export const getLoans = async (req, res) => {
       limit = 20,
       q: searchTerm = "", // Renamed searchTerm to q for consistency with frontend
       loanStatus,
+      loanType, // Added
+      collectorName, // Added
+      collectorNameSearch, // Added
       paymentMode,
       year,
       sortBy = "AccountId",
@@ -269,6 +272,18 @@ export const getLoans = async (req, res) => {
     // Build match query for LoanCycle fields
     if (loanStatus) {
       matchQuery.LoanStatus = loanStatus;
+    }
+    if (loanType) { // Added
+      matchQuery.LoanType = loanType;
+    }
+    if (collectorName) { // Added
+      if (Array.isArray(collectorName)) {
+        matchQuery.CollectorName = { $in: collectorName };
+      } else {
+        matchQuery.CollectorName = collectorName;
+      }
+    } else if (collectorNameSearch) { // Added for fuzzy search
+      matchQuery.CollectorName = { $regex: collectorNameSearch, $options: 'i' };
     }
     if (paymentMode) {
       matchQuery.PaymentMode = paymentMode;
@@ -1042,6 +1057,84 @@ export const exportReport = async (req, res) => {
     res.end();
   } catch (err) {
     console.error("Error in exportReport:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// NEW: Get loan details by loanCycleNo
+export const getLoanDetailsByCycleNo = async (req, res) => {
+  try {
+    const { loanCycleNo } = req.params;
+
+    const pipeline = [
+      { $match: { LoanCycleNo: loanCycleNo } },
+      {
+        $lookup: {
+          from: "loan_clients",
+          localField: "ClientNo",
+          foreignField: "ClientNo",
+          as: "clientInfo",
+        },
+      },
+      { $unwind: "$clientInfo" },
+      {
+        $project: {
+          _id: "$_id",
+          AccountId: "$AccountId",
+          ClientNo: "$ClientNo",
+          LoanCycleNo: "$LoanCycleNo",
+          LoanType: "$LoanType",
+          LoanStatus: "$LoanStatus",
+          LoanProcessStatus: "$LoanProcessStatus",
+          LoanTerm: "$LoanTerm",
+          LoanAmount: "$LoanAmount",
+          PrincipalAmount: "$PrincipalAmount",
+          LoanBalance: "$LoanBalance",
+          LoanInterest: "$LoanInterest",
+          Penalty: "$Penalty",
+          PaymentMode: "$PaymentMode",
+          StartPaymentDate: "$StartPaymentDate",
+          MaturityDate: "$MaturityDate",
+          CollectorName: "$CollectorName",
+          Date_Encoded: "$Date_Encoded",
+          Date_Modified: "$Date_Modified",
+          createdAt: "$createdAt",
+          updatedAt: "$updatedAt",
+
+          FirstName: "$clientInfo.FirstName",
+          MiddleName: "$clientInfo.MiddleName",
+          LastName: "$clientInfo.LastName",
+          Gender: "$clientInfo.Gender",
+          CivilStatus: "$clientInfo.CivilStatus",
+          ContactNumber: "$clientInfo.ContactNumber",
+          AlternateContactNumber: "$clientInfo.AlternateContactNumber",
+          Email: "$clientInfo.Email",
+          BirthAddress: "$clientInfo.BirthAddress",
+          DateOfBirth: "$clientInfo.DateOfBirth",
+          CompanyName: "$clientInfo.CompanyName",
+          Occupation: "$clientInfo.Occupation",
+          MonthlyIncome: "$clientInfo.MonthlyIncome",
+          NumberOfChildren: "$clientInfo.NumberOfChildren",
+          Spouse: "$clientInfo.Spouse",
+          WorkAddress: "$clientInfo.WorkAddress",
+          Barangay: "$clientInfo.Barangay",
+          City: "$clientInfo.City",
+          Province: "$clientInfo.Province",
+        },
+      },
+    ];
+
+    const loan = await LoanCycle.aggregate(pipeline);
+
+    if (!loan || loan.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan not found for this Loan Cycle No." });
+    }
+
+    res.json({ success: true, data: transformLoan(loan[0]) });
+  } catch (err) {
+    console.error("Error in getLoanDetailsByCycleNo:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

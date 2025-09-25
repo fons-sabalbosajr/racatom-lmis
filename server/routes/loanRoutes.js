@@ -14,6 +14,7 @@ import {
   getLoanTransactions, // NEW
   generateStatementOfAccount, // NEW
   generateLedger, // NEW
+  getLoanDetailsByCycleNo, // NEW
 } from "../controllers/loanController.js";
 
 const router = express.Router();
@@ -55,5 +56,8 @@ router.get("/report/ledger/:accountId/:loanCycleNo", generateLedger);
 
 // MODIFIED: Export reports (all loans, statement of account, ledger)
 router.get("/export/:reportType", exportReport);
+
+// NEW: Get loan details by loanCycleNo
+router.get("/details-by-cycle/:loanCycleNo", getLoanDetailsByCycleNo);
 
 export default router;

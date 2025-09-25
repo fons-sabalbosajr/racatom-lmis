@@ -476,9 +476,7 @@ const Collections = ({ loan }) => {
           setIsAddModalVisible(false);
           fetchCollections();
         }}
-        loanCycleNo={loan?.loanInfo?.loanNo}
-        accountId={loan?.accountId}
-        clientNo={loan?.clientNo}
+        loan={loan}
       />
       {editingCollection && (
         <EditCollectionModal

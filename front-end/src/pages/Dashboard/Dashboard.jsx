@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Typography, message, Row, Col } from "antd";
 import api from "../../utils/axios";
 import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
+import ChartDetailsModal from "./components/ChartDetailsModal"; // Import new modal
 import "./dashboard.css";
 
 // Import new components
 import DashboardStats from "./components/DashboardStats";
 import LoanStatusChart from "./components/LoanStatusChart";
 import LoanTypeChart from "./components/LoanTypeChart";
+import LoanCollectorChart from "./components/LoanCollectorChart";
 import RecentLoansTable from "./components/RecentLoansTable";
 
 const { Title } = Typography;
@@ -21,6 +23,7 @@ function Dashboard() {
   });
   const [chartData, setChartData] = useState([]);
   const [loanTypeData, setLoanTypeData] = useState([]);
+  const [loanCollectorData, setLoanCollectorData] = useState([]);
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [meta, setMeta] = useState({
@@ -33,6 +36,11 @@ function Dashboard() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
+
+  // State for the new details modal
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [detailsModalTitle, setDetailsModalTitle] = useState("");
+  const [detailsModalFilter, setDetailsModalFilter] = useState(null);
 
   const viewLoan = async (record) => {
     setLoading(true);
@@ -71,98 +79,32 @@ function Dashboard() {
     async (page, limit, sortBy, sortDir, filters) => {
       setLoading(true);
       try {
-        // Fetch paginated data for the table first to get meta
+        // Fetch dashboard stats
+        const statsRes = await api.get("/dashboard/stats");
+        if (statsRes.data.success) {
+          setStats(statsRes.data.data.stats);
+          setChartData(statsRes.data.data.loanStatusChartData);
+          setLoanTypeData(statsRes.data.data.loanTypeChartData);
+          setLoanCollectorData(statsRes.data.data.loanCollectorChartData || []); // Set new chart data
+        } else {
+          message.error("Failed to load dashboard statistics.");
+        }
+
+        // Fetch paginated data for the table
         const recentLoansRes = await api.get("/loans", {
           params: { page, limit, sortBy, sortDir, ...filters },
         });
 
-        if (!recentLoansRes.data.success) {
-          message.error("Failed to load recent loans data.");
-          return;
-        }
-
-        const newMeta = {
-          page: Number(recentLoansRes.data.meta.page) || 1,
-          limit: Number(recentLoansRes.data.meta.limit) || 5,
-          total: Number(recentLoansRes.data.meta.total) || 0,
-          pageSizeOptions: ["5", "10", "20", "50"],
-        };
-
-        setRecentLoans(recentLoansRes.data.data);
-        setMeta(newMeta);
-
-        const totalLoans = newMeta.total;
-
-        if (totalLoans > 0) {
-          // If there are loans, fetch all of them to calculate stats
-          const allLoansRes = await api.get("/loans", {
-            params: { ...filters, limit: totalLoans },
+        if (recentLoansRes.data.success) {
+          setRecentLoans(recentLoansRes.data.data);
+          setMeta({
+            page: Number(recentLoansRes.data.meta.page) || 1,
+            limit: Number(recentLoansRes.data.meta.limit) || 5,
+            total: Number(recentLoansRes.data.meta.total) || 0,
+            pageSizeOptions: ["5", "10", "20", "50"],
           });
-
-          if (allLoansRes.data.success) {
-            const allLoans = allLoansRes.data.data;
-
-            const totalDisbursed = allLoans.reduce(
-              (acc, loan) =>
-                acc +
-                Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
-              0
-            );
-            const upcomingPayments = allLoans.filter(
-              (loan) => new Date(loan.MaturityDate) > new Date()
-            ).length;
-            const totalLoanAmount = allLoans.reduce(
-              (acc, loan) =>
-                acc +
-                Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
-              0
-            );
-            const averageLoanAmount =
-              allLoans.length > 0 ? totalLoanAmount / allLoans.length : 0;
-
-            setStats({
-              totalLoans,
-              totalDisbursed,
-              upcomingPayments,
-              averageLoanAmount,
-            });
-
-            const statusCounts = allLoans.reduce((acc, loan) => {
-              const status = loan.LoanStatus || "Unknown";
-              acc[status] = (acc[status] || 0) + 1;
-              return acc;
-            }, {});
-            setChartData(
-              Object.keys(statusCounts).map((status) => ({
-                name: status,
-                count: statusCounts[status],
-              }))
-            );
-
-            const loanTypeCounts = allLoans.reduce((acc, loan) => {
-              const type = loan.LoanType || "Unknown";
-              acc[type] = (acc[type] || 0) + 1;
-              return acc;
-            }, {});
-            setLoanTypeData(
-              Object.keys(loanTypeCounts).map((type) => ({
-                name: type,
-                value: loanTypeCounts[type],
-              }))
-            );
-          } else {
-            message.error("Failed to load full loan data for statistics.");
-          }
         } else {
-          // No loans match the filter, reset stats
-          setStats({
-            totalLoans: 0,
-            totalDisbursed: 0,
-            upcomingPayments: 0,
-            averageLoanAmount: 0,
-          });
-          setChartData([]);
-          setLoanTypeData([]);
+          message.error("Failed to load recent loans data.");
         }
       } catch (err) {
         console.error(err);
@@ -197,6 +139,13 @@ function Dashboard() {
     );
   };
 
+  // Handler to open the details modal
+  const handleChartClick = (filter, title) => {
+    setDetailsModalFilter(filter);
+    setDetailsModalTitle(title);
+    setDetailsModalVisible(true);
+  };
+
   return (
     <div className="dashboard-container">
       <Title level={2} className="dashboard-title">
@@ -204,11 +153,14 @@ function Dashboard() {
       </Title>
       <DashboardStats stats={stats} loading={loading} />
       <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
-        <Col xs={24} md={16}>
-          <LoanStatusChart chartData={chartData} />
+        <Col xs={24} md={12}>
+          <LoanStatusChart chartData={chartData} onDataClick={handleChartClick} />
         </Col>
-        <Col xs={24} md={8}>
-          <LoanTypeChart loanTypeData={loanTypeData} />
+        <Col xs={24} md={6}>
+          <LoanTypeChart loanTypeData={loanTypeData} onDataClick={handleChartClick} />
+        </Col>
+        <Col xs={24} md={6}>
+          <LoanCollectorChart loanCollectorData={loanCollectorData} onDataClick={handleChartClick} />
         </Col>
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
@@ -228,6 +180,16 @@ function Dashboard() {
         loan={selectedLoan}
         loading={loading}
       />
+
+      {/* New Details Modal */}
+      {detailsModalVisible && (
+        <ChartDetailsModal
+          visible={detailsModalVisible}
+          onClose={() => setDetailsModalVisible(false)}
+          title={detailsModalTitle}
+          filter={detailsModalFilter}
+        />
+      )}
     </div>
   );
 }
