@@ -1,6 +1,6 @@
 // routes/userRoutes.js
 import express from "express";
-import { getUsers } from "../controllers/userController.js";
+import { getUsers, getNextAccountId } from "../controllers/userController.js";
 import User from "../models/UserAccount.js";
 import { canUpdateUser, canDeleteUser } from "../middleware/checkPermissions.js";
 import requireAuth from "../middleware/requireAuth.js";
@@ -12,6 +12,9 @@ router.use(requireAuth);
 
 // GET /api/users
 router.get("/", getUsers);
+
+// GET /api/users/next-account-id
+router.get("/next-account-id", getNextAccountId);
 
 // PUT /api/users/:id
 router.put("/:id", canUpdateUser, async (req, res) => {

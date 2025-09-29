@@ -15,12 +15,28 @@ import {
   generateStatementOfAccount, // NEW
   generateLedger, // NEW
   getLoanDetailsByCycleNo, // NEW
+  createLoanApplication, // NEW
+  searchClients, // NEW
+  getClientDetailsForRenewal, // NEW
+  getApprovedClients, // NEW
 } from "../controllers/loanController.js";
 
 const router = express.Router();
 
+// GET /api/loans/search-clients
+router.get("/search-clients", searchClients);
+
+// GET /api/loans/client-details-for-renewal/:clientNo
+router.get("/client-details-for-renewal/:clientNo", getClientDetailsForRenewal);
+
+// GET /api/loans/approved-clients
+router.get("/approved-clients", getApprovedClients);
+
 // GET /api/loans
 router.get("/", getLoans);
+
+// POST /api/loans/loan_clients_application
+router.post("/loan_clients_application", createLoanApplication);
 
 // GET loan statuses, payment modes, and years
 router.get("/statuses", getLoanStatuses);

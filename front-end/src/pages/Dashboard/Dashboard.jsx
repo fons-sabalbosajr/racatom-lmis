@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Typography, message, Row, Col } from "antd";
+import { Typography, message, Row, Col, Button } from "antd";
 import api from "../../utils/axios";
 import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
+import LoanApplication from "./components/LoanApplication/LoanApplication";
 import ChartDetailsModal from "./components/ChartDetailsModal"; // Import new modal
 import "./dashboard.css";
 
@@ -41,6 +42,7 @@ function Dashboard() {
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [detailsModalTitle, setDetailsModalTitle] = useState("");
   const [detailsModalFilter, setDetailsModalFilter] = useState(null);
+  const [loanAppModalVisible, setLoanAppModalVisible] = useState(false);
 
   const viewLoan = async (record) => {
     setLoading(true);
@@ -148,19 +150,42 @@ function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      <Title level={2} className="dashboard-title">
-        Loan Management Dashboard
-      </Title>
+      <div className="dashboard-title-container">
+        <Title level={2} className="dashboard-title">
+          Loan Management Dashboard
+        </Title>
+        <div className="dashboard-actions">
+          <Button
+            type="primary"
+            onClick={() => setLoanAppModalVisible(true)}
+            style={{ marginRight: "8px" }}
+          >
+            New Loan Application
+          </Button>
+          <Button type="primary" className="pending-applications-btn">
+            Pending Applications
+          </Button>
+        </div>
+      </div>
       <DashboardStats stats={stats} loading={loading} />
       <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
         <Col xs={24} md={12}>
-          <LoanStatusChart chartData={chartData} onDataClick={handleChartClick} />
+          <LoanStatusChart
+            chartData={chartData}
+            onDataClick={handleChartClick}
+          />
         </Col>
         <Col xs={24} md={6}>
-          <LoanTypeChart loanTypeData={loanTypeData} onDataClick={handleChartClick} />
+          <LoanTypeChart
+            loanTypeData={loanTypeData}
+            onDataClick={handleChartClick}
+          />
         </Col>
         <Col xs={24} md={6}>
-          <LoanCollectorChart loanCollectorData={loanCollectorData} onDataClick={handleChartClick} />
+          <LoanCollectorChart
+            loanCollectorData={loanCollectorData}
+            onDataClick={handleChartClick}
+          />
         </Col>
       </Row>
       <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
@@ -179,6 +204,12 @@ function Dashboard() {
         onClose={() => setModalVisible(false)}
         loan={selectedLoan}
         loading={loading}
+      />
+
+      <LoanApplication
+        visible={loanAppModalVisible}
+        onClose={() => setLoanAppModalVisible(false)}
+        api={api} /* pass axios wrapper from Dashboard */
       />
 
       {/* New Details Modal */}

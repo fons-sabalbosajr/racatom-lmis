@@ -3,6 +3,7 @@ import LoanClient from "../models/LoanClient.js";
 import LoanCycle from "../models/LoanCycle.js";
 import LoanCollection from "../models/LoanCollection.js"; // New import
 import ExcelJS from "exceljs";
+import LoanClientApplication from "../models/LoanClientApplication.js";
 
 // Merge / reshape function
 const transformLoan = (doc) => {
@@ -1136,5 +1137,107 @@ export const getLoanDetailsByCycleNo = async (req, res) => {
   } catch (err) {
     console.error("Error in getLoanDetailsByCycleNo:", err);
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// CREATE a new loan application
+export const createLoanApplication = async (req, res) => {
+  try {
+    const applicationData = req.body;
+
+    if (applicationData.LoanType === 'Renewal' && applicationData.AccountId) {
+      const baseAccountId = applicationData.AccountId.split('-R')[0];
+
+      const renewalLoans = await LoanCycle.find({ AccountId: new RegExp(`^${baseAccountId}`) });
+      const pendingRenewalApps = await LoanClientApplication.find({ AccountId: new RegExp(`^${baseAccountId}`) });
+
+      let maxRevision = 0;
+      const allLoans = [...renewalLoans, ...pendingRenewalApps];
+      allLoans.forEach(loan => {
+        const match = loan.AccountId.match(/-R(\d+)$/);
+        if (match && match[1]) {
+          const revision = parseInt(match[1], 10);
+          if (revision > maxRevision) {
+            maxRevision = revision;
+          }
+        }
+      });
+
+      const nextRevision = maxRevision + 1;
+      applicationData.AccountId = `${baseAccountId}-R${nextRevision}`;
+    }
+
+    const newApplication = new LoanClientApplication(applicationData);
+    const savedApplication = await newApplication.save();
+    res.status(201).json({ success: true, data: savedApplication });
+  } catch (err)
+  {
+    console.error("Error in createLoanApplication:", err);
+    if (err.code === 11000) { // Duplicate key error
+        return res.status(400).json({ success: false, message: 'Duplicate Account ID. Please try again.' });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Search for clients
+export const searchClients = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const searchRegex = new RegExp(q, 'i');
+    const clients = await LoanClient.find({
+      $or: [
+        { FirstName: { $regex: searchRegex } },
+        { LastName: { $regex: searchRegex } },
+        { AccountId: { $regex: searchRegex } },
+      ],
+    });
+
+    res.json({ success: true, data: clients });
+  } catch (err) {
+    console.error('Error in searchClients:', err);
+    res.status(500).json({ success: false, message: 'Failed to search clients' });
+  }
+};
+
+export const getClientDetailsForRenewal = async (req, res) => {
+  try {
+    const { clientNo } = req.params;
+    if (!clientNo) {
+      return res.status(400).json({ success: false, message: 'Client number is required' });
+    }
+
+    const client = await LoanClient.findOne({ ClientNo: clientNo });
+    if (!client) {
+      return res.status(404).json({ success: false, message: 'Client not found' });
+    }
+
+    const lastLoan = await LoanCycle.findOne({ ClientNo: clientNo })
+      .sort({ createdAt: -1 })
+      .limit(1);
+
+    res.json({ success: true, data: { client, lastLoan } });
+  } catch (err) {
+    console.error('Error in getClientDetailsForRenewal:', err);
+    res.status(500).json({ success: false, message: 'Failed to get client details' });
+  }
+};
+
+export const getApprovedClients = async (req, res) => {
+  try {
+    // Find all loan cycles with approved status
+    const approvedLoans = await LoanCycle.find({ LoanStatus: 'LOAN APPROVED' }).distinct('ClientNo');
+
+    // Find all clients with these client numbers
+    const clients = await LoanClient.find({ ClientNo: { $in: approvedLoans } });
+
+    res.json({ success: true, data: clients });
+  } catch (err) {
+    console.error('Error in getApprovedClients:', err);
+    res.status(500).json({ success: false, message: 'Failed to get approved clients' });
   }
 };
