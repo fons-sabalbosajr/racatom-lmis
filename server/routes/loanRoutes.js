@@ -3,6 +3,7 @@ import {
   getLoans,
   getLoanById,
   updateLoan,
+  updateLoanCycle,
   getLoanStatuses,
   getPaymentModes,
   getLoanYears,
@@ -57,6 +58,9 @@ router.get("/:id", getLoanById);
 
 // UPDATE loan by ID
 router.put("/:id", updateLoan);
+
+// UPDATE loan cycle by ID
+router.put("/cycle/:id", updateLoanCycle);
 
 // DELETE loan by ID
 router.delete("/:id", deleteLoan);

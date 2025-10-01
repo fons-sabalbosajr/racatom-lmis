@@ -12,6 +12,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Loans from "./pages/Loans/Loans";
 import Reports from "./pages/Reports/Reports";
+import SOA from "./pages/Reports/components/StatementofAccounts";
+import CollectionsList from "./pages/Reports/components/CollectionList";
+import AccountVouchers from "./pages/Reports/components/AccountVouchers";
 
 // Settings subpages
 import LoanRates from "./pages/Settings/LoanRateConfig/LoanRateConfig";
@@ -53,7 +56,9 @@ function App() {
           path="loans/update-needed"
           element={<Navigate to="/loans" replace />}
         />
-        <Route path="reports" element={<Reports />} />
+        <Route path="reports/statement-of-accounts" element={<SOA />} />
+        <Route path="reports/collections-list" element={<CollectionsList />} />
+        <Route path="reports/account-vouchers" element={<AccountVouchers />} />
 
         {/* Settings subpages */}
         <Route path="settings/loan-rates" element={<LoanRates />} />

@@ -26,4 +26,5 @@ body {
 .custom-small-input.ant-input-sm {
   height: 24px !important; /* Adjust height as needed */
   font-size: 11px !important; /* Adjust font size as needed */
+  border-radius: 2px;
 }

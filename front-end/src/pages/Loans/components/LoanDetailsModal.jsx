@@ -339,35 +339,28 @@ export default function LoanDetailsModal({
 
   const handleUpdateLoanRecord = async () => {
     try {
-      let res;
       const payload = { ...editingLoanRecord };
-
-      if (payload.Source === "Disbursed") {
-        // Convert numeric fields to strings for LoanDisbursed schema
-        const numericFields = [
-          "LoanAmount",
-          "PrincipalAmount",
-          "LoanBalance",
-          "LoanInterest",
-          "Penalty",
-          "LoanAmortization",
-        ];
-        numericFields.forEach((field) => {
-          if (typeof payload[field] === "number") {
-            payload[field] = String(payload[field]);
-          }
-        });
-        res = await api.put(`/loan_disbursed/${payload._id}`, payload);
-      } else if (payload.Source === "Client Loan") {
-        res = await api.put(`/loans/${payload._id}`, payload);
-      }
+      const res = await api.put(`/loans/cycle/${payload._id}`, payload);
 
       if (res.data.success) {
         message.success("Loan record updated successfully!");
         setIsEditLoanRecordModalVisible(false);
+
+        // Manually update the mergedLoans state
+        setMergedLoans(prev => {
+          const index = prev.findIndex(item => item._id === payload._id);
+          if (index > -1) {
+            const newMergedLoans = [...prev];
+            newMergedLoans[index] = { ...newMergedLoans[index], ...payload };
+            return newMergedLoans;
+          }
+          return prev;
+        });
+
         if (onLoanUpdate) {
-          onLoanUpdate(); // Call parent's update handler
+          onLoanUpdate();
         }
+
       } else {
         message.error(res.data.message || "Failed to update loan record.");
       }
@@ -381,7 +374,7 @@ export default function LoanDetailsModal({
     const clientLoans =
       loan?.allClientLoans?.map((l) => {
         const latestCollection = loanCollections
-          .filter((collection) => collection.LoanCycleNo === l.LoanCycleNo)
+          .filter((collection) => collection.LoanCycleNo === l.loanInfo.loanNo)
           .sort((a, b) => {
             // Sort by PaymentDate descending, then createdAt descending
             const dateA = dayjs(a.PaymentDate || a.createdAt);
@@ -408,7 +401,7 @@ export default function LoanDetailsModal({
           LoanTerm: l.loanInfo?.term,
           LoanProcessStatus: l.loanInfo?.processStatus,
           CollectorName: l.loanInfo?.collectorName,
-          Remarks: l.loanInfo?.remarks,
+          Remarks: l.loanInfo?.remarks, // This was missing
           Source: "Client Loan",
           PaymentMode: l.loanInfo?.paymentMode,
           StartPaymentDate: l.loanInfo?.startPaymentDate,
@@ -701,7 +694,7 @@ export default function LoanDetailsModal({
           <DatePicker
             value={value ? dayjs(value) : null}
             onChange={(date) =>
-              handleChange(field, date ? date.toISOString() : null)
+              onChangeHandler(field, date ? date.toISOString() : null)
             }
             disabled={disabled}
             style={{ width: "100%" }}
@@ -709,7 +702,7 @@ export default function LoanDetailsModal({
         ) : type === "number" ? (
           <InputNumber
             value={value || 0}
-            onChange={(val) => handleChange(field, val)}
+            onChange={(val) => onChangeHandler(field, val)}
             disabled={disabled}
             style={{ width: "100%" }}
             size="small"
@@ -755,7 +748,7 @@ export default function LoanDetailsModal({
         ) : (
           <Input
             value={value || ""}
-            onChange={(e) => handleChange(field, e.target.value)}
+            onChange={(e) => onChangeHandler(field, e.target.value)}
             disabled={disabled}
             size="small"
             style={{ width: "100%", height: 32 }}
@@ -785,7 +778,7 @@ export default function LoanDetailsModal({
           </Button>
         ),
         // Edit button (for tabs 1, 2, 3 when not editing)
-        activeTabKey !== "4" && !isEditing && (
+        activeTabKey === "1" && !isEditing && (
           <Button key="edit" icon={<EditOutlined />} onClick={handleEdit}>
             Edit
           </Button>
@@ -827,6 +820,7 @@ export default function LoanDetailsModal({
             <LoanPersonalInfoTab
               editedLoan={editedLoan}
               handleChange={handleChange}
+              isEditing={isEditing}
             />
           </TabPane>
 
@@ -920,7 +914,8 @@ export default function LoanDetailsModal({
                       "Remarks",
                       newLoanRecord.Remarks,
                       "text",
-                      handleNewLoanRecordChange
+                      handleNewLoanRecordChange,
+                      false
                     )}
                   </Col>
                 </Row>
@@ -1059,8 +1054,7 @@ export default function LoanDetailsModal({
                 )}
                 {renderField(
                   "Maturity Date",
-                  "MaturityDate",
-                  newLoanRecord.MaturityDate,
+                  "MaturityDate",newLoanRecord.MaturityDate,
                   "date",
                   handleNewLoanRecordChange
                 )}
@@ -1140,7 +1134,8 @@ export default function LoanDetailsModal({
                         "Remarks",
                         editingLoanRecord.Remarks,
                         "text",
-                        handleEditLoanRecordChange
+                        handleEditLoanRecordChange,
+                        false
                       )}
                     </Col>
                   </Row>

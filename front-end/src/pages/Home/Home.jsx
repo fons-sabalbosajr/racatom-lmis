@@ -32,6 +32,7 @@ import "./home.css";
 import logo from "../../assets/lmis.svg"; // your logo
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+
 dayjs.extend(relativeTime);
 
 const { Header, Sider, Content, Footer } = Layout;
@@ -71,21 +72,24 @@ function Home() {
           }
         );
         const newUnread = res.data.announcements || [];
-        
-        setNotifications(prev => {
+
+        setNotifications((prev) => {
           // 1. Get notifications that were marked as read during this session
-          const sessionReadNotifications = prev.filter(p => p.read);
-          const sessionReadIds = new Set(sessionReadNotifications.map(n => n._id));
+          const sessionReadNotifications = prev.filter((p) => p.read);
+          const sessionReadIds = new Set(
+            sessionReadNotifications.map((n) => n._id)
+          );
 
           // 2. Filter the newly fetched unread announcements to ensure they are not already in our sessionReadNotifications
           // This handles the case where an announcement might have been marked read locally, but the backend still sends it (e.g., if the backend update failed)
-          const uniqueNewUnread = newUnread.filter(n => !sessionReadIds.has(n._id));
+          const uniqueNewUnread = newUnread.filter(
+            (n) => !sessionReadIds.has(n._id)
+          );
 
           // 3. Combine the session-read notifications with the unique new unread notifications
           // The 'read' property for newUnread items will be false by default, which is correct.
           return [...sessionReadNotifications, ...uniqueNewUnread];
         });
-
       } catch (err) {
         console.error("Failed to fetch announcements:", err);
       }
@@ -99,14 +103,14 @@ function Home() {
   const handleMarkAsRead = async (announcementId, link) => {
     try {
       setNotifications((prev) =>
-        prev.map((n) =>
-          n._id === announcementId ? { ...n, read: true } : n
-        )
+        prev.map((n) => (n._id === announcementId ? { ...n, read: true } : n))
       );
       navigate(link);
 
       await axios.post(
-        `${import.meta.env.VITE_API_URL}/announcements/${announcementId}/mark-as-read`,
+        `${
+          import.meta.env.VITE_API_URL
+        }/announcements/${announcementId}/mark-as-read`,
         {},
         { withCredentials: true }
       );
@@ -146,7 +150,6 @@ function Home() {
 
       // Redirect to login
       window.location.replace("/login");
-      
     } catch (err) {
       console.error("Logout error:", err);
     }
@@ -228,8 +231,20 @@ function Home() {
               label: "Dashboard",
               icon: <DashboardOutlined />,
             },
-            { key: "/loans", label: "Loans", icon: <FundViewOutlined /> }, // ✅ Changed
-            { key: "/reports", label: "Reports", icon: <FileTextOutlined /> },
+            { key: "/loans", label: "Loans", icon: <FundViewOutlined /> },
+            {
+              key: "/reports",
+              label: "Reports",
+              icon: <FileTextOutlined />,
+              children: [
+                {
+                  key: "/reports/statement-of-accounts",
+                  label: "Statement of Accounts",
+                },
+                { key: "/reports/collections-list", label: "Collections List" },
+                { key: "/reports/account-vouchers", label: "Account Vouchers" },
+              ],
+            },
             {
               key: "/settings",
               label: "Settings",

@@ -53,6 +53,7 @@ const transformLoan = (doc) => {
       startPaymentDate: loan.StartPaymentDate,
       maturityDate: loan.MaturityDate,
       collectorName: loan.CollectorName,
+      remarks: loan.Remarks, // This was missing
     },
 
     // Other top-level fields that might be needed
@@ -330,6 +331,7 @@ export const getLoans = async (req, res) => {
           StartPaymentDate: "$StartPaymentDate",
           MaturityDate: "$MaturityDate",
           CollectorName: "$CollectorName",
+          Remarks: "$Remarks",
           Date_Encoded: "$Date_Encoded",
           Date_Modified: "$Date_Modified",
           createdAt: "$createdAt",
@@ -468,6 +470,7 @@ export const getLoanById = async (req, res) => {
           StartPaymentDate: "$StartPaymentDate",
           MaturityDate: "$MaturityDate",
           CollectorName: "$CollectorName",
+          Remarks: "$Remarks",
           Date_Encoded: "$Date_Encoded",
           Date_Modified: "$Date_Modified",
           createdAt: "$createdAt",
@@ -498,12 +501,19 @@ export const getLoanById = async (req, res) => {
 
     const loan = await LoanCycle.aggregate(pipeline);
 
-    if (!loan || loan.length === 0)
+    if (!loan || loan.length === 0) {
       return res
         .status(404)
         .json({ success: false, message: "Loan not found" });
+    }
 
-    res.json({ success: true, data: transformLoan(loan[0]) });
+    const clientNo = loan[0].ClientNo;
+    const allClientLoans = await LoanCycle.find({ ClientNo: clientNo });
+
+    const transformedLoan = transformLoan(loan[0]);
+    transformedLoan.allClientLoans = allClientLoans.map(transformLoan);
+
+    res.json({ success: true, data: transformedLoan });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -513,42 +523,23 @@ export const getLoanById = async (req, res) => {
 export const updateLoan = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const { person, address, loanInfo, ...rest } = req.body;
 
-    // Separate updates for LoanCycle and LoanClient
-    const loanCycleUpdate = {};
-    const loanClientUpdate = {};
+    const toPascalCase = (obj) => {
+      if (!obj) return {};
+      return Object.entries(obj).reduce((acc, [key, value]) => {
+        const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+        acc[pascalKey] = value;
+        return acc;
+      }, {});
+    };
 
-    // Fields that belong to LoanCycle
-    const loanCycleFields = [
-      "AccountId", "ClientNo", "LoanCycleNo", "LoanType", "LoanStatus", "LoanTerm",
-      "LoanAmount", "PrincipalAmount", "LoanBalance", "LoanInterest", "Penalty",
-      "PaymentMode", "StartPaymentDate", "MaturityDate", "CollectorName",
-      "LoanProcessStatus", "Date_Encoded", "Date_Modified"
-    ];
+    const loanClientUpdate = { ...toPascalCase(person), ...toPascalCase(address) };
+    const loanCycleUpdate = { ...loanInfo, ...rest };
 
-    // Fields that belong to LoanClient
-    const loanClientFields = [
-      "FirstName", "MiddleName", "LastName", "Gender", "CivilStatus", "ContactNumber",
-      "AlternateContactNumber", "Email", "BirthAddress", "DateOfBirth", "CompanyName",
-      "Occupation", "MonthlyIncome", "NumberOfChildren", "Spouse", "WorkAddress",
-      "Barangay", "City", "Province", "Date_Encoded", "Date_Modified" // Date_Encoded/Modified can be in both
-    ];
-
-    for (const key in updateData) {
-      if (loanCycleFields.includes(key)) {
-        loanCycleUpdate[key] = updateData[key];
-      } else if (loanClientFields.includes(key)) {
-        // Handle nested Spouse object
-        if (key === "Spouse") {
-          loanClientUpdate["Spouse.FirstName"] = updateData.Spouse.FirstName;
-          loanClientUpdate["Spouse.MiddleName"] = updateData.Spouse.MiddleName;
-          loanClientUpdate["Spouse.LastName"] = updateData.Spouse.LastName;
-        } else {
-          loanClientUpdate[key] = updateData[key];
-        }
-      }
-    }
+    // Remove undefined fields
+    Object.keys(loanClientUpdate).forEach(key => loanClientUpdate[key] === undefined && delete loanClientUpdate[key]);
+    Object.keys(loanCycleUpdate).forEach(key => loanCycleUpdate[key] === undefined && delete loanCycleUpdate[key]);
 
     let updatedLoanCycle;
     if (Object.keys(loanCycleUpdate).length > 0) {
@@ -557,7 +548,6 @@ export const updateLoan = async (req, res) => {
         runValidators: true,
       });
     } else {
-      // If no LoanCycle fields were updated, just find it to proceed
       updatedLoanCycle = await LoanCycle.findById(id);
     }
 
@@ -575,7 +565,6 @@ export const updateLoan = async (req, res) => {
         { new: true, runValidators: true }
       );
     } else {
-      // If no LoanClient fields were updated, just find it to proceed
       updatedClient = await LoanClient.findOne({ ClientNo: updatedLoanCycle.ClientNo });
     }
 
@@ -585,7 +574,6 @@ export const updateLoan = async (req, res) => {
         .json({ success: false, message: "Client not found for this loan." });
     }
 
-    // Combine the updated documents for the response
     const combinedDoc = { ...updatedLoanCycle.toObject(), ...updatedClient.toObject() };
 
     res.json({ success: true, data: transformLoan(combinedDoc) });
@@ -594,6 +582,31 @@ export const updateLoan = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// UPDATE loan cycle by ID
+export const updateLoanCycle = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const updatedLoanCycle = await LoanCycle.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedLoanCycle) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan cycle not found" });
+    }
+
+    res.json({ success: true, data: updatedLoanCycle });
+  } catch (err) {
+    console.error("Error updating loan cycle:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 
 // GET all distinct LoanStatus values
 export const getLoanStatuses = async (req, res) => {
@@ -685,6 +698,7 @@ export const getLoansByClientNo = async (req, res) => {
           StartPaymentDate: "$StartPaymentDate",
           MaturityDate: "$MaturityDate",
           CollectorName: "$CollectorName",
+          Remarks: "$Remarks",
           Date_Encoded: "$Date_Encoded",
           Date_Modified: "$Date_Modified",
           createdAt: "$createdAt",
@@ -786,6 +800,7 @@ export const getLoansByAccountId = async (req, res) => {
           StartPaymentDate: "$StartPaymentDate",
           MaturityDate: "$MaturityDate",
           CollectorName: "$CollectorName",
+          Remarks: "$Remarks",
           Date_Encoded: "$Date_Encoded",
           Date_Modified: "$Date_Modified",
           createdAt: "$createdAt",
@@ -1097,6 +1112,7 @@ export const getLoanDetailsByCycleNo = async (req, res) => {
           StartPaymentDate: "$StartPaymentDate",
           MaturityDate: "$MaturityDate",
           CollectorName: "$CollectorName",
+          Remarks: "$Remarks",
           Date_Encoded: "$Date_Encoded",
           Date_Modified: "$Date_Modified",
           createdAt: "$createdAt",

@@ -8,6 +8,8 @@ import {
   message,
   Popconfirm,
   DatePicker,
+  Dropdown,
+  Menu,
 } from "antd";
 import {
   EditOutlined,
@@ -15,6 +17,8 @@ import {
   PlusOutlined,
   DownloadOutlined,
   FileExcelOutlined,
+  FilePdfOutlined,
+  DownOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import api from "../../utils/axios";
@@ -22,6 +26,8 @@ import dayjs from "dayjs";
 import "./collections.css";
 import AddCollectionModal from "./components/AddCollectionModal";
 import EditCollectionModal from "./components/EditCollectionModal";
+import ExportCollectionsInExcel from "../../utils/ExportCollectionsInExcel";
+import ExportCollectionPDF from "../../utils/ExportCollectionPDF";
 
 const { Text } = Typography;
 
@@ -51,33 +57,25 @@ const Collections = ({ loan }) => {
       );
 
       let currentBalance = parseFloat(loan.loanInfo.amount);
-      let currentRunningPayment = 0;
 
       const initialDisbursement = {
         _id: "initial-disbursement",
         PaymentDate: loan.loanInfo.startPaymentDate || loan.createdAt,
         CollectorName: "N/A",
-        PaymentMode: "Disbursement",
         CollectionReferenceNo: loan.loanInfo.loanNo,
         Amortization: 0,
-        PrincipalPaid: 0,
-        InterestPaid: 0,
-        TotalCollected: 0,
+        CollectionPayment: 0,
         RunningBalance: currentBalance,
-        RunningPayment: 0,
-        Remarks: "Initial Loan Disbursement",
         isDisbursement: true,
       };
 
       const processedCollections = sortedCollections.map((collection) => {
-        const totalCollected = parseFloat(collection.TotalCollected || 0);
-        currentBalance -= totalCollected;
-        currentRunningPayment += totalCollected;
+        const payment = parseFloat(collection.CollectionPayment || 0);
+        currentBalance -= payment;
 
         return {
           ...collection,
           RunningBalance: currentBalance,
-          RunningPayment: currentRunningPayment,
         };
       });
 
@@ -107,7 +105,6 @@ const Collections = ({ loan }) => {
         return "";
       }
 
-      // Example logic for late/advanced payment
       if (paymentDate.isAfter(maturityDate)) {
         return "late-payment-row";
       }
@@ -120,88 +117,54 @@ const Collections = ({ loan }) => {
     [loan?.loanInfo?.startPaymentDate, loan?.loanInfo?.maturityDate]
   );
 
-  const fetchCollections = useCallback(
-    async (params = {}) => {
-      if (!loan?.loanInfo?.loanNo) {
+  const fetchCollections = useCallback(() => {
+    if (!loan?.loanInfo?.loanNo) {
         setCollections([]);
         return;
-      }
+    }
+    
+    setLoading(true);
+    const queryParams = {
+        page: pagination.current,
+        limit: pagination.pageSize,
+        q: filters.q,
+        paymentDate: filters.paymentDate?.toISOString(),
+    };
 
-      setLoading(true);
-      try {
-        const queryParams = {
-          page: params.pagination?.current || pagination.current,
-          limit: params.pagination?.pageSize || pagination.pageSize,
-          q: params.filters?.q || filters.q,
-          paymentDate:
-            params.filters?.paymentDate?.toISOString() ||
-            filters.paymentDate?.toISOString(),
-        };
-        const response = await api.get(
-          `/loan-collections/${loan.loanInfo.loanNo}`,
-          {
-            params: queryParams,
-          }
-        );
-
-        if (response.data.success) {
-          const collectionsWithRunningBalance = calculateRunningBalance(
-            response.data.data
-          );
-          setCollections(collectionsWithRunningBalance);
-          setPagination({
-            ...pagination,
-            total: response.data.meta?.total || response.data.data.length,
-            current: response.data.meta?.page || pagination.current,
-            pageSize: response.data.meta?.limit || pagination.pageSize,
-          });
-        } else {
-          message.error("Failed to fetch collections.");
-        }
-      } catch (error) {
-        console.error("Error fetching collections:", error);
-        message.error("Error fetching collections.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [
-      loan?.loanInfo?.loanNo,
-      pagination.current,
-      pagination.pageSize,
-      filters.q,
-      filters.paymentDate,
-      calculateRunningBalance,
-    ]
-  );
+    api.get(`/loan-collections/${loan.loanInfo.loanNo}`, { params: queryParams })
+        .then(response => {
+            if (response.data.success) {
+                const collectionsWithRunningBalance = calculateRunningBalance(response.data.data);
+                setCollections(collectionsWithRunningBalance);
+                setPagination(prev => ({
+                    ...prev,
+                    total: response.data.meta?.total || response.data.data.length,
+                }));
+            } else {
+                message.error("Failed to fetch collections.");
+            }
+        })
+        .catch(error => {
+            console.error("Error fetching collections:", error);
+            message.error("Error fetching collections.");
+        })
+        .finally(() => {
+            setLoading(false);
+        });
+  }, [loan?.loanInfo?.loanNo, pagination.current, pagination.pageSize, filters.q, filters.paymentDate, calculateRunningBalance]);
 
   useEffect(() => {
-    if (loan?.loanInfo?.loanNo) {
-      fetchCollections();
-    }
-  }, [loan?.loanInfo?.loanNo, fetchCollections]);
+    fetchCollections();
+  }, [fetchCollections]);
 
   const handleTableChange = (newPagination) => {
-    setPagination(newPagination);
-    fetchCollections({
-      pagination: newPagination,
-      filters: filters,
-    });
+    setPagination(prev => ({ ...prev, current: newPagination.current, pageSize: newPagination.pageSize }));
   };
 
-  const applyFilters = useCallback(
-    (newFilters) => {
-      setFilters((prevFilters) => {
-        const updatedFilters = { ...prevFilters, ...newFilters };
-        fetchCollections({
-          filters: updatedFilters,
-          pagination: { current: 1, pageSize: pagination.pageSize },
-        });
-        return updatedFilters;
-      });
-    },
-    [fetchCollections, pagination.pageSize]
-  );
+  const applyFilters = (newFilters) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setPagination(prev => ({ ...prev, current: 1 })); // Reset to first page on filter change
+  };
 
   const handleSearch = (qValue) => {
     applyFilters({ q: qValue });
@@ -216,26 +179,31 @@ const Collections = ({ loan }) => {
   };
 
   const handleExportCollectionsToExcel = () => {
-    if (!loan?.accountId || !loan?.loanInfo?.loanNo) {
-      message.warning("Loan details are missing for export.");
+    if (!loan || collections.length === 0) {
+      message.warning("No data to export.");
       return;
     }
-    const params = new URLSearchParams({
-      reportType: "loanCollections",
-      loanCycleNo: loan.loanInfo.loanNo,
-      accountId: loan.accountId,
-      ...(filters.paymentDate && {
-        paymentDate: filters.paymentDate.toISOString(),
-      }),
-    });
-    window.open(
-      `${import.meta.env.VITE_API_URL.replace(
-        /\/$/,
-        ""
-      )}/loans/export?${params.toString()}`,
-      "_blank"
-    );
+    ExportCollectionsInExcel(loan, collections);
   };
+
+  const handleExportCollectionsToPdf = () => {
+    if (!loan || collections.length === 0) {
+      message.warning("No data to export.");
+      return;
+    }
+    ExportCollectionPDF(loan, collections);
+  };
+
+  const exportMenu = (
+    <Menu>
+      <Menu.Item key="excel" icon={<FileExcelOutlined />} onClick={handleExportCollectionsToExcel}>
+        Export as Excel
+      </Menu.Item>
+      <Menu.Item key="pdf" icon={<FilePdfOutlined />} onClick={handleExportCollectionsToPdf}>
+        Export as PDF
+      </Menu.Item>
+    </Menu>
+  );
 
   const handleEditCollection = (record) => {
     setEditingCollection(record);
@@ -277,29 +245,15 @@ const Collections = ({ loan }) => {
 
   const columns = [
     {
-      title: "Payment Date",
+      title: "Date",
       dataIndex: "PaymentDate",
       key: "PaymentDate",
       render: (text) => (text ? dayjs(text).format("MM/DD/YYYY") : "N/A"),
     },
     {
-      title: "Collector",
-      dataIndex: "CollectorName",
-      key: "CollectorName",
-    },
-    {
-      title: "Payment Details", // Merged column title
-      key: "paymentDetails",
-      render: (_, record) => (
-        <>
-          <div>{record.PaymentMode}</div>
-          {record.CollectionReferenceNo && (
-            <div style={{ fontSize: "10px", color: "gray" }}>
-              Ref: {record.CollectionReferenceNo}
-            </div>
-          )}
-        </>
-      ),
+        title: "Collection Ref No",
+        dataIndex: "CollectionReferenceNo",
+        key: "CollectionReferenceNo",
     },
     {
       title: "Amortization",
@@ -308,51 +262,31 @@ const Collections = ({ loan }) => {
       render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
     },
     {
-      title: "Principal Paid",
-      dataIndex: "PrincipalPaid",
-      key: "PrincipalPaid",
-      render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
+        title: "Payment",
+        dataIndex: "CollectionPayment",
+        key: "CollectionPayment",
+        render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
     },
     {
-      title: "Interest Paid",
-      dataIndex: "InterestPaid",
-      key: "InterestPaid",
-      render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
-    },
-    {
-      title: "Total Collected",
-      dataIndex: "TotalCollected",
-      key: "TotalCollected",
-      render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
-    },
-    {
-      title: "Running Payment", // New column
-      dataIndex: "RunningPayment",
-      key: "RunningPayment",
-      render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
-    },
-    {
-      title: "Running Balance",
+      title: "Loan Balance",
       dataIndex: "RunningBalance",
       key: "RunningBalance",
       render: (text) => `₱${parseFloat(text || 0).toLocaleString()}`,
     },
     {
-      title: "Remarks", // New Remarks column
-      dataIndex: "Remarks",
-      key: "Remarks",
-      width: 100,
-      render: (text) => (
-        <span style={{ fontSize: "11px", whiteSpace: "normal" }}>
-          {text || "N/A"}
-        </span>
-      ),
+        title: "Penalty Payment",
+        key: "penaltyPayment",
+        render: () => "₱0",
+    },
+    {
+      title: "Collector",
+      dataIndex: "CollectorName",
+      key: "CollectorName",
     },
     {
       title: "Action",
       key: "action",
       render: (_, record) =>
-        // Only show actions for actual collection records, not the disbursement row
         !record.isDisbursement && (
           <Space size="small">
             <Button
@@ -374,38 +308,29 @@ const Collections = ({ loan }) => {
   ];
 
   const summary = (pageData) => {
-    let totalPrincipalPaid = 0;
-    let totalInterestPaid = 0;
-    let totalTotalCollected = 0;
+    let totalAmortization = 0;
+    let totalPayment = 0;
 
-    pageData.forEach(
-      ({ PrincipalPaid, InterestPaid, TotalCollected, isDisbursement }) => {
-        if (!isDisbursement) {
-          // Exclude disbursement row from summary totals
-          totalPrincipalPaid += parseFloat(PrincipalPaid || 0);
-          totalInterestPaid += parseFloat(InterestPaid || 0);
-          totalTotalCollected += parseFloat(TotalCollected || 0);
-        }
+    pageData.forEach(({ Amortization, CollectionPayment, isDisbursement }) => {
+      if (!isDisbursement) {
+        totalAmortization += parseFloat(Amortization || 0);
+        totalPayment += parseFloat(CollectionPayment || 0);
       }
-    );
+    });
 
     return (
       <Table.Summary.Row>
-        <Table.Summary.Cell index={0} colSpan={5}>
-          Total
-        </Table.Summary.Cell>
-        <Table.Summary.Cell index={1}>
-          <Text strong>₱{totalPrincipalPaid.toLocaleString()}</Text>
-        </Table.Summary.Cell>
+        <Table.Summary.Cell index={0} colSpan={2}>Total</Table.Summary.Cell>
         <Table.Summary.Cell index={2}>
-          <Text strong>₱{totalInterestPaid.toLocaleString()}</Text>
+          <Text strong>₱{totalAmortization.toLocaleString()}</Text>
         </Table.Summary.Cell>
         <Table.Summary.Cell index={3}>
-          <Text strong>₱{totalTotalCollected.toLocaleString()}</Text>
+          <Text strong>₱{totalPayment.toLocaleString()}</Text>
         </Table.Summary.Cell>
-        <Table.Summary.Cell index={4}></Table.Summary.Cell>
-        <Table.Summary.Cell index={5}></Table.Summary.Cell>
-        <Table.Summary.Cell index={6}></Table.Summary.Cell>
+        <Table.Summary.Cell index={4} />
+        <Table.Summary.Cell index={5} />
+        <Table.Summary.Cell index={6} />
+        <Table.Summary.Cell index={7} />
       </Table.Summary.Row>
     );
   };
@@ -447,12 +372,11 @@ const Collections = ({ loan }) => {
         >
           Add Collection
         </Button>
-        <Button
-          icon={<FileExcelOutlined />}
-          onClick={handleExportCollectionsToExcel}
-        >
-          Export to Excel
-        </Button>
+        <Dropdown overlay={exportMenu}>
+          <Button>
+            Export <DownOutlined />
+          </Button>
+        </Dropdown>
         <Button icon={<DownloadOutlined />} onClick={handleGenerateSOA}>
           Generate SOA
         </Button>
@@ -491,6 +415,7 @@ const Collections = ({ loan }) => {
             fetchCollections();
           }}
           collectionData={editingCollection}
+          loan={loan}
         />
       )}
     </div>

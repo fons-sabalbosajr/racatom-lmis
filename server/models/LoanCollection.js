@@ -26,6 +26,16 @@ const LoanCollectionSchema = new mongoose.Schema(
     TotalLoanToPay: { type: mongoose.Schema.Types.Decimal128 },
     DateReceived: { type: Date },
     DateProcessed: { type: Date },
+    // New Fields
+    PaymentVia: { type: String },
+    PaymentType: { type: String },
+    OnlinePlatform: { type: String },
+    OtherOnlinePlatform: { type: String },
+    BankName: { type: String },
+    OtherBankName: { type: String },
+    OnlineRefNo: { type: String },
+    BankRefNo: { type: String },
+    Remarks: { type: String },
   },
   { timestamps: true }
 );
