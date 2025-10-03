@@ -3,9 +3,11 @@ import {
   getCollectionsByLoanCycleNo,
   addCollection,
   updateCollection,
+  updateSingleCollection,
   deleteCollection,
   getDistinctPaymentModes,
   getDistinctCollectorNames,
+  bulkUpdateCollector,
 } from "../controllers/loanCollectionController.js";
 
 const router = express.Router();
@@ -16,7 +18,10 @@ router.get("/collector-names", getDistinctCollectorNames);
 
 router.get("/:loanCycleNo", getCollectionsByLoanCycleNo);
 router.post("/", addCollection);
-router.put("/:id", updateCollection);
+router.put("/:id", updateSingleCollection);
 router.delete("/:id", deleteCollection);
+
+// ✅ Bulk update collectors
+router.patch("/bulk-update", /* requireAuth, */ bulkUpdateCollector);
 
 export default router;

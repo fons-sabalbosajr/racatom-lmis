@@ -24,6 +24,7 @@ import {
   InfoCircleOutlined,
   PlusOutlined,
   DeleteOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
@@ -32,10 +33,10 @@ import LoanRateConfig from "../../Settings/LoanRateConfig/LoanRateConfig";
 import LoanPersonalInfoTab from "./LoanPersonalInfoTab";
 import LoanInfoTab from "./LoanInfoTab";
 import LoanDocumentsTab from "./LoanDocumentsTab";
+import LoanAccountSecurityTab from "./LoanAccountSecurityTab";
 import Collections from "../../Collections/Collections";
 
 const { Text } = Typography;
-const { TabPane } = Tabs;
 const { Option } = Select;
 
 const LOAN_TYPES = ["New", "Renewal"];
@@ -45,6 +46,7 @@ const LOAN_STATUSES = [
   "PAST DUE",
   "LITIGATION",
   "DORMANT",
+  "CLOSED",
 ];
 const PAYMENT_MODES = ["DAILY", "WEEKLY", "SEMI-MONTHLY", "MONTHLY"];
 const LOAN_TERMS = [
@@ -62,7 +64,13 @@ const LOAN_TERMS = [
   "12 months",
 ];
 
-const LOAN_PROCESS_STATUSES = ["Approved", "Updated", "Released", "Pending"];
+const LOAN_PROCESS_STATUSES = [
+  "Approved",
+  "Updated",
+  "Released",
+  "Pending",
+  "Loan Released",
+];
 
 // Colors for Loan Status
 const LOAN_STATUS_COLORS = {
@@ -71,6 +79,7 @@ const LOAN_STATUS_COLORS = {
   "PAST DUE": "red",
   LITIGATION: "volcano",
   DORMANT: "gray",
+  CLOSED: "default",
 };
 
 // Colors for Loan Process Status
@@ -78,7 +87,8 @@ const LOAN_PROCESS_STATUS_COLORS = {
   Updated: "green",
   Approved: "blue",
   Pending: "gold",
-  Releasing: "purple",
+  Released: "purple",
+  "Loan Released": "purple",
 };
 
 // Colors for Loan Type
@@ -93,9 +103,19 @@ export default function LoanDetailsModal({
   loan,
   loading,
   onLoanUpdate,
+  initialTabKey = "1",
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTabKey, setActiveTabKey] = useState("1");
+  const [activeTabKey, setActiveTabKey] = useState(initialTabKey);
+
+  useEffect(() => {
+    if (visible) {
+      setActiveTabKey(initialTabKey);
+    } else {
+      // Reset to default when modal is not visible
+      setActiveTabKey("1");
+    }
+  }, [visible, initialTabKey]);
   const [editedLoan, setEditedLoan] = useState(loan);
   const [loanDisbursed, setLoanDisbursed] = useState([]);
   const [isAddLoanModalVisible, setIsAddLoanModalVisible] = useState(false);
@@ -125,8 +145,9 @@ export default function LoanDetailsModal({
     Remarks: "",
   });
   const [mergedLoans, setMergedLoans] = useState([]);
-  const [loanCollections, setLoanCollections] = useState([]); // New state for collections
+  const [loanCollections, setLoanCollections] = useState([]);
   const [isLoanRateModalVisible, setIsLoanRateModalVisible] = useState(false);
+  const [loanNoError, setLoanNoError] = useState(""); // State for LoanNo validation
 
   useEffect(() => {
     setEditedLoan(loan);
@@ -171,7 +192,6 @@ export default function LoanDetailsModal({
             setLoanDisbursed([]);
           }
 
-          // Get all unique LoanCycleNos from clientLoans and disbursedLoans
           const allLoanCycleNos = new Set();
           loan?.allClientLoans?.forEach((l) => {
             if (l.LoanCycleNo) allLoanCycleNos.add(l.LoanCycleNo);
@@ -180,8 +200,9 @@ export default function LoanDetailsModal({
             if (d.LoanCycleNo) allLoanCycleNos.add(d.LoanCycleNo);
           });
 
-          const collectionPromises = Array.from(allLoanCycleNos).map((cycleNo) =>
-            api.get(`/loan-collections/${cycleNo}`, { params: { limit: 0 } }) // Fetch all collections for running balance calculation
+          const collectionPromises = Array.from(allLoanCycleNos).map(
+            (cycleNo) =>
+              api.get(`/loan-collections/${cycleNo}`, { params: { limit: 0 } })
           );
 
           const collectionsResults = await Promise.all(collectionPromises);
@@ -204,11 +225,22 @@ export default function LoanDetailsModal({
 
   const handleSave = async () => {
     try {
-      const res = await api.put(`/loans/${editedLoan._id}`, editedLoan);
+      // Create a payload and map the fields to match the backend model
+      const payload = {
+        ...editedLoan,
+        ClientNo: editedLoan.clientNo, // Ensure correct casing
+        AccountId: editedLoan.accountId, // Ensure correct casing
+        loanInfo: {
+          ...editedLoan.loanInfo,
+          LoanCycleNo: editedLoan.loanInfo.loanNo, // Map loanNo to LoanCycleNo
+        },
+      };
+
+      const res = await api.put(`/loans/${editedLoan._id}`, payload);
       if (res.data.success) {
         message.success("Loan details updated successfully!");
         if (onLoanUpdate) {
-          onLoanUpdate();
+          onLoanUpdate(); // This refreshes the main loans table
         }
         onClose();
       } else {
@@ -228,23 +260,41 @@ export default function LoanDetailsModal({
   };
 
   const handleChange = (field, value) => {
+    const fieldParts = field.split(".");
+
     setEditedLoan((prev) => {
-      const newEditedLoan = { ...prev };
-      const fieldParts = field.split(".");
+      // Create a deep copy to avoid state mutation
+      const newEditedLoan = JSON.parse(JSON.stringify(prev));
+
       let current = newEditedLoan;
       for (let i = 0; i < fieldParts.length - 1; i++) {
-        if (!current[fieldParts[i]]) current[fieldParts[i]] = {};
+        if (!current[fieldParts[i]]) {
+          current[fieldParts[i]] = {};
+        }
         current = current[fieldParts[i]];
       }
       current[fieldParts[fieldParts.length - 1]] = value;
+
       return newEditedLoan;
     });
   };
 
   const handleNewLoanRecordChange = (field, value) => {
+    // Real-time validation for Loan Number
+    if (field === "LoanNo") {
+      if (!value) {
+        setLoanNoError("Loan Number cannot be empty.");
+      } else if (mergedLoans.some((loan) => loan.LoanNo === value)) {
+        setLoanNoError("This Loan Number already exists for the client.");
+      } else {
+        setLoanNoError("");
+      }
+    }
+
     setNewLoanRecord((prev) => {
       let updatedRecord = { ...prev, [field]: value };
 
+      // Auto-generates a renewal number when type is changed, but allows manual override
       if (
         field === "LoanType" &&
         value === "Renewal" &&
@@ -274,37 +324,91 @@ export default function LoanDetailsModal({
     });
   };
 
+  // 🟢 ADD NEW LOAN RECORD
   const handleAddLoanRecordSubmit = async () => {
+    // Validate required fields
+    if (loanNoError || !newLoanRecord.LoanNo) {
+      if (!newLoanRecord.LoanNo) setLoanNoError("Loan Number cannot be empty.");
+      message.error("Please fix the errors before submitting.");
+      return;
+    }
+
     try {
-      const res = await api.post("/loan_disbursed", {
+      // ✅ Ensure LoanBalance is initialized properly
+      const payload = {
         ...newLoanRecord,
         ClientNo: loan.clientNo,
         AccountId: loan.accountId,
-      });
+      };
+
+      // Default LoanBalance = LoanAmount if missing
+      if (
+        (!payload.LoanBalance || payload.LoanBalance === 0) &&
+        payload.LoanAmount > 0
+      ) {
+        payload.LoanBalance = payload.LoanAmount;
+      }
+
+      const res = await api.post("/loans/cycles", payload);
 
       if (res.data.success) {
         message.success("New loan record added successfully!");
         setIsAddLoanModalVisible(false);
-        if (loan?.clientNo) {
-          const refreshRes = await api.get(
-            `/loan_disbursed/client/${loan.clientNo}`
-          );
-          if (refreshRes.data.success) {
-            setLoanDisbursed(refreshRes.data.data);
-          }
-        }
+        setLoanNoError("");
+
+        // Reset the form state (optional)
+        setNewLoanRecord({});
+
+        // 🔄 Refresh parent data
+        if (onLoanUpdate) onLoanUpdate();
       } else {
         message.error(res.data.message || "Failed to add loan record.");
       }
     } catch (err) {
       console.error("Error adding loan record:", err);
-      message.error("Error adding loan record.");
+      message.error(err.response?.data?.message || "Error adding loan record.");
     }
   };
 
+  // 🟢 OPEN EDIT LOAN RECORD MODAL
   const handleEditLoanRecord = (record) => {
-    setEditingLoanRecord(record);
+    const updatedRecord = {
+      ...record,
+      // Ensure LoanBalance is always populated
+      LoanBalance:
+        record.LoanBalance ??
+        record.RunningBalance ??
+        record.loanInfo?.balance ??
+        0,
+    };
+    setEditingLoanRecord(updatedRecord);
     setIsEditLoanRecordModalVisible(true);
+  };
+
+  // 🟢 UPDATE EXISTING LOAN RECORD
+  const handleUpdateLoanRecord = async () => {
+    try {
+      const payload = { ...editingLoanRecord };
+      payload.RunningBalance = payload.LoanBalance;
+
+      const res = await api.put(
+        `/loans/cycle/${editingLoanRecord._id}`,
+        payload
+      );
+
+      if (res.data.success) {
+        message.success("Loan record updated successfully.");
+        setIsEditLoanRecordModalVisible(false);
+
+        // 🔁 Use parent’s refresh callback instead of undefined local function
+        if (onLoanUpdate) onLoanUpdate();
+      } else {
+        message.error(res.data.message || "Failed to update loan record.");
+      }
+    } catch (error) {
+      console.error("Error updating loan record:", error);
+      message.error("Failed to update loan record.");
+    }
   };
 
   const handleDeleteLoanRecord = async (record) => {
@@ -329,45 +433,30 @@ export default function LoanDetailsModal({
     }
   };
 
+  const handleMarkAsClosed = async (record) => {
+    try {
+      const payload = { ...record, LoanStatus: "CLOSED" };
+      const res = await api.put(`/loans/cycle/${record._id}`, payload);
+
+      if (res.data.success) {
+        message.success("Loan marked as closed.");
+        if (onLoanUpdate) {
+          onLoanUpdate();
+        }
+      } else {
+        message.error(res.data.message || "Failed to update loan status.");
+      }
+    } catch (err) {
+      console.error("Error updating loan status:", err);
+      message.error("Error updating loan status.");
+    }
+  };
+
   const handleEditLoanRecordChange = (field, value) => {
-    //console.log(`Updating field: ${field}, with value: ${value}`);
     setEditingLoanRecord((prev) => ({
       ...prev,
       [field]: value,
     }));
-  };
-
-  const handleUpdateLoanRecord = async () => {
-    try {
-      const payload = { ...editingLoanRecord };
-      const res = await api.put(`/loans/cycle/${payload._id}`, payload);
-
-      if (res.data.success) {
-        message.success("Loan record updated successfully!");
-        setIsEditLoanRecordModalVisible(false);
-
-        // Manually update the mergedLoans state
-        setMergedLoans(prev => {
-          const index = prev.findIndex(item => item._id === payload._id);
-          if (index > -1) {
-            const newMergedLoans = [...prev];
-            newMergedLoans[index] = { ...newMergedLoans[index], ...payload };
-            return newMergedLoans;
-          }
-          return prev;
-        });
-
-        if (onLoanUpdate) {
-          onLoanUpdate();
-        }
-
-      } else {
-        message.error(res.data.message || "Failed to update loan record.");
-      }
-    } catch (err) {
-      console.error("Error updating loan record:", err);
-      message.error("Failed to update loan record. Please try again.");
-    }
   };
 
   useEffect(() => {
@@ -376,7 +465,6 @@ export default function LoanDetailsModal({
         const latestCollection = loanCollections
           .filter((collection) => collection.LoanCycleNo === l.loanInfo.loanNo)
           .sort((a, b) => {
-            // Sort by PaymentDate descending, then createdAt descending
             const dateA = dayjs(a.PaymentDate || a.createdAt);
             const dateB = dayjs(b.PaymentDate || b.createdAt);
             if (dateA.isBefore(dateB)) return 1;
@@ -401,12 +489,11 @@ export default function LoanDetailsModal({
           LoanTerm: l.loanInfo?.term,
           LoanProcessStatus: l.loanInfo?.processStatus,
           CollectorName: l.loanInfo?.collectorName,
-          Remarks: l.loanInfo?.remarks, // This was missing
+          Remarks: l.loanInfo?.remarks,
           Source: "Client Loan",
           PaymentMode: l.loanInfo?.paymentMode,
           StartPaymentDate: l.loanInfo?.startPaymentDate,
           MaturityDate: l.loanInfo?.maturityDate,
-          // Use RunningBalance from latest collection, or default to LoanBalance
           RunningBalance: latestCollection
             ? parseFloat(latestCollection.RunningBalance)
             : l.loanInfo?.balance,
@@ -444,7 +531,6 @@ export default function LoanDetailsModal({
               : null,
             Remarks: d.Remarks,
             Source: "Disbursed",
-            // Use RunningBalance from latest collection, or default to LoanBalance
             RunningBalance: latestCollection
               ? parseFloat(latestCollection.RunningBalance)
               : d.LoanBalance,
@@ -487,10 +573,22 @@ export default function LoanDetailsModal({
         mergedLoans.slice(-1)[0];
       const lastLoanNo = lastLoan?.LoanNo;
 
+      const generatedLoanNo = generateLoanNo(lastLoanNo, false);
+
       setNewLoanRecord((prev) => ({
         ...prev,
-        LoanNo: generateLoanNo(lastLoanNo, false),
+        LoanNo: generatedLoanNo,
       }));
+
+      // Validate the generated number immediately
+      if (mergedLoans.some((loan) => loan.LoanNo === generatedLoanNo)) {
+        setLoanNoError("Warning: Auto-generated Loan Number already exists.");
+      } else {
+        setLoanNoError("");
+      }
+    } else {
+      // Clear error when modal is closed
+      setLoanNoError("");
     }
   }, [isAddLoanModalVisible, mergedLoans]);
 
@@ -599,15 +697,15 @@ export default function LoanDetailsModal({
     },
     {
       title: "Remarks",
-      dataIndex: "Remarks", // Assuming the field name is 'Remarks'
+      dataIndex: "Remarks",
       key: "remarks",
-      width: 150, // Adjust width as needed
-      render: (text) => text || "N/A", // Display "N/A" if remarks are empty
+      width: 150,
+      render: (text) => text || "N/A",
     },
     {
       title: "Action",
       key: "action",
-      width: 100, // Adjusted width for icons
+      width: 100,
       render: (text, record) => (
         <Space size="small">
           <Tooltip title="Edit">
@@ -628,11 +726,22 @@ export default function LoanDetailsModal({
               <Button danger icon={<DeleteOutlined />} size="small" />
             </Tooltip>
           </Popconfirm>
+          <Popconfirm
+            title="Are you sure you want to mark this loan as closed?"
+            onConfirm={() => handleMarkAsClosed(record)}
+            okText="Yes"
+            cancelText="No"
+          >
+            <Tooltip title="Mark as Closed">
+              <Button icon={<CheckCircleOutlined />} size="small" />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
   ];
 
+  // Updated renderField to show validation status and help text
   const renderField = (
     label,
     field,
@@ -640,37 +749,10 @@ export default function LoanDetailsModal({
     type = "text",
     onChangeHandler,
     disabled = false,
-    options = []
+    options = [],
+    errorStatus = "",
+    helpText = ""
   ) => {
-    const handleChange = (val) => {
-      if (field === "LoanType") {
-        setNewLoanRecord((prev) => {
-          let updatedRecord = { ...prev, LoanType: val };
-          const baseLoanNo = loan.loanInfo.loanNo.split("-R")[0];
-
-          if (val === "Renewal") {
-            const renewalLoans = mergedLoans.filter(
-              (d) => d.LoanNo && d.LoanNo.startsWith(`${baseLoanNo}-R`)
-            );
-            let maxRenewalNum = 0;
-            renewalLoans.forEach((rl) => {
-              const match = rl.LoanNo.match(/-R(\d+)$/);
-              if (match) {
-                maxRenewalNum = Math.max(maxRenewalNum, parseInt(match[1], 10));
-              }
-            });
-            updatedRecord.LoanNo = `${baseLoanNo}-R${maxRenewalNum + 1}`;
-          } else {
-            updatedRecord.LoanNo = baseLoanNo;
-          }
-
-          return updatedRecord;
-        });
-      } else {
-        onChangeHandler(field, val);
-      }
-    };
-
     const labelContent = (
       <div style={{ display: "flex", alignItems: "center" }}>
         <Text style={{ fontWeight: "normal" }}>{label}</Text>
@@ -688,7 +770,13 @@ export default function LoanDetailsModal({
     );
 
     return (
-      <div style={{ marginBottom: 12 }}>
+      <div
+        style={{
+          marginBottom: 12,
+          paddingBottom: helpText ? "18px" : "0",
+          position: "relative",
+        }}
+      >
         {labelContent}
         {type === "date" ? (
           <DatePicker
@@ -698,6 +786,7 @@ export default function LoanDetailsModal({
             }
             disabled={disabled}
             style={{ width: "100%" }}
+            status={errorStatus}
           />
         ) : type === "number" ? (
           <InputNumber
@@ -708,6 +797,7 @@ export default function LoanDetailsModal({
             size="small"
             formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
             parser={(val) => val.replace(/[^\d.]/g, "")}
+            status={errorStatus}
           />
         ) : type === "select" ? (
           <Select
@@ -716,6 +806,7 @@ export default function LoanDetailsModal({
             disabled={disabled}
             style={{ width: "100%" }}
             placeholder={`Select ${label}`}
+            status={errorStatus}
           >
             {options.map((option) => {
               if (field === "LoanStatus") {
@@ -753,11 +844,22 @@ export default function LoanDetailsModal({
             size="small"
             style={{ width: "100%", height: 32 }}
             type={type}
+            status={errorStatus}
           />
+        )}
+        {helpText && (
+          <Text
+            type="danger"
+            style={{ fontSize: "12px", position: "absolute", bottom: 0 }}
+          >
+            {helpText}
+          </Text>
         )}
       </div>
     );
   };
+
+  const isEditableTab = activeTabKey === "1" || activeTabKey === "5";
 
   return (
     <Modal
@@ -766,7 +868,6 @@ export default function LoanDetailsModal({
       width={1200}
       onCancel={onClose}
       footer={[
-        // Add Loan Record button (only for Loan Information tab when not editing)
         activeTabKey === "2" && !isEditing && (
           <Button
             key="addLoanRecord"
@@ -777,14 +878,12 @@ export default function LoanDetailsModal({
             Add Loan Record
           </Button>
         ),
-        // Edit button (for tabs 1, 2, 3 when not editing)
-        activeTabKey === "1" && !isEditing && (
+        isEditableTab && !isEditing && (
           <Button key="edit" icon={<EditOutlined />} onClick={handleEdit}>
             Edit
           </Button>
         ),
-        // Save button (for tabs 1, 2, 3 when editing)
-        activeTabKey !== "4" && isEditing && (
+        isEditableTab && isEditing && (
           <Button
             key="save"
             type="primary"
@@ -794,13 +893,11 @@ export default function LoanDetailsModal({
             Save
           </Button>
         ),
-        // Cancel button (for tabs 1, 2, 3 when editing)
-        activeTabKey !== "4" && isEditing && (
+        isEditableTab && isEditing && (
           <Button key="cancel" icon={<CloseOutlined />} onClick={handleCancel}>
             Cancel
           </Button>
         ),
-        // Close button (for tabs 1, 2, 3)
         activeTabKey !== "4" && (
           <Button key="close" onClick={onClose}>
             Close
@@ -812,35 +909,53 @@ export default function LoanDetailsModal({
         <div>Loading...</div>
       ) : loan ? (
         <Tabs
-          defaultActiveKey="1"
           activeKey={activeTabKey}
           onChange={setActiveTabKey}
-        >
-          <TabPane tab="Personal Information" key="1">
-            <LoanPersonalInfoTab
-              editedLoan={editedLoan}
-              handleChange={handleChange}
-              isEditing={isEditing}
-            />
-          </TabPane>
-
-          <TabPane tab="Loan Information" key="2">
-            <LoanInfoTab
-              mergedLoans={mergedLoans}
-              loanInfoColumns={loanInfoColumns}
-              setIsAddLoanModalVisible={setIsAddLoanModalVisible}
-              handleEditLoanRecord={handleEditLoanRecord}
-              handleDeleteLoanRecord={handleDeleteLoanRecord} // Pass down the delete handler
-            />
-          </TabPane>
-
-          <TabPane tab="Documents" key="3">
-            <LoanDocumentsTab documents={loan.clientDocuments} />
-          </TabPane>
-          <TabPane tab="Collections" key="4">
-            {loan && <Collections loan={loan} />}
-          </TabPane>
-        </Tabs>
+          items={[
+            {
+              key: "1",
+              label: "Personal Information",
+              children: (
+                <LoanPersonalInfoTab
+                  editedLoan={editedLoan}
+                  handleChange={handleChange}
+                  isEditing={isEditing}
+                />
+              ),
+            },
+            {
+              key: "2",
+              label: "Loan Information",
+              children: (
+                <LoanInfoTab
+                  mergedLoans={mergedLoans}
+                  loanInfoColumns={loanInfoColumns}
+                />
+              ),
+            },
+            {
+              key: "3",
+              label: "Documents",
+              children: <LoanDocumentsTab documents={loan.clientDocuments} />,
+            },
+            {
+              key: "4",
+              label: "Collections",
+              children: loan && <Collections loan={loan} />,
+            },
+            {
+              key: "5",
+              label: "Account Security",
+              children: (
+                <LoanAccountSecurityTab
+                  editedLoan={editedLoan}
+                  handleChange={handleChange}
+                  isEditing={isEditing}
+                />
+              ),
+            },
+          ]}
+        />
       ) : (
         <div>No loan details</div>
       )}
@@ -868,7 +983,10 @@ export default function LoanDetailsModal({
                       newLoanRecord.LoanNo,
                       "text",
                       handleNewLoanRecordChange,
-                      true
+                      false, // Set to false to enable editing
+                      [], // No options for this text field
+                      loanNoError ? "error" : "", // Pass validation status
+                      loanNoError // Pass validation help text
                     )}
                   </Col>
                   <Col span={12}>
@@ -1054,7 +1172,8 @@ export default function LoanDetailsModal({
                 )}
                 {renderField(
                   "Maturity Date",
-                  "MaturityDate",newLoanRecord.MaturityDate,
+                  "MaturityDate",
+                  newLoanRecord.MaturityDate,
                   "date",
                   handleNewLoanRecordChange
                 )}
@@ -1088,7 +1207,7 @@ export default function LoanDetailsModal({
                         editingLoanRecord.LoanNo,
                         "text",
                         handleEditLoanRecordChange,
-                        true // Disable Loan No in edit modal
+                        true // Keep disabled in edit mode to prevent changing primary keys
                       )}
                     </Col>
                     <Col span={12}>

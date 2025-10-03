@@ -8,18 +8,20 @@ import {
   getPaymentModes,
   getLoanYears,
   deleteLoan,
-  exportReport, // MODIFIED: Use the new generic exportReport
+  exportReport,
   getLoansByClientNo,
   getDocumentsByClientNo,
   getLoansByAccountId,
-  getLoanTransactions, // NEW
-  generateStatementOfAccount, // NEW
-  generateLedger, // NEW
-  getLoanDetailsByCycleNo, // NEW
-  createLoanApplication, // NEW
-  searchClients, // NEW
-  getClientDetailsForRenewal, // NEW
-  getApprovedClients, // NEW
+  getLoanTransactions,
+  generateStatementOfAccount,
+  generateLedger,
+  getLoanDetailsByCycleNo,
+  createLoanApplication,
+  searchClients,
+  getClientDetailsForRenewal,
+  getApprovedClients,
+  createLoanCycle,
+  exportLoansExcel,
 } from "../controllers/loanController.js";
 
 const router = express.Router();
@@ -39,10 +41,17 @@ router.get("/", getLoans);
 // POST /api/loans/loan_clients_application
 router.post("/loan_clients_application", createLoanApplication);
 
+// POST /api/loans/cycles  <-- CORRECTED ROUTE
+router.post("/cycles", createLoanCycle);
+
 // GET loan statuses, payment modes, and years
 router.get("/statuses", getLoanStatuses);
 router.get("/payment-modes", getPaymentModes);
 router.get("/years", getLoanYears);
+
+// ✅ FIX: Export routes are moved here, BEFORE parameterized routes like '/:id'
+router.get("/export", exportLoansExcel);
+router.get("/export/:reportType", exportReport);
 
 // GET loans by account id
 router.get("/account/:accountId", getLoansByAccountId);
@@ -53,7 +62,10 @@ router.get("/client/:clientNo", getLoansByClientNo);
 // GET documents by client number
 router.get("/client/:clientNo/documents", getDocumentsByClientNo);
 
-// GET loan by ID
+// NEW: Get loan details by loanCycleNo
+router.get("/details-by-cycle/:loanCycleNo", getLoanDetailsByCycleNo);
+
+// GET loan by ID (must be after other specific GET routes)
 router.get("/:id", getLoanById);
 
 // UPDATE loan by ID
@@ -69,15 +81,12 @@ router.delete("/:id", deleteLoan);
 router.get("/transactions/:accountId/:loanCycleNo", getLoanTransactions);
 
 // NEW: Generate Statement of Account
-router.get("/report/statement-of-account/:accountId/:loanCycleNo", generateStatementOfAccount);
+router.get(
+  "/report/statement-of-account/:accountId/:loanCycleNo",
+  generateStatementOfAccount
+);
 
 // NEW: Generate Ledger
 router.get("/report/ledger/:accountId/:loanCycleNo", generateLedger);
-
-// MODIFIED: Export reports (all loans, statement of account, ledger)
-router.get("/export/:reportType", exportReport);
-
-// NEW: Get loan details by loanCycleNo
-router.get("/details-by-cycle/:loanCycleNo", getLoanDetailsByCycleNo);
 
 export default router;

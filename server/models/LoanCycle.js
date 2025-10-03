@@ -17,7 +17,7 @@ const LoanCycleSchema = new mongoose.Schema(
     StartPaymentDate: Date,
     MaturityDate: Date,
     CollectorName: String,
-    LoanProcessStatus: { type: String, enum: ["Approved", "Updated", "Released", "Pending"] },
+    LoanProcessStatus: { type: String, enum: ["Approved", "Updated", "Released", "Pending", "Loan Released"] },
     Remarks: { type: String },
     Date_Encoded: Date,
     Date_Modified: Date,

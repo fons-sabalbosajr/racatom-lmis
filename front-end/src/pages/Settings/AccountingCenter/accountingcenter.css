@@ -1,0 +1,35 @@
+.accounting-center-container {
+  padding: 10px;
+  background-color: #f0f2f5;
+  border-radius: 8px;
+}
+
+.stat-card .ant-card-body {
+  padding: 20px;
+}
+
+.stat-card .ant-statistic-title {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.stat-card .ant-statistic-content {
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.stat-card .ant-statistic-content-prefix {
+    font-size: 20px;
+    margin-right: 4px;
+}
+
+.full-page-spin {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 60vh;
+}
+
+.ant-tabs-tab {
+    font-size: 16px;
+}

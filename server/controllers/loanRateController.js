@@ -5,10 +5,16 @@ import LoanRate from "../models/LoanRate.js";
 export const getLoanRates = async (req, res) => {
   try {
     const rates = await LoanRate.find();
-    res.json(rates);
+    res.status(200).json({
+      success: true,
+      data: rates,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "Failed to fetch loan rates" });
+    console.error("Error fetching loan rates:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch loan rates",
+    });
   }
 };
 
@@ -20,19 +26,30 @@ export const createLoanRate = async (req, res) => {
     res.json(newRate);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Failed to create loan rate" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to create loan rate" });
   }
 };
 
 // Update loan rate by ID
 export const updateLoanRate = async (req, res) => {
   try {
-    const updatedRate = await LoanRate.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updatedRate) return res.status(404).json({ success: false, message: "Loan rate not found" });
+    const updatedRate = await LoanRate.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    if (!updatedRate)
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan rate not found" });
     res.json(updatedRate);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Failed to update loan rate" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to update loan rate" });
   }
 };
 
@@ -40,10 +57,15 @@ export const updateLoanRate = async (req, res) => {
 export const deleteLoanRate = async (req, res) => {
   try {
     const deleted = await LoanRate.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ success: false, message: "Loan rate not found" });
+    if (!deleted)
+      return res
+        .status(404)
+        .json({ success: false, message: "Loan rate not found" });
     res.json({ success: true, message: "Loan rate deleted" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Failed to delete loan rate" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to delete loan rate" });
   }
 };

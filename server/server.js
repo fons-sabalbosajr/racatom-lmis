@@ -11,6 +11,7 @@ import moment from "moment";
 
 import Announcement from "./models/Announcement.js"; // Import model for cron
 import requireAuth from "./middleware/requireAuth.js";
+import LoanClientApplication from "./models/LoanClientApplication.js";
 
 import authRoutes from "./routes/auth.js";
 import announcementRoute from "./routes/announcementRoute.js";
@@ -21,6 +22,12 @@ import loanRoutes from "./routes/loanRoutes.js";
 import loanDisbursedRoutes from "./routes/loanDisburseRoutes.js";
 import loanCollectionRoutes from "./routes/loanCollectionRoutes.js";
 import dashboardRoutes from "./routes/dashboard.js";
+
+import loanCollectionImportRoutes from "./routes/loanCollectionImportRoutes.js";
+
+import parseCollectionRoutes from "./routes/parseCollectionRoutes.js";
+import loanClientApplicationRoute from "./routes/loanClientApplicationRoute.js";
+
 
 const app = express();
 
@@ -51,11 +58,29 @@ app.use("/api/loans", loanRoutes);
 app.use("/api/loan_disbursed", loanDisbursedRoutes);
 app.use("/api/loan-collections", loanCollectionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/loan-collections", loanCollectionImportRoutes);
+app.use("/api/parse", parseCollectionRoutes);
+app.use("/api/loan_clients_application", loanClientApplicationRoute);
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {
   console.error("Unhandled server error:", err);
   res.status(500).json({ success: false, message: "Server error" });
+});
+
+// Run every midnight
+cron.schedule("0 0 * * *", async () => {
+  const threshold = new Date();
+  threshold.setDate(threshold.getDate() - 30);
+
+  const result = await LoanClientApplication.deleteMany({
+    LoanStatus: "REJECTED",
+    RejectedAt: { $lt: threshold },
+  });
+
+  if (result.deletedCount > 0) {
+    console.log(`🧹 Cleaned ${result.deletedCount} stale rejected applications`);
+  }
 });
 
 // Connect to MongoDB

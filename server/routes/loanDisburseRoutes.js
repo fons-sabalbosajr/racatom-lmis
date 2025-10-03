@@ -21,4 +21,7 @@ router.get("/account/:accountId", getLoanDisbursedByAccountId);
 // PUT to update a loan disbursed record by ID
 router.put("/:id", updateLoanDisbursed);
 
+// DELETE a loan disbursed record by ID
+router.delete("/:id", deleteLoanDisbursed);
+
 export default router;

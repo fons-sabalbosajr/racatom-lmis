@@ -32,24 +32,30 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
 
   useEffect(() => {
     if (visible && collectionData) {
-      // Set state for conditional UI based on the data being edited
+      form.resetFields();
+
       const paymentMethod = collectionData.PaymentVia || "Cash";
       setPaymentVia(paymentMethod);
-      if (paymentMethod === "Online Payment") {
-        setOnlinePlatform(collectionData.OnlinePlatform);
-      }
-      if (paymentMethod === "Bank Transfer") {
-        setBankName(collectionData.BankName);
-      }
+      setOnlinePlatform(collectionData.OnlinePlatform || "");
+      setBankName(collectionData.BankName || "");
 
-      // Populate form fields
       form.setFieldsValue({
-        ...collectionData,
-        // Ensure dates are converted to dayjs objects for the DatePicker
-        PaymentDate: collectionData.PaymentDate ? dayjs(collectionData.PaymentDate) : null,
+        CollectionPayment: collectionData.CollectionPayment,
+        PaymentType: collectionData.PaymentType,
+        PaymentVia: collectionData.PaymentVia,
+        OnlinePlatform: collectionData.OnlinePlatform,
+        BankName: collectionData.BankName,
+        OtherOnlinePlatform: collectionData.OtherOnlinePlatform,
+        OtherBankName: collectionData.OtherBankName,
+        OnlineRefNo: collectionData.OnlineRefNo,
+        BankRefNo: collectionData.BankRefNo,
+        CollectorName: collectionData.CollectorName,
         DateReceived: collectionData.DateReceived ? dayjs(collectionData.DateReceived) : null,
         DateProcessed: collectionData.DateProcessed ? dayjs(collectionData.DateProcessed) : null,
-        // Populate summary fields from the main loan object
+        Remarks: collectionData.Remarks,
+
+        // Summary fields
+        LoanCycleNo: collectionData.LoanCycleNo,
         LoanAmount: loan?.loanInfo?.amount,
         LoanTerm: loan?.loanInfo?.term,
         PaymentMode: loan?.loanInfo?.paymentMode,
@@ -60,19 +66,14 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
         RemainingBalance: loan?.loanInfo?.runningBalance,
       });
 
-      // Fetch collectors for the dropdown
-      api.get("/collectors")
-        .then((res) => {
-          if (res.data.success) {
-            setCollectors(res.data.data);
-          } else {
-            message.error("Failed to fetch collector names.");
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching collector names:", err);
-          message.error("Error fetching collector names.");
-        });
+      // Fetch collectors
+      api.get("/collectors").then((res) => {
+        if (res.data.success) {
+          setCollectors(res.data.data);
+        } else {
+          message.error("Failed to fetch collector names.");
+        }
+      });
     }
   }, [visible, collectionData, loan, form]);
 

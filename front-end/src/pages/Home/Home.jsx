@@ -25,13 +25,13 @@ import {
   CalendarOutlined,
   MessageOutlined, // ✅ Message icon
 } from "@ant-design/icons";
-import axios from "axios";
 import { decryptData } from "../../utils/storage";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import "./home.css";
 import logo from "../../assets/lmis.svg"; // your logo
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import api from "../../utils/axios";
 
 dayjs.extend(relativeTime);
 
@@ -62,34 +62,18 @@ function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch announcements (Simplified logic)
   useEffect(() => {
     const fetchAnnouncements = async () => {
       try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/announcements`, // gets unread
+        const res = await api.get(
+          `${import.meta.env.VITE_API_URL}/announcements`,
           {
             withCredentials: true,
           }
         );
-        const newUnread = res.data.announcements || [];
-
-        setNotifications((prev) => {
-          // 1. Get notifications that were marked as read during this session
-          const sessionReadNotifications = prev.filter((p) => p.read);
-          const sessionReadIds = new Set(
-            sessionReadNotifications.map((n) => n._id)
-          );
-
-          // 2. Filter the newly fetched unread announcements to ensure they are not already in our sessionReadNotifications
-          // This handles the case where an announcement might have been marked read locally, but the backend still sends it (e.g., if the backend update failed)
-          const uniqueNewUnread = newUnread.filter(
-            (n) => !sessionReadIds.has(n._id)
-          );
-
-          // 3. Combine the session-read notifications with the unique new unread notifications
-          // The 'read' property for newUnread items will be false by default, which is correct.
-          return [...sessionReadNotifications, ...uniqueNewUnread];
-        });
+        // Directly set the state with the data from the API
+        setNotifications(res.data.announcements || []);
       } catch (err) {
         console.error("Failed to fetch announcements:", err);
       }
@@ -100,14 +84,17 @@ function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Mark a single announcement as read (Simplified logic)
   const handleMarkAsRead = async (announcementId, link) => {
     try {
+      // Optimistically update the UI
       setNotifications((prev) =>
-        prev.map((n) => (n._id === announcementId ? { ...n, read: true } : n))
+        prev.map((n) => (n._id === announcementId ? { ...n, isRead: true } : n))
       );
       navigate(link);
 
-      await axios.post(
+      // Send request to the backend
+      await api.post(
         `${
           import.meta.env.VITE_API_URL
         }/announcements/${announcementId}/mark-as-read`,
@@ -119,24 +106,29 @@ function Home() {
     }
   };
 
+  // Mark all as read (Simplified logic)
   const handleMarkAllAsRead = async () => {
     try {
-      await axios.post(
+      // Optimistically update the UI
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+
+      // Send request to the backend
+      await api.post(
         `${import.meta.env.VITE_API_URL}/announcements/mark-all-as-read`,
         {},
         { withCredentials: true }
       );
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch (err) {
       console.error("Failed to mark all announcements as read:", err);
     }
   };
 
+
   // Logout
   const handleLogout = async () => {
     try {
       // Call backend to invalidate session/cookie
-      await axios.post(
+      await api.post(
         `${import.meta.env.VITE_API_URL}/auth/logout`,
         {},
         { withCredentials: true }
@@ -391,13 +383,13 @@ function Home() {
                           ? dayjs(n.PostedDate).fromNow()
                           : "Just now",
                         link: `/settings/announcements/${n._id}`,
-                        read: n.read || false,
+                        isRead: n.isRead, // Use isRead from API
                       }))}
                     locale={{ emptyText: "No notifications" }}
                     renderItem={(item) => (
                       <List.Item
                         key={item.key}
-                        className={item.read ? "notif-read" : "notif-unread"}
+                        className={item.isRead ? "notif-read" : "notif-unread"}
                         style={{
                           cursor: "pointer",
                           padding: "10px 12px",
@@ -409,9 +401,9 @@ function Home() {
                           title={
                             <div
                               style={{
-                                fontWeight: item.read ? 500 : 600,
+                                fontWeight: item.isRead ? 500 : 600,
                                 fontSize: "14px",
-                                color: item.read ? "#888" : "#000",
+                                color: item.isRead ? "#888" : "#000",
                               }}
                             >
                               {item.title}
@@ -422,13 +414,13 @@ function Home() {
                               <div
                                 style={{
                                   fontSize: "13px",
-                                  color: item.read ? "#aaa" : "#444",
+                                  color: item.isRead ? "#aaa" : "#444",
                                   marginBottom: "4px",
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
                                 }}
                               >
-                                {item.content.length > 60
-                                  ? item.content.substring(0, 60) + "..."
-                                  : item.content}
+                                {item.content}
                               </div>
                               <div
                                 style={{
@@ -448,7 +440,7 @@ function Home() {
               }
             >
               <Badge
-                count={notifications.filter((n) => !n.read).length}
+                count={notifications.filter((n) => !n.isRead).length} // Count only unread items
                 size="small"
               >
                 <BellOutlined

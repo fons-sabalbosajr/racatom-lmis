@@ -102,7 +102,7 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
       if (payload.DateReceived) {
         payload.PaymentDate = payload.DateReceived.toISOString();
         payload.DateReceived = payload.DateReceived.toISOString();
-      } 
+      }
       if (payload.DateProcessed) {
         payload.DateProcessed = payload.DateProcessed.toISOString();
       }

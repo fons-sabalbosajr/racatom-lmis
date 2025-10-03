@@ -1,3 +1,5 @@
+// models/LoanDisbursed.js
+
 import mongoose from "mongoose";
 
 const LoanDisbursedSchema = new mongoose.Schema(
@@ -15,18 +17,19 @@ const LoanDisbursedSchema = new mongoose.Schema(
     City: { type: String },
     Province: { type: String },
     LoanTerm: { type: String },
-    LoanAmount: { type: String },
-    LoanAmortization: { type: String },
-    LoanBalance: { type: String },
-    Penalty: { type: String },
-    LoanInterest: { type: String },
+    // --- FIXED FIELDS ---
+    LoanAmount: { type: Number },
+    LoanAmortization: { type: Number },
+    LoanBalance: { type: Number },
+    Penalty: { type: Number },
+    LoanInterest: { type: Number },
+    PrincipalAmount: { type: Number },
     PaymentMode: { type: String },
-    StartPaymentDate: { type: String },
-    MaturityDate: { type: String },
-    Date_Encoded: { type: String },
+    StartPaymentDate: { type: Date },
+    MaturityDate: { type: Date },
+    Date_Encoded: { type: Date },
+    Date_Modified: { type: Date },
     LoanProcessStatus: { type: String },
-    PrincipalAmount: { type: String },
-    Date_Modified: { type: String },
   },
   { timestamps: true }
 );

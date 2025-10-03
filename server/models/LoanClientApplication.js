@@ -1,8 +1,9 @@
+// models/LoanClientApplication.js
+import mongoose from "mongoose";
 
-import mongoose from 'mongoose';
-
-const LoanClientApplicationSchema = new mongoose.Schema({
-    // From Step 1
+const LoanClientApplicationSchema = new mongoose.Schema(
+  {
+    // 🧾 Step 1 — General Information
     AccountId: { type: String, unique: true },
     FirstName: { type: String, required: true },
     MiddleName: { type: String },
@@ -18,70 +19,91 @@ const LoanClientApplicationSchema = new mongoose.Schema({
     OccupationAddress: { type: String },
     LoanRecord: { type: Boolean, default: false },
     PreviousLoan: {
-        Record: String,
-        Date: Date,
-        Amount: Number,
-        Status: String,
+      Record: String,
+      Date: Date,
+      Amount: Number,
+      Status: String,
     },
     CoMaker: {
-        Name: String,
-        Address: String,
-        ContactNo: String,
-        Relationship: String,
+      Name: String,
+      Address: String,
+      ContactNo: String,
+      Relationship: String,
     },
-
     ApplicationDate: { type: Date, default: Date.now },
     SimilarApplicant: { type: Boolean, default: false },
     SimilarBorrower: { type: Boolean, default: false },
     SimilarMaker: { type: Boolean, default: false },
 
-    // From Step 2
-    UploadedDocs: { type: Array },
+    // 📎 Step 2 — Document Requirements
+    UploadedDocs: { type: Array, default: [] },
 
-    // From Step 3
+    // 💰 Step 3 — Loan Information
     LoanAmount: { type: Number, required: true },
     LoanTerms: { type: Number, required: true },
     PaymentMode: { type: String, required: true },
-    'Processing Fee': { type: Number },
-    'Interest Rate/Month': { type: Number },
-    'Penalty Rate': { type: Number },
-    'Notarial Rate': { type: Number },
-    'Annotation Rate': { type: Number },
-    'Insurance Rate': { type: Number },
-    'Vat Rate': { type: Number },
-    'Doc Rate': { type: Number },
-    'Misc. Rate': { type: Number },
+    "Processing Fee": { type: Number },
+    "Interest Rate/Month": { type: Number },
+    "Penalty Rate": { type: Number },
+    "Notarial Rate": { type: Number },
+    "Annotation Rate": { type: Number },
+    "Insurance Rate": { type: Number },
+    "Vat Rate": { type: Number },
+    "Doc Rate": { type: Number },
+    "Misc. Rate": { type: Number },
 
-    // Other fields from sample
+    // 🧾 Additional Loan Details
+    LoanBalance: { type: Number },
+    LoanCycle: { type: String },
+    LoanDescription: { type: String },
+    LoanStatus: {
+      type: String,
+      enum: ["FOR REVIEW", "APPROVED", "REJECTED", "ACTIVE", "CLOSED"],
+      default: "FOR REVIEW",
+    },
+
+    // 🔄 Amended fields
     AmendedFromApplicant: String,
     AmendedFromBorrower: String,
     AmendedFromMaker: String,
     AmendedToApplicant: String,
     AmendedToBorrower: String,
     AmendedToMaker: String,
+
+    // 📋 Admin Processing
     CloseLoanDate: Date,
     CreditInvestigation: { type: Boolean, default: false },
     CreditInvestigationDate: Date,
+    ApprovalDate: Date,
+    ApprovedBy: String,
+    RoutedTo: Object,
+    Remarks: String,
+
+    // 🔴 Rejection Handling
+    RejectionReason: { type: String },
+    RejectedAt: { type: Date },
+
+    // 🧹 Archiving/Cleanup helper
+    IsArchived: { type: Boolean, default: false },
+
+    // 💵 Payments & Ledger Fields
     DaysMissed: String,
-    LoanBalance: String,
-    LoanCycle: String,
-    LoanDescription: String,
-    LoanStatus: { type: String, default: 'FOR REVIEW' },
     ORNumber: String,
     PaidToDate: String,
     PaymentAmount: String,
     PaymentDelay: String,
     Rebates: String,
     ReleaseSchedule: String,
-    Remarks: String,
     RenewalStatus: String,
-    RoutedTo: Object,
     Savings: String,
-    ApprovalDate: Date,
-    ApprovedBy: String,
+  },
+  {
+    timestamps: true,
+    collection: "loan_clients_application",
+  }
+);
 
-}, { timestamps: true });
-
-const LoanClientApplication = mongoose.model('LoanClientApplication', LoanClientApplicationSchema);
-
-export default LoanClientApplication;
+export default mongoose.model(
+  "LoanClientApplication",
+  LoanClientApplicationSchema
+);

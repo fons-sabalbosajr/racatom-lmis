@@ -20,12 +20,8 @@ export const getLoanDisbursedByClientNo = async (req, res) => {
     });
 
     if (!loans || loans.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "No disbursed loans found for this client",
-        });
+      // Return 200 with an empty array if no loans are found, which is not an error.
+      return res.json({ success: true, data: [] });
     }
 
     res.json({ success: true, data: loans });

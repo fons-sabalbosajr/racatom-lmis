@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Typography, message, Row, Col, Button } from "antd";
+import { Typography, message, Row, Col, Button, Badge, Space } from "antd";
 import api from "../../utils/axios";
 import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
 import LoanApplication from "./components/LoanApplication/LoanApplication";
@@ -12,6 +12,7 @@ import LoanStatusChart from "./components/LoanStatusChart";
 import LoanTypeChart from "./components/LoanTypeChart";
 import LoanCollectorChart from "./components/LoanCollectorChart";
 import RecentLoansTable from "./components/RecentLoansTable";
+import PendingApplication from "./components/PendingApplication/PendingApplication";
 
 const { Title } = Typography;
 
@@ -33,7 +34,10 @@ function Dashboard() {
     total: 0,
     pageSizeOptions: ["5", "10", "20", "50"],
   });
-  const [sort, setSort] = useState({ sortBy: "LoanStatus", sortDir: "asc" });
+  const [sort, setSort] = useState({
+    sortBy: "StartPaymentDate",
+    sortDir: "desc",
+  });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
@@ -43,14 +47,24 @@ function Dashboard() {
   const [detailsModalTitle, setDetailsModalTitle] = useState("");
   const [detailsModalFilter, setDetailsModalFilter] = useState(null);
   const [loanAppModalVisible, setLoanAppModalVisible] = useState(false);
+  const [pendingModalVisible, setPendingModalVisible] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [loanRates, setLoanRates] = useState([]);
 
   const viewLoan = async (record) => {
     setLoading(true);
     try {
-      const loansRes = await api.get(`/loans/client/${record.clientNo}`);
-      const docsRes = await api.get(
-        `/loans/client/${record.clientNo}/documents`
-      );
+      // ✅ FIX: Get clientNo from the correct nested property and add a safeguard.
+      const clientNo = record.loanInfo?.clientNo || record.clientNo;
+
+      if (!clientNo) {
+        message.error("Could not find a client number for this record.");
+        setLoading(false);
+        return;
+      }
+
+      const loansRes = await api.get(`/loans/client/${clientNo}`);
+      const docsRes = await api.get(`/loans/client/${clientNo}/documents`);
 
       if (loansRes.data.success && docsRes.data.success) {
         const currentLoan = loansRes.data.data.find(
@@ -94,7 +108,13 @@ function Dashboard() {
 
         // Fetch paginated data for the table
         const recentLoansRes = await api.get("/loans", {
-          params: { page, limit, sortBy, sortDir, ...filters },
+          params: {
+            page,
+            limit,
+            sortBy,
+            sortDir,
+            q: filters?.searchTerm || "", // ✅ FIX: send as "q"
+          },
         });
 
         if (recentLoansRes.data.success) {
@@ -119,7 +139,22 @@ function Dashboard() {
   );
 
   useEffect(() => {
+    const fetchLoanRates = async () => {
+      try {
+        const res = await api.get("/loan_rates"); // adjust endpoint if needed
+        if (res.data.success) {
+          setLoanRates(res.data.data);
+        } else {
+          message.warning("Failed to load loan rates.");
+        }
+      } catch (err) {
+        console.error(err);
+        message.error("Error loading loan rates.");
+      }
+    };
+
     fetchDashboardData(meta.page, meta.limit, sort.sortBy, sort.sortDir, {});
+    fetchLoanRates(); // ✅ load once on mount
   }, [fetchDashboardData]);
 
   const handleTableChange = (pagination, filters, sorter) => {
@@ -132,12 +167,13 @@ function Dashboard() {
     }
 
     setSort({ sortBy: newSortBy, sortDir: newSortDir });
+
     fetchDashboardData(
       pagination.current,
       pagination.pageSize,
       newSortBy,
       newSortDir,
-      filters
+      filters // ✅ filters include searchTerm
     );
   };
 
@@ -151,9 +187,7 @@ function Dashboard() {
   return (
     <div className="dashboard-container">
       <div className="dashboard-title-container">
-        <Title level={2} className="dashboard-title">
-          Loan Management Dashboard
-        </Title>
+        <Title level={2}>Loan Management Dashboard</Title>
         <div className="dashboard-actions">
           <Button
             type="primary"
@@ -162,9 +196,17 @@ function Dashboard() {
           >
             New Loan Application
           </Button>
-          <Button type="primary" className="pending-applications-btn">
-            Pending Applications
-          </Button>
+          <Space>
+            <Badge count={pendingCount} offset={[2, 0]} color="red">
+              <Button
+                type="primary"
+                onClick={() => setPendingModalVisible(true)}
+                className="pending-applications-btn"
+              >
+                Pending Applications
+              </Button>
+            </Badge>
+          </Space>
         </div>
       </div>
       <DashboardStats stats={stats} loading={loading} />
@@ -209,9 +251,15 @@ function Dashboard() {
       <LoanApplication
         visible={loanAppModalVisible}
         onClose={() => setLoanAppModalVisible(false)}
-        api={api} /* pass axios wrapper from Dashboard */
+        api={api}
+        loanRates={loanRates} // ✅ pass here
       />
 
+      <PendingApplication
+        visible={pendingModalVisible}
+        onClose={() => setPendingModalVisible(false)}
+        onCountChange={setPendingCount} // ✅ Add this prop
+      />
       {/* New Details Modal */}
       {detailsModalVisible && (
         <ChartDetailsModal

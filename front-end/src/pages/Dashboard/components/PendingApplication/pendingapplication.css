@@ -1,0 +1,12 @@
+.reject-btn {
+  background-color: #fa1414 !important;
+  border-color: #fa1414 !important;
+  color: #fff !important;
+}
+
+.reject-btn:hover,
+.reject-btn:focus {
+  background-color: #d40606 !important; /* darker orange on hover */
+  border-color: #d40606 !important;
+  color: #fff !important;
+}

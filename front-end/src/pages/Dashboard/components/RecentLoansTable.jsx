@@ -41,14 +41,30 @@ function RecentLoansTable({
       dataIndex: "fullName",
       key: "applicant",
       width: 200,
-      render: (text, record) => (
-        <div>
-          <div>{text}</div>
-          {record.loanInfo.loanNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Loan No: {record.loanInfo.loanNo}</div>}
-          {record.clientNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Client No: {record.clientNo}</div>}
-        </div>
-      ),
+      render: (text, record) => {
+        const name =
+          text ||
+          `${record.person?.firstName || ""} ${
+            record.person?.middleName || ""
+          } ${record.person?.lastName || ""}`.trim();
+        return (
+          <div>
+            <div>{name}</div>
+            {record.loanInfo?.loanNo && (
+              <div style={{ fontSize: "0.85em", color: "#888" }}>
+                Loan No: {record.loanInfo.loanNo}
+              </div>
+            )}
+            {record.clientNo && (
+              <div style={{ fontSize: "0.85em", color: "#888" }}>
+                Client No: {record.clientNo}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
+
     {
       title: "Loan Amount",
       dataIndex: ["loanInfo", "amount"],
@@ -64,7 +80,7 @@ function RecentLoansTable({
         })}`;
       },
     },
-    
+
     {
       title: "Loan Balance",
       dataIndex: ["loanInfo", "balance"],
@@ -105,11 +121,24 @@ function RecentLoansTable({
     },
     {
       title: "Due Date",
-      dataIndex: ["loanInfo", "maturityDate"],
       key: "dueDate",
-      render: (date) => (date ? new Date(date).toLocaleDateString() : "—"),
+      // keep sorter enabled (sorting behavior uses Dashboard / API)
       sorter: true,
-      sortOrder: sort.sortBy === "MaturityDate" && "descend",
+      // render using loanInfo.maturityDate, fall back to top-level MaturityDate or show dash
+      render: (_, record) => {
+        const rawDate =
+          record.loanInfo?.maturityDate ||
+          record.MaturityDate ||
+          record.maturityDate;
+        return rawDate ? new Date(rawDate).toLocaleDateString() : "—";
+      },
+      // keep sortOrder mapping if you still want visual hint (optional)
+      sortOrder:
+        sort.sortBy === "MaturityDate"
+          ? sort.sortDir === "asc"
+            ? "ascend"
+            : "descend"
+          : undefined,
     },
     {
       title: "Actions",
@@ -126,6 +155,23 @@ function RecentLoansTable({
       ),
     },
   ];
+
+  const applySearch = (value) => {
+    handleTableChange(
+      { current: 1, pageSize: meta.limit },
+      { searchTerm: value },
+      {}
+    );
+  };
+
+  const onInputChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+  };
+
+  const onPressEnter = () => {
+    applySearch(searchTerm);
+  };
 
   const applyFilters = () => {
     const filters = {
@@ -161,22 +207,13 @@ function RecentLoansTable({
         >
           <Col xs={24} sm={24} md={12} lg={6}>
             <Input
-              placeholder="Search by keyword"
+              placeholder="Search loans..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onPressEnter={applyFilters}
+              onChange={onInputChange}
+              onPressEnter={onPressEnter}
+              allowClear
               style={{ width: "100%", height: 32 }}
             />
-          </Col>
-          <Col xs={24} sm={24} md={12} lg={8}>
-            <Button
-              type="primary"
-              onClick={applyFilters}
-              style={{ marginRight: 8 }}
-            >
-              Apply Search
-            </Button>
-            <Button onClick={clearFilters}>Clear Search</Button>
           </Col>
         </Row>
 
@@ -185,7 +222,10 @@ function RecentLoansTable({
           dataSource={recentLoans}
           loading={loading}
           rowKey={(record) => record._id}
-          pagination={false} // Disable default pagination
+          pagination={false}
+          onChange={(pagination, filters, sorter) =>
+            handleTableChange(pagination, { searchTerm }, sorter)
+          }
           footer={() => (
             <Row justify="space-between" align="middle">
               <Col>
@@ -196,9 +236,13 @@ function RecentLoansTable({
                   current={meta.page}
                   pageSize={meta.limit}
                   total={meta.total}
-                  showSizeChanger={false} // Disable default size changer
+                  showSizeChanger={false}
                   onChange={(page, pageSize) =>
-                    onTableChange({ current: page, pageSize }, {}, {})
+                    handleTableChange(
+                      { current: page, pageSize },
+                      { searchTerm },
+                      {}
+                    )
                   }
                 />
               </Col>
@@ -206,7 +250,11 @@ function RecentLoansTable({
                 <Select
                   value={meta.limit}
                   onChange={(size) =>
-                    onTableChange({ current: 1, pageSize: size }, {}, {})
+                    handleTableChange(
+                      { current: 1, pageSize: size },
+                      { searchTerm },
+                      {}
+                    )
                   }
                   style={{ width: 120 }}
                 >
@@ -219,7 +267,6 @@ function RecentLoansTable({
               </Col>
             </Row>
           )}
-          onChange={onTableChange}
           size="middle"
           scroll={{ x: "max-content", y: 250 }}
         />

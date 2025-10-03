@@ -1,6 +1,6 @@
 import Announcement from "../models/Announcement.js";
 
-// GET all unread for the current user
+// GET all announcements for the current user (read and unread)
 export const getAnnouncements = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -8,10 +8,25 @@ export const getAnnouncements = async (req, res) => {
       return res.json({ success: true, announcements: [] });
     }
 
-    const announcements = await Announcement.find({
-      readBy: { $ne: userId },
-      isActive: true,
-    }).sort({ PostedDate: -1 });
+    const announcements = await Announcement.aggregate([
+      // 1. Find all active announcements
+      {
+        $match: { isActive: true },
+      },
+      // 2. Sort by most recent
+      {
+        $sort: { PostedDate: -1 },
+      },
+      // 3. Add a new field 'isRead'
+      {
+        $addFields: {
+          isRead: {
+            // ✅ FIX: Use userId directly without wrapping it
+            $in: [userId, { $ifNull: ["$readBy", []] }],
+          },
+        },
+      },
+    ]);
 
     res.json({ success: true, announcements });
   } catch (err) {
@@ -50,10 +65,9 @@ export const markAsRead = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    await Announcement.findByIdAndUpdate(
-      announcementId,
-      { $addToSet: { readBy: userId } }
-    );
+    await Announcement.findByIdAndUpdate(announcementId, {
+      $addToSet: { readBy: userId },
+    });
 
     res.json({ success: true, message: "Announcement marked as read." });
   } catch (err) {
@@ -77,9 +91,17 @@ export const getAllAnnouncementsAdmin = async (req, res) => {
 export const createAnnouncement = async (req, res) => {
   try {
     const { Title, Content, isActive, ExpirationDate } = req.body;
-    if (!Title || !Content) return res.status(400).json({ success: false, message: "Missing fields" });
+    if (!Title || !Content)
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing fields" });
 
-    const newAnnouncement = new Announcement({ Title, Content, isActive, ExpirationDate });
+    const newAnnouncement = new Announcement({
+      Title,
+      Content,
+      isActive,
+      ExpirationDate,
+    });
     await newAnnouncement.save();
     res.status(201).json({ success: true, announcement: newAnnouncement });
   } catch (err) {

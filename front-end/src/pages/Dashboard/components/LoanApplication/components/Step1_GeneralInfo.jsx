@@ -13,16 +13,20 @@ import {
   Radio,
   AutoComplete,
   Spin,
+  Select,
 } from "antd";
-import moment from "moment";
+import dayjs from "dayjs";
 import api from "../../../../../utils/axios";
 
 const { Title } = Typography;
-const { Option } = AutoComplete;
+const { Option } = Select;
+const { Option: AutoCompleteOption } = AutoComplete;
 
 const formItemStyle = { marginBottom: 8 };
+const formInputStyle = { height: "32px", width: "100%" };
 
-const NewApplicationForm = ({ form }) => {
+// --- FORM FOR A NEW APPLICATION ---
+const NewApplicationForm = ({ form, handleLoanTypeChange }) => {
   const [hasLoanRecord, setHasLoanRecord] = useState(false);
 
   useEffect(() => {
@@ -39,140 +43,159 @@ const NewApplicationForm = ({ form }) => {
     fetchNextAccountId();
   }, [form]);
 
-  const handleAgeCalculation = (date, dateString) => {
+  const handleAgeCalculation = (date) => {
     if (date) {
-      const age = moment().diff(date, "years");
+      const age = dayjs().diff(date, "years");
       form.setFieldsValue({ Age: age });
     }
   };
 
   return (
     <>
-      <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-        Client Information
-      </Title>
-      <Row gutter={8}>
-        <Col xs={24} sm={8}>
-          <Form.Item name="AccountId" label="Account ID" style={formItemStyle}>
-            <Input disabled />
+      <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}>
+        <Col>
+          <Title level={5} style={{ margin: 0 }}>
+            Client Information
+          </Title>
+        </Col>
+        <Col>
+          <Radio.Group onChange={handleLoanTypeChange} value="New">
+            <Radio value="New">New Application</Radio>
+            <Radio value="Renewal">Renewal</Radio>
+          </Radio.Group>
+        </Col>
+      </Row>
+      <Divider style={{ marginTop: 0 }} />
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
+          <Form.Item label="Account ID" name="AccountId" style={formItemStyle}>
+            <Input readOnly style={formInputStyle} />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={8}>
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="FirstName"
             label="First Name"
+            name="FirstName"
             rules={[{ required: true }]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter first name" />
+            <Input placeholder="Enter first name" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="MiddleName"
             label="Middle Name"
+            name="MiddleName"
             style={formItemStyle}
           >
-            <Input placeholder="Enter middle name" />
+            <Input placeholder="Enter middle name" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="LastName"
             label="Last Name"
+            name="LastName"
             rules={[{ required: true }]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter last name" />
+            <Input placeholder="Enter last name" style={formInputStyle} />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={8}>
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="NameSuffix"
             label="Name Suffix"
+            name="NameSuffix"
             style={formItemStyle}
           >
-            <Input placeholder="e.g., Jr., Sr., III" />
+            <Input placeholder="e.g., Jr., Sr., III" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
-          <Form.Item name="DateOfBirth" label="Birthday" style={formItemStyle}>
+        <Col xs={24} md={8}>
+          <Form.Item label="Birthday" name="DateOfBirth" style={formItemStyle}>
             <DatePicker
-              size="large"
-              style={{ width: "100%" }}
+              style={formInputStyle}
               onChange={handleAgeCalculation}
             />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
-          <Form.Item name="Age" label="Age" style={formItemStyle}>
-            <InputNumber size="large" disabled style={{ width: "100%" }} />
+        <Col xs={24} md={8}>
+          <Form.Item label="Age" name="Age" style={formItemStyle}>
+            <InputNumber
+              style={formInputStyle}
+              readOnly
+              placeholder="Auto-calculated"
+            />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={8}>
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="ContactNo"
             label="Contact No."
+            name="ContactNo"
             rules={[{ required: true }]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter contact number" />
+            <Input placeholder="Enter contact number" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="AlternateContactNo"
             label="Alternate Contact No."
+            name="AlternateContactNo"
             style={formItemStyle}
           >
-            <Input placeholder="Enter alternate contact number" />
+            <Input
+              placeholder="Enter alternate contact number"
+              style={formInputStyle}
+            />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="Email"
             label="Email Address"
+            name="Email"
             rules={[{ type: "email" }]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter email address" />
+            <Input placeholder="Enter email address" style={formInputStyle} />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24}>
+      <Row gutter={16}>
+        <Col span={24}>
           <Form.Item
-            name="CurrentAddress"
             label="Current Address"
+            name="CurrentAddress"
             style={formItemStyle}
           >
             <Input.TextArea rows={2} placeholder="Enter current address" />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
-          <Form.Item name="Occupation" label="Occupation" style={formItemStyle}>
-            <Input placeholder="Enter occupation" />
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
+          <Form.Item label="Occupation" name="Occupation" style={formItemStyle}>
+            <Input placeholder="Enter occupation" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name="OccupationAddress"
             label="Occupation Address"
+            name="OccupationAddress"
             style={formItemStyle}
           >
-            <Input placeholder="Enter occupation address" />
+            <Input
+              placeholder="Enter occupation address"
+              style={formInputStyle}
+            />
           </Form.Item>
         </Col>
       </Row>
-
       <Form.Item
         name="LoanRecord"
         valuePropName="checked"
@@ -182,104 +205,111 @@ const NewApplicationForm = ({ form }) => {
           Has previous loan record?
         </Checkbox>
       </Form.Item>
-
       {hasLoanRecord && (
         <Card
           size="small"
           title="Previous Loan Details"
           style={{ marginBottom: 16 }}
         >
-          <Row gutter={8}>
-            <Col xs={24} sm={12}>
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
               <Form.Item
-                name={["PreviousLoan", "Record"]}
                 label="Last Loan Record"
+                name={["PreviousLoan", "Record"]}
                 style={formItemStyle}
               >
-                <Input size="small" placeholder="Enter last loan record" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item
-                name={["PreviousLoan", "Date"]}
-                label="Date"
-                style={formItemStyle}
-              >
-                <DatePicker size="large" style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={8}>
-            <Col xs={24} sm={12}>
-              <Form.Item
-                name={["PreviousLoan", "Amount"]}
-                label="Amount"
-                style={formItemStyle}
-              >
-                <InputNumber
-                  style={{ width: "100%" }}
-                  placeholder="Enter amount"
-                  size="large"
+                <Input
+                  placeholder="Enter last loan record"
+                  style={formInputStyle}
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12}>
+            <Col xs={24} md={12}>
               <Form.Item
-                name={["PreviousLoan", "Status"]}
-                label="Status"
+                label="Date"
+                name={["PreviousLoan", "Date"]}
                 style={formItemStyle}
               >
-                <Input size="small" placeholder="Enter status" />
+                <DatePicker style={formInputStyle} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label="Amount"
+                name={["PreviousLoan", "Amount"]}
+                style={formItemStyle}
+              >
+                <InputNumber
+                  style={formInputStyle}
+                  placeholder="Enter amount"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                label="Status"
+                name={["PreviousLoan", "Status"]}
+                style={formItemStyle}
+              >
+                <Select
+                  placeholder="Select a status"
+                  allowClear
+                  style={formInputStyle}
+                >
+                  <Option value="UPDATED">UPDATED</Option>
+                  <Option value="PAST DUE">PAST DUE</Option>
+                  <Option value="ARREARS">ARREARS</Option>
+                  <Option value="LITIGATION">LITIGATION</Option>
+                  <Option value="DORMANT">DORMANT</Option>
+                </Select>
               </Form.Item>
             </Col>
           </Row>
         </Card>
       )}
-
-      <Divider style={{ margin: "12px 0" }} />
-
-      <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-        Co-Borrower / Co-Maker Information
-      </Title>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
+      <Divider />
+      <Title level={5}>Co-Borrower / Co-Maker Information</Title>
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name={["CoMaker", "Name"]}
             label="Name"
+            name={["CoMaker", "Name"]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter co-maker's name" />
+            <Input placeholder="Enter co-maker's name" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name={["CoMaker", "ContactNo"]}
             label="Contact No."
+            name={["CoMaker", "ContactNo"]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter co-maker's contact number" />
+            <Input
+              placeholder="Enter co-maker's contact number"
+              style={formInputStyle}
+            />
           </Form.Item>
         </Col>
-      </Row>
-      <Row gutter={8}>
-        <Col xs={24}>
+        <Col span={24}>
           <Form.Item
-            name={["CoMaker", "Address"]}
             label="Address"
+            name={["CoMaker", "Address"]}
             style={formItemStyle}
           >
             <Input.TextArea rows={2} placeholder="Enter co-maker's address" />
           </Form.Item>
         </Col>
-      </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name={["CoMaker", "Relationship"]}
             label="Relationship to Client"
+            name={["CoMaker", "Relationship"]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter relationship to client" />
+            <Input
+              placeholder="Enter relationship to client"
+              style={formInputStyle}
+            />
           </Form.Item>
         </Col>
       </Row>
@@ -287,33 +317,21 @@ const NewApplicationForm = ({ form }) => {
   );
 };
 
-const RenewalApplicationForm = ({ form, onClientSelect }) => {
+// --- FORM FOR A RENEWAL APPLICATION ---
+const RenewalApplicationForm = ({
+  form,
+  onClientSelect,
+  handleLoanTypeChange,
+}) => {
   const [searching, setSearching] = useState(false);
   const [clients, setClients] = useState([]);
-  const [approvedClients, setApprovedClients] = useState([]);
-
-  useEffect(() => {
-    const fetchApprovedClients = async () => {
-      try {
-        const response = await api.get("/loans/approved-clients");
-        if (response.data.success) {
-          setApprovedClients(response.data.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch approved clients", error);
-      }
-    };
-    fetchApprovedClients();
-  }, []);
 
   const handleSearch = async (value) => {
     if (value) {
       setSearching(true);
       try {
         const response = await api.get(`/loans/search-clients?q=${value}`);
-        if (response.data.success) {
-          setClients(response.data.data);
-        }
+        if (response.data.success) setClients(response.data.data);
       } catch (error) {
         console.error("Error searching clients", error);
       }
@@ -323,118 +341,131 @@ const RenewalApplicationForm = ({ form, onClientSelect }) => {
     }
   };
 
-  const onSelect = (value, option) => {
-    onClientSelect(option.client);
-  };
-
-  const options = (clients.length ? clients : approvedClients).map((client) => (
-    <Option
-      key={client.ClientNo}
-      value={`${client.FirstName} ${client.LastName} (${client.AccountId})`}
-      client={client}
-    >
-      {`${client.FirstName} ${client.LastName} (${client.AccountId})`}
-    </Option>
-  ));
+  const onSelect = (_, option) => onClientSelect(option.client);
 
   return (
     <>
-      <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-        Search Existing Client
-      </Title>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}>
+        <Col>
+          <Title level={5} style={{ margin: 0 }}>
+            Search Existing Client
+          </Title>
+        </Col>
+        <Col>
+          <Radio.Group onChange={handleLoanTypeChange} value="Renewal">
+            <Radio value="New">New Application</Radio>
+            <Radio value="Renewal">Renewal</Radio>
+          </Radio.Group>
+        </Col>
+      </Row>
+      <Divider style={{ marginTop: 0 }} />
       <AutoComplete
-        style={{ width: "100%" }}
+        style={formInputStyle}
         onSearch={handleSearch}
         onSelect={onSelect}
         placeholder="Search by name or Account ID"
         notFoundContent={searching ? <Spin size="small" /> : "No client found"}
       >
-        {options}
+        {clients.map((client) => (
+          <AutoCompleteOption
+            key={client.ClientNo}
+            value={`${client.FirstName} ${client.LastName} (${client.AccountId})`}
+            client={client}
+          >{`${client.FirstName} ${client.LastName} (${client.AccountId})`}</AutoCompleteOption>
+        ))}
       </AutoComplete>
-
       <Divider />
-
-      <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-        Client Information
-      </Title>
-      <Row gutter={8}>
-        <Col xs={24} sm={6}>
-          <Form.Item name="FirstName" label="First Name" style={formItemStyle}>
-            <Input disabled />
+      <Title level={5}>Client Information</Title>
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
+          <Form.Item label="Account ID" name="AccountId" style={formItemStyle}>
+            <Input readOnly style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={6}>
+        <Col xs={24} md={8}>
+          <Form.Item label="First Name" name="FirstName" style={formItemStyle}>
+            <Input readOnly style={formInputStyle} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="MiddleName"
             label="Middle Name"
+            name="MiddleName"
             style={formItemStyle}
           >
-            <Input disabled />
+            <Input readOnly style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={6}>
-          <Form.Item name="LastName" label="Last Name" style={formItemStyle}>
-            <Input disabled />
+        <Col xs={24} md={8}>
+          <Form.Item label="Last Name" name="LastName" style={formItemStyle}>
+            <Input readOnly style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={6}>
-          <Form.Item name="NameSuffix" label="Suffix" style={formItemStyle}>
-            <Input disabled />
+        <Col xs={24} md={8}>
+          <Form.Item
+            label="Name Suffix"
+            name="NameSuffix"
+            style={formItemStyle}
+          >
+            <Input readOnly style={formInputStyle} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={8}>
+          <Form.Item label="Age" name="Age" style={formItemStyle}>
+            <InputNumber style={formInputStyle} readOnly />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
-          <Form.Item name="ContactNo" label="Contact No." style={formItemStyle}>
-            <Input />
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
+          <Form.Item label="Contact No." name="ContactNo" style={formItemStyle}>
+            <Input style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="AlternateContactNo"
             label="Alternate Contact No."
+            name="AlternateContactNo"
             style={formItemStyle}
           >
-            <Input />
+            <Input style={formInputStyle} />
           </Form.Item>
         </Col>
-      </Row>
-      <Row gutter={8}>
-        <Col xs={24}>
+        <Col xs={24} md={8}>
           <Form.Item
-            name="CurrentAddress"
-            label="Current Address"
-            style={formItemStyle}
-          >
-            <Input.TextArea rows={2} />
-          </Form.Item>
-        </Col>
-      </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
-          <Form.Item
-            name="Email"
             label="Email Address"
+            name="Email"
             rules={[{ type: "email" }]}
             style={formItemStyle}
           >
-            <Input />
-          </Form.Item>
-        </Col>
-        <Col xs={24} sm={12}>
-          <Form.Item name="Occupation" label="Occupation" style={formItemStyle}>
-            <Input />
+            <Input style={formInputStyle} />
           </Form.Item>
         </Col>
       </Row>
-      <Row gutter={8}>
-        <Col xs={24}>
+      <Row gutter={16}>
+        <Col span={24}>
           <Form.Item
-            name="OccupationAddress"
-            label="Occupation Address"
+            label="Current Address"
+            name="CurrentAddress"
             style={formItemStyle}
           >
             <Input.TextArea rows={2} />
+          </Form.Item>
+        </Col>
+      </Row>
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
+          <Form.Item label="Occupation" name="Occupation" style={formItemStyle}>
+            <Input style={formInputStyle} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item
+            label="Occupation Address"
+            name="OccupationAddress"
+            style={formItemStyle}
+          >
+            <Input style={formInputStyle} />
           </Form.Item>
         </Col>
       </Row>
@@ -442,94 +473,91 @@ const RenewalApplicationForm = ({ form, onClientSelect }) => {
       <Card
         size="small"
         title="Previous Loan Details"
-        style={{ marginBottom: 16 }}
+        style={{ margin: "16px 0" }}
       >
-        <Row gutter={8}>
-          <Col xs={24} sm={12}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
             <Form.Item
-              name={["PreviousLoan", "Record"]}
               label="Last Loan Record"
+              name={["PreviousLoan", "Record"]}
               style={formItemStyle}
             >
-              <Input size="small" disabled />
+              <Input readOnly style={formInputStyle} />
             </Form.Item>
           </Col>
-          <Col xs={24} sm={12}>
+          <Col xs={24} md={12}>
             <Form.Item
-              name={["PreviousLoan", "Date"]}
               label="Date"
+              name={["PreviousLoan", "Date"]}
               style={formItemStyle}
             >
-              <DatePicker style={{ width: "100%" }} disabled />
+              <DatePicker style={formInputStyle} />
             </Form.Item>
           </Col>
-        </Row>
-        <Row gutter={8}>
-          <Col xs={24} sm={12}>
+          <Col xs={24} md={12}>
             <Form.Item
-              name={["PreviousLoan", "Amount"]}
               label="Amount"
+              name={["PreviousLoan", "Amount"]}
               style={formItemStyle}
             >
-              <InputNumber style={{ width: "100%" }} disabled />
+              <InputNumber style={formInputStyle} readOnly />
             </Form.Item>
           </Col>
-          <Col xs={24} sm={12}>
+          <Col xs={24} md={12}>
             <Form.Item
-              name={["PreviousLoan", "Status"]}
               label="Status"
+              name={["PreviousLoan", "Status"]}
               style={formItemStyle}
             >
-              <Input size="small" disabled />
+              <Input readOnly style={formInputStyle} />
             </Form.Item>
           </Col>
         </Row>
       </Card>
 
-      <Divider style={{ margin: "12px 0" }} />
-
-      <Title level={5} style={{ marginTop: 0, marginBottom: 12 }}>
-        Co-Borrower / Co-Maker Information
-      </Title>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
+      <Divider />
+      <Title level={5}>Co-Borrower / Co-Maker Information</Title>
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name={["CoMaker", "Name"]}
             label="Name"
+            name={["CoMaker", "Name"]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter co-maker's name" />
+            <Input placeholder="Enter co-maker's name" style={formInputStyle} />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name={["CoMaker", "ContactNo"]}
             label="Contact No."
+            name={["CoMaker", "ContactNo"]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter co-maker's contact number" />
+            <Input
+              placeholder="Enter co-maker's contact number"
+              style={formInputStyle}
+            />
           </Form.Item>
         </Col>
-      </Row>
-      <Row gutter={8}>
-        <Col xs={24}>
+        <Col span={24}>
           <Form.Item
-            name={["CoMaker", "Address"]}
             label="Address"
+            name={["CoMaker", "Address"]}
             style={formItemStyle}
           >
             <Input.TextArea rows={2} placeholder="Enter co-maker's address" />
           </Form.Item>
         </Col>
-      </Row>
-      <Row gutter={8}>
-        <Col xs={24} sm={12}>
+        <Col xs={24} md={12}>
           <Form.Item
-            name={["CoMaker", "Relationship"]}
             label="Relationship to Client"
+            name={["CoMaker", "Relationship"]}
             style={formItemStyle}
           >
-            <Input placeholder="Enter relationship to client" />
+            <Input
+              placeholder="Enter relationship to client"
+              style={formInputStyle}
+            />
           </Form.Item>
         </Col>
       </Row>
@@ -537,14 +565,15 @@ const RenewalApplicationForm = ({ form, onClientSelect }) => {
   );
 };
 
+// --- Main component to control which form is displayed ---
 const Step1_GeneralInfo = ({ form, onValuesChange }) => {
   const [loanType, setLoanType] = useState("New");
 
   const handleLoanTypeChange = (e) => {
-    const newLoanType = e.target.value;
-    setLoanType(newLoanType);
+    const newType = e.target.value;
+    setLoanType(newType);
     form.resetFields();
-    form.setFieldsValue({ LoanType: newLoanType });
+    form.setFieldsValue({ LoanType: newType });
   };
 
   const handleClientSelectForRenewal = async (client) => {
@@ -554,11 +583,21 @@ const Step1_GeneralInfo = ({ form, onValuesChange }) => {
       );
       if (response.data.success) {
         const { client: clientData, lastLoan } = response.data.data;
+
+        // ✅ FIX: Access the nested '$date' property for correct parsing
+        const dateOfBirth = clientData.DateOfBirth?.$date
+          ? dayjs(clientData.DateOfBirth.$date)
+          : null;
+        const maturityDate = lastLoan?.MaturityDate?.$date
+          ? dayjs(lastLoan.MaturityDate.$date)
+          : null;
+
         form.setFieldsValue({
           ...clientData,
+          DateOfBirth: dateOfBirth,
           PreviousLoan: {
             Record: lastLoan?.LoanCycleNo,
-            Date: lastLoan ? moment(lastLoan.MaturityDate) : null,
+            Date: maturityDate,
             Amount: lastLoan?.LoanAmount,
             Status: lastLoan?.LoanStatus,
           },
@@ -570,21 +609,23 @@ const Step1_GeneralInfo = ({ form, onValuesChange }) => {
   };
 
   return (
-    <Card title="Step 1: General Information" bordered={false}>
-      <Form form={form} layout="vertical" onValuesChange={onValuesChange}>
-        <Form.Item label="Loan Type" name="LoanType" initialValue="New">
-          <Radio.Group onChange={handleLoanTypeChange}>
-            <Radio value="New">New Application</Radio>
-            <Radio value="Renewal">Renewal</Radio>
-          </Radio.Group>
-        </Form.Item>
-        <Divider />
+    <Card>
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={onValuesChange}
+        initialValues={{ LoanType: "New" }}
+      >
         {loanType === "New" ? (
-          <NewApplicationForm form={form} />
+          <NewApplicationForm
+            form={form}
+            handleLoanTypeChange={handleLoanTypeChange}
+          />
         ) : (
           <RenewalApplicationForm
             form={form}
             onClientSelect={handleClientSelectForRenewal}
+            handleLoanTypeChange={handleLoanTypeChange}
           />
         )}
       </Form>
