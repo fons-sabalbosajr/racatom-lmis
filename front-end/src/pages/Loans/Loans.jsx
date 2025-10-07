@@ -86,7 +86,8 @@ export default function Loans() {
 
   useEffect(() => {
     fetchLoans();
-  }, [tableParams, q, loanStatus, paymentMode, year]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableParams]);
 
   const fetchTotalLoansNeedingUpdate = async () => {
     try {
@@ -172,7 +173,11 @@ export default function Loans() {
   };
 
   const handleSearch = () => {
-    setTableParams((prev) => ({ ...prev, current: 1 }));
+    setTableParams((prev) => ({
+      ...prev,
+      current: 1, // reset to first page
+    }));
+    fetchLoans();
   };
 
   const viewLoan = async (record, initialTab = "1") => {

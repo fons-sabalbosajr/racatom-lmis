@@ -1,50 +1,103 @@
 import LoanCollection from "../models/LoanCollection.js";
+import LoanClient from "../models/LoanClient.js";
 
-// Get collections by LoanCycleNo
-export const getCollectionsByLoanCycleNo = async (req, res) => {
+// Get all collections
+export const getAllCollections = async (req, res) => {
   try {
-    const { loanCycleNo } = req.params;
     const {
       page = 1,
       limit = 10,
       q: searchQuery = "",
       paymentDate,
+      sortBy = "PaymentDate",
+      sortDir = "desc",
     } = req.query;
 
-    const query = { LoanCycleNo: { $regex: loanCycleNo, $options: "i" } };
+    const limitValue = parseInt(limit);
+    const skip = (parseInt(page) - 1) * limitValue;
 
+    let matchStage = {};
     if (paymentDate) {
       const startOfDay = new Date(paymentDate);
       startOfDay.setUTCHours(0, 0, 0, 0);
       const endOfDay = new Date(paymentDate);
       endOfDay.setUTCHours(23, 59, 59, 999);
-      query.PaymentDate = { $gte: startOfDay, $lte: endOfDay };
+      matchStage.PaymentDate = { $gte: startOfDay, $lte: endOfDay };
     }
 
     if (searchQuery) {
-      query.$or = [
-        { CollectionReferenceNo: { $regex: searchQuery, $options: "i" } },
+      matchStage.$or = [
+        { "client.ClientName": { $regex: searchQuery, $options: "i" } },
         { CollectorName: { $regex: searchQuery, $options: "i" } },
         { PaymentMode: { $regex: searchQuery, $options: "i" } },
-        // Add other fields here if you want to search them
+        { CollectionReferenceNo: { $regex: searchQuery, $options: "i" } },
       ];
     }
 
-    const limitValue = parseInt(limit);
-    const skip = (parseInt(page) - 1) * limitValue;
+    const sortStage = {};
+    sortStage[sortBy] = sortDir === "asc" ? 1 : -1;
 
-    const collections = await LoanCollection.find(query)
-      .sort({ PaymentDate: 1 })
-      .skip(skip)
-      .limit(limitValue);
+    const collectionsPipeline = [
+      {
+        $lookup: {
+          from: "loan_clients",
+          localField: "ClientNo",
+          foreignField: "ClientNo",
+          as: "client",
+        },
+      },
+      {
+        $unwind: {
+          path: "$client",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      { $match: matchStage },
+      { $sort: sortStage },
+      { $skip: skip },
+      { $limit: limitValue },
+      {
+        $addFields: {
+          "client.ClientName": {
+            $concat: [
+              "$client.FirstName",
+              " ",
+              { $ifNull: ["$client.MiddleName", ""] },
+              " ",
+              "$client.LastName",
+            ],
+          },
+        },
+      },
+    ];
 
-    const total = await LoanCollection.countDocuments(query);
+    const collections = await LoanCollection.aggregate(collectionsPipeline);
 
-    // Convert Decimal128 fields to strings
+    const totalPipeline = [
+      {
+        $lookup: {
+          from: "loan_clients",
+          localField: "ClientNo",
+          foreignField: "ClientNo",
+          as: "client",
+        },
+      },
+      {
+        $unwind: {
+          path: "$client",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      { $match: matchStage },
+      { $count: "total" },
+    ];
+
+    const totalResult = await LoanCollection.aggregate(totalPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
     const formattedCollections = collections.map((collection) => {
-      const obj = collection.toObject(); // Convert Mongoose document to plain JavaScript object
+      const obj = { ...collection };
       for (const key in obj) {
-        // Check if the value is a Mongoose Decimal128 object
         if (
           obj[key] &&
           typeof obj[key].toString === "function" &&
@@ -56,12 +109,70 @@ export const getCollectionsByLoanCycleNo = async (req, res) => {
       return obj;
     });
 
-    res.status(200).json({ success: true, data: formattedCollections, meta: { total, page: parseInt(page), limit: limitValue } });
+    res.status(200).json({
+      success: true,
+      data: formattedCollections,
+      meta: { total, page: parseInt(page), limit: limitValue },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
+// Get collections by LoanCycleNo
+export const getCollectionsByLoanCycleNo = async (req, res) => {
+  try {
+    const { loanCycleNo } = req.params;
+    if (!loanCycleNo) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing LoanCycleNo parameter" });
+    }
+
+    const collections = await LoanCollection.find({
+      LoanCycleNo: loanCycleNo, // exact match
+    }).sort({ PaymentDate: 1 });
+
+    // ✅ FIXED: Deduplicate by creating a composite key of core fields
+    const unique = [];
+    const seen = new Set();
+    for (const item of collections) {
+      // Use a consistent date format and key fields to identify logical duplicates
+      const paymentDate = new Date(item.PaymentDate)
+        .toISOString()
+        .split("T")[0];
+      const key = `${paymentDate}|${item.CollectionReferenceNo}|${item.CollectionPayment}|${item.RunningBalance}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(item);
+      }
+    }
+
+    // ✅ Convert Decimal128 fields on the now-unique collection set
+    const formatted = unique.map((collection) => {
+      const obj = collection.toObject();
+      for (const key in obj) {
+        if (
+          obj[key] &&
+          typeof obj[key].toString === "function" &&
+          obj[key].constructor.name === "Decimal128"
+        ) {
+          obj[key] = obj[key].toString();
+        }
+      }
+      return obj;
+    });
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+      meta: { total: formatted.length },
+    });
+  } catch (error) {
+    console.error("❌ getCollectionsByLoanCycleNo:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 // Add a new collection
 export const addCollection = async (req, res) => {
   try {
@@ -176,10 +287,7 @@ export const bulkUpdateCollector = async (req, res) => {
         .json({ success: false, message: "No IDs provided" });
     }
 
-    await LoanCollection.updateMany(
-      { _id: { $in: ids } },
-      { $set: updates }
-    );
+    await LoanCollection.updateMany({ _id: { $in: ids } }, { $set: updates });
 
     res.json({ success: true, message: "Collections updated successfully" });
   } catch (err) {

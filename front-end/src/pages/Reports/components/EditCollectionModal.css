@@ -1,0 +1,10 @@
+.danger-zone .delete-button {
+  border-color: red;
+  color: red;
+  background-color: white;
+}
+
+.danger-zone .delete-button:hover {
+  background-color: #f5222d;
+  color: white;
+}

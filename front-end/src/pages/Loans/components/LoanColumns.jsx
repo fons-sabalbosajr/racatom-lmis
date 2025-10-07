@@ -145,6 +145,8 @@ export const getLoanColumns = ({
       return <Text>{location || "N/A"}</Text>;
     },
   },
+ // src/components/LoanColumns.jsx (The "Status Summary" column)
+
   {
     title: "Status Summary",
     key: "status",
@@ -152,7 +154,14 @@ export const getLoanColumns = ({
     render: (_, record) => {
       const loanStatus = record.loanInfo?.status || "N/A";
       const processStatus = record.loanInfo?.processStatus || "N/A";
-      const collectionStatus = record.collectionStatus || "No Data Encoded";
+      
+      // ✅ --- START OF FIX ---
+      // This logic now directly checks if collections exist.
+      const hasCollections = record.collectionCount > 0;
+      const collectionTagText = hasCollections ? "With Collections" : "No Collections Yet";
+      const collectionTagColor = hasCollections ? "green" : "gray";
+      // ✅ --- END OF FIX ---
+
       const isClosed = loanStatus === "CLOSED";
 
       return (
@@ -201,15 +210,14 @@ export const getLoanColumns = ({
             </Tag>
           </div>
 
-          {/* Row 3 - Collections */}
+          {/* Row 3 - Collections (Modified) */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Text strong style={{ width: 110 }}>
               Collections:
             </Text>
-            <Tag
-              color={COLLECTION_STATUS_COLORS[collectionStatus] || "default"}
-            >
-              {collectionStatus}
+            {/* ✅ This tag now uses the new, clearer logic */}
+            <Tag color={collectionTagColor}>
+              {collectionTagText}
             </Tag>
           </div>
 

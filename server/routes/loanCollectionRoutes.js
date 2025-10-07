@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getAllCollections,
   getCollectionsByLoanCycleNo,
   addCollection,
   updateCollection,
@@ -13,6 +14,7 @@ import {
 const router = express.Router();
 
 // Order matters: specific routes before dynamic ones
+router.get("/", getAllCollections);
 router.get("/payment-modes", getDistinctPaymentModes);
 router.get("/collector-names", getDistinctCollectorNames);
 

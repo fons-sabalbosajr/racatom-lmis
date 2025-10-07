@@ -69,7 +69,7 @@ const LoanRateConfig = ({ isModal = false }) => {
     setLoading(true);
     try {
       const res = await axios.get(API_BASE);
-      setLoanRates(res.data);
+      setLoanRates(res.data.data || []);
     } catch (err) {
       console.error(err);
       message.error("Failed to fetch loan rates");
