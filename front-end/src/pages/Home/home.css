@@ -8,6 +8,34 @@
   justify-content: flex-end;
 }
 
+/* Make header buttons inherit header foreground color by default */
+.home-header .ant-btn:not(.ant-btn-primary):not(.ant-btn-link) {
+  color: inherit;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Ensure nested menus in sider respect custom background */
+.ant-layout-sider .ant-menu {
+  background: inherit !important;
+}
+.ant-layout-sider .ant-menu-item,
+.ant-layout-sider .ant-menu-submenu-title {
+  color: inherit;
+}
+.ant-layout-sider .ant-menu-submenu .ant-menu {
+  background: var(--sider-sub-bg, rgba(0,0,0,0.06)) !important;
+}
+.ant-layout-sider .ant-menu-item-selected,
+.ant-layout-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  background-color: var(--sider-selected-bg, rgba(255,255,255,0.12)) !important;
+}
+
+/* Collapsible trigger at the bottom should be slightly lighter */
+.ant-layout-sider-trigger {
+  background: var(--sider-toggle-bg, rgba(255,255,255,0.08)) !important;
+  color: var(--sider-text, #fff) !important;
+}
+
 .home-logo {
   color: white;
   font-size: 1.2rem;

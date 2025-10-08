@@ -29,11 +29,13 @@ export const getLoanColumns = ({
     dataIndex: "accountId",
     key: "accountId",
     sorter: true,
+    width: 200,
+    ellipsis: true,
     render: (_, record) => {
       const loanNo = record.loanInfo?.loanNo || record.loanNo;
       return (
         <div>
-          <Text strong style={{ color: "#2b3a55" }}>
+          <Text strong>
             {loanNo || "N/A"}
           </Text>
           <br />
@@ -80,7 +82,7 @@ export const getLoanColumns = ({
 
       return (
         <div>
-          <Typography.Text strong style={{ color: "#1a1a1a" }}>
+          <Typography.Text strong>
             {fullName || "N/A"}
           </Typography.Text>
           <br />
@@ -122,10 +124,21 @@ export const getLoanColumns = ({
     title: "Location",
     dataIndex: "address",
     key: "location",
-    render: (address) => {
-      const location = [address?.barangay, address?.city, address?.province]
-        .filter(Boolean)
-        .join(", ");
+    render: (address, record) => {
+      // address can be an object or a string depending on payload
+      let location = "";
+      if (typeof address === "string") {
+        location = address.trim();
+      } else {
+        const a = address || record?.clientInfo?.address || {};
+        const parts = [a?.barangay, a?.city, a?.province].filter(Boolean);
+        location = parts.join(", ");
+      }
+      // Fallback to other possible fields
+      if (!location) {
+        location =
+          (record && (record.Address || record.addressText || record.clientInfo?.Address)) || "";
+      }
       return <Text>{location || "N/A"}</Text>;
     },
   },

@@ -30,9 +30,65 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Force light theme */
+/* Static CSS variables (light baseline) for app */
 :root {
-  color-scheme: light;
+  --loan-text-color: #1f1f1f;
+  --loan-label-color: #555;
+  --loan-th-color: #434343;
+  --card-header-color: #262626;
+  --card-header-bg: #ffffff;
+  --card-header-border: #f0f0f0;
+  --table-bg: #ffffff;
+  --table-text-color: #1f1f1f;
+  --table-header-bg: #fafafa;
+  --table-header-color: #262626;
+  --table-row-hover-bg: #f5f5f5;
+  --table-row-selected-bg: #e6f7ff;
+  --muted-text-color: #8c8c8c;
+  --table-inactive-bg: #f5f5f5;
+  --table-header-hover-bg: #f0f0f0;
+  --menu-bg: #ffffff;
+  --menu-text-color: #1f1f1f;
+  --menu-item-hover-bg: #f5f5f5;
+}
+
+/* Theme-aware collapsible headers (Ant Design Collapse) */
+.ant-collapse-item > .ant-collapse-header .ant-collapse-header-text,
+.ant-collapse-item > .ant-collapse-header .ant-collapse-expand-icon {
+  color: var(--card-header-color, inherit);
+}
+.ant-collapse-item > .ant-collapse-header {
+  background: var(--card-header-bg, transparent);
+  border-bottom: 1px solid var(--card-header-border, transparent);
+}
+
+/* Global table hover and header hover styles */
+.ant-table-thead > tr > th {
+  background: var(--table-header-bg, #fafafa) !important;
+  color: var(--table-header-color, #262626) !important;
+}
+.ant-table-tbody > tr:hover > td {
+  background: var(--table-row-hover-bg, #f5f5f5) !important;
+}
+.ant-table-tbody > tr.ant-table-row-selected > td,
+.ant-table-tbody > tr.ant-table-row-selected:hover > td {
+  background: var(--table-row-selected-bg, #e6f7ff) !important;
+}
+.ant-table-thead > tr > th:hover {
+  background: var(--table-header-hover-bg, #f0f0f0) !important;
+}
+
+/* Global light/dark menu hover (applies to sider and top menus) */
+.ant-menu-light,
+.ant-menu-dark {
+  background: var(--menu-bg) !important;
+  color: var(--menu-text-color) !important;
+}
+.ant-menu-light .ant-menu-item:hover,
+.ant-menu-light .ant-menu-submenu-title:hover,
+.ant-menu-dark .ant-menu-item:hover,
+.ant-menu-dark .ant-menu-submenu-title:hover {
+  background: var(--menu-item-hover-bg) !important;
 }
 
 /* Global Responsiveness */

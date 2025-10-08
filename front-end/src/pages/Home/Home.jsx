@@ -34,6 +34,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import api from "../../utils/axios";
 import { useDevSettings } from "../../context/DevSettingsContext";
+// Tooltip no longer used
 
 dayjs.extend(relativeTime);
 
@@ -42,7 +43,7 @@ const { Text } = Typography;
 const { Panel } = Collapse;
 
 function Home() {
-  const { settings } = useDevSettings();
+  const { settings, setSetting } = useDevSettings();
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState(() => lsGet("user"));
 
@@ -183,6 +184,47 @@ function Home() {
     },
   ];
 
+  // derive styles from settings (no global dark/light switch; use color picks only)
+  const siderBg = settings.siderBg || "#001529";
+  const headerBg = settings.headerBg || "#ffffff";
+  const whiteOrBlack = (hex) => {
+    try {
+      const h = hex.replace("#", "");
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      // luminance
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      return yiq >= 180 ? "#000" : "#fff";
+    } catch {
+      return "#000";
+    }
+  };
+  const siderText = whiteOrBlack(siderBg);
+  const headerText = whiteOrBlack(headerBg);
+  const menuTheme = siderText === "#fff" ? "dark" : "light";
+
+  // util: lighten/darken by mixing with white/black
+  const mix = (hex, amt, toWhite = false) => {
+    const h = hex.replace("#", "");
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    const t = toWhite ? 255 : 0;
+    const nr = Math.round(r + (t - r) * amt);
+    const ng = Math.round(g + (t - g) * amt);
+    const nb = Math.round(b + (t - b) * amt);
+    const toHex = (n) => n.toString(16).padStart(2, "0");
+    return `#${toHex(nr)}${toHex(ng)}${toHex(nb)}`;
+  };
+  const darken = (hex, amt) => mix(hex, amt, false);
+  const lighten = (hex, amt) => mix(hex, amt, true);
+
+  // derive variants for submenus and trigger (fixed mix amounts)
+  const siderSubBg = darken(siderBg, 0.12);
+  const siderSelectedBg = lighten(siderBg, 0.14);
+  const siderToggleBg = lighten(siderBg, 0.10);
+
   return (
     <Layout className={`home-layout ${settings.compactUI ? "compact-ui" : ""}`}>
       <Sider
@@ -190,11 +232,20 @@ function Home() {
         collapsed={collapsed}
         onCollapse={setCollapsed}
         width={200}
+  theme={menuTheme}
+        style={{
+          background: siderBg,
+          "--sider-bg": siderBg,
+          "--sider-sub-bg": siderSubBg,
+          "--sider-selected-bg": siderSelectedBg,
+          "--sider-text": siderText,
+          "--sider-toggle-bg": siderToggleBg,
+        }}
       >
         <div
           className="home-logo"
           style={{
-            color: "white",
+            color: siderText,
             textAlign: "center",
             padding: "16px",
             display: "flex",
@@ -253,11 +304,12 @@ function Home() {
 
           return (
             <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          onClick={({ key }) => navigate(key)}
-          items={menuItems}
+              theme={menuTheme}
+              mode="inline"
+              selectedKeys={[location.pathname]}
+              onClick={({ key }) => navigate(key)}
+              items={menuItems}
+              style={{ background: siderBg, color: siderText }}
             />
           );
         })()}
@@ -271,6 +323,7 @@ function Home() {
             display: "flex",
             alignItems: "center",
             gap: "16px",
+            background: headerBg,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -280,7 +333,7 @@ function Home() {
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                color: "white",
+                color: headerText,
                 fontWeight: "bold",
                 fontSize: "0.9rem",
                 padding: "4px 8px",
@@ -337,7 +390,7 @@ function Home() {
                 <MessageOutlined
                   style={{
                     fontSize: "18px",
-                    color: "white",
+                    color: headerText,
                     cursor: "pointer",
                   }}
                 />
@@ -455,12 +508,14 @@ function Home() {
                 <BellOutlined
                   style={{
                     fontSize: "18px",
-                    color: "white",
+                    color: headerText,
                     cursor: "pointer",
                   }}
                 />
               </Badge>
             </Popover>
+
+            {/* Theme toggle removed; color is controlled via Developer Settings */}
 
             {/* ✅ User Avatar Dropdown */}
             <Dropdown

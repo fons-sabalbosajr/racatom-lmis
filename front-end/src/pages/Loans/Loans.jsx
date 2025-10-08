@@ -75,15 +75,35 @@ export default function Loans() {
       });
       if (res.data.success) {
         // Use server-computed fields (collectionStatus, counts) to avoid N+1 requests per row
-        const loans = res.data.data || [];
-        // Ensure a safe fallback label when collectionStatus is missing
-        const normalized = loans.map((loan) => ({
-          ...loan,
-          collectionStatus: loan.collectionStatus || "No Data Encoded",
-        }));
+        const loans = Array.isArray(res.data.data) ? res.data.data : [];
+        // Normalize display fields to avoid empty values
+        const normalized = loans.map((loan) => {
+          const loanInfo = loan.loanInfo || {};
+          const address = loan.address || {};
+          return {
+            ...loan,
+            loanInfo: {
+              ...loanInfo,
+              loanNo: loanInfo.loanNo || loan.loanNo || "",
+              paymentMode: loanInfo.paymentMode || "N/A",
+              status: loanInfo.status || "N/A",
+              processStatus: loanInfo.processStatus || "N/A",
+              amount: Number(loanInfo.amount) || 0,
+              balance: Number(loanInfo.balance) || 0,
+            },
+            address: {
+              barangay: address.barangay || "",
+              city: address.city || "",
+              province: address.province || "",
+            },
+            fullName: (loan.fullName || "").trim(),
+            accountId: loan.accountId || loan.AccountId || "",
+            collectionStatus: loan.collectionStatus || "No Data Encoded",
+          };
+        });
 
         setData(normalized);
-        setMeta(res.data.meta);
+        setMeta(res.data.meta || { page: tableParams.current, limit: tableParams.pageSize, total: normalized.length });
       } else {
         message.error("Failed to load loans");
       }
@@ -128,7 +148,10 @@ export default function Loans() {
       setStatusLoading(true);
       const res = await api.get("/loans/statuses");
       if (res.data.success) {
-        setStatusOptions(res.data.data);
+        const options = (Array.isArray(res.data.data) ? res.data.data : [])
+          .map((s) => (s == null ? "" : String(s).trim()))
+          .filter((s) => s.length > 0);
+        setStatusOptions(options);
       }
     } catch (err) {
       message.error("Failed to load loan statuses");
@@ -160,7 +183,8 @@ export default function Loans() {
       try {
         const res = await api.get("/loans/years");
         if (res.data.success) {
-          const years = res.data.data || [];
+          const years = (Array.isArray(res.data.data) ? res.data.data : [])
+            .filter((y) => y !== null && y !== undefined && String(y).trim() !== "");
           setYearOptions(years);
         }
       } catch (err) {
@@ -195,13 +219,12 @@ export default function Loans() {
     try {
       setIsModalLoading(true);
       setModalInitialTab(initialTab);
+      const clientNo = record.clientNo || record.loanInfo?.clientNo || "";
       const [loansRes, docsRes] = await Promise.all([
         api.get(`/loans/account/${record.accountId}`),
-        api.get(
-          `/loans/client/${
-            record.clientNo || record.loanInfo?.clientNo
-          }/documents`
-        ),
+        clientNo
+          ? api.get(`/loans/client/${clientNo}/documents`)
+          : Promise.resolve({ data: { success: true, data: [] } }),
       ]);
 
       if (loansRes.data.success && docsRes.data.success) {
@@ -296,9 +319,12 @@ export default function Loans() {
     if (selectedLoan) {
       try {
         setIsModalLoading(true);
+        const clientNo = selectedLoan.clientNo || selectedLoan.loanInfo?.clientNo || "";
         const [loansRes, docsRes] = await Promise.all([
           api.get(`/loans/account/${selectedLoan.accountId}`),
-          api.get(`/loans/client/${selectedLoan.clientNo}/documents`),
+          clientNo
+            ? api.get(`/loans/client/${clientNo}/documents`)
+            : Promise.resolve({ data: { success: true, data: [] } }),
         ]);
 
         if (loansRes.data.success && docsRes.data.success) {

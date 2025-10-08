@@ -1,0 +1,31 @@
+.dev-settings .ant-collapse-item > .ant-collapse-header {
+  background: var(--card-header-bg, transparent) !important;
+  border-bottom: 1px solid var(--card-header-border, transparent) !important;
+}
+
+.dev-settings .ant-collapse-item > .ant-collapse-header .ant-collapse-header-text,
+.dev-settings .ant-collapse-item > .ant-collapse-header .ant-collapse-expand-icon {
+  color: var(--card-header-color, inherit) !important;
+}
+
+/* Table theming inside Developer Settings */
+.dev-settings .ant-table {
+  background: var(--table-bg, inherit) !important;
+  color: var(--table-text-color, inherit) !important;
+}
+
+.dev-settings .ant-table-thead > tr > th {
+  background: var(--table-header-bg, inherit) !important;
+  color: var(--table-header-color, inherit) !important;
+}
+
+.dev-settings .ant-table-tbody > tr > td {
+  background: var(--table-bg, inherit) !important;
+  color: var(--table-text-color, inherit) !important;
+}
+
+.dev-settings .ant-table-tbody > tr:hover > td {
+  background: var(--table-row-hover-bg, inherit) !important;
+}
+
+/* Removed dark-mode specific selectors; using app's static variables */

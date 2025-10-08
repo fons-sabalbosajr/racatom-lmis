@@ -425,6 +425,8 @@ export const getLoans = async (req, res) => {
               fullName: 1,
               collectionCount: 1,
               latestCollectionUpdate: 1,
+              // ensure location data is available in minimal mode
+              address: 1,
             },
           }
         : {

@@ -694,9 +694,10 @@ const Collections = ({ loan }) => {
           <div
             style={{
               marginBottom: 16,
-              background: "#fafafa",
+              background: "var(--table-header-bg, #fafafa)",
               padding: 12,
               borderRadius: 8,
+              color: "var(--table-text-color, inherit)",
             }}
           >
             <h4>📄 File Info</h4>
@@ -779,7 +780,8 @@ const Collections = ({ loan }) => {
               style={{
                 maxHeight: 400,
                 overflow: "auto",
-                background: "#f5f5f5",
+                background: "var(--table-bg, #f5f5f5)",
+                color: "var(--table-text-color, inherit)",
                 padding: "8px",
               }}
             >

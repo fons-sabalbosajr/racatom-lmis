@@ -8,6 +8,9 @@ const defaultSettings = {
   maskUsernames: false,
   showDebugInfo: false,
   apiLogging: false,
+  // UI Colors (kept):
+  headerBg: "#ffffff",
+  siderBg: "#001529",
   // Loans
   showStatusSummary: true,
   enableCollectionStatusCheck: true,
@@ -33,6 +36,8 @@ export function DevSettingsProvider({ children }) {
   useEffect(() => {
     lsSet(STORAGE_KEY, settings);
   }, [settings]);
+
+  // No global theme mode toggling; we only persist chosen settings
 
   const api = useMemo(
     () => ({

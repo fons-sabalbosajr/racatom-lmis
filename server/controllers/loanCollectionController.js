@@ -1,5 +1,170 @@
 import LoanCollection from "../models/LoanCollection.js";
 
+// Get all collections with optional filters/pagination
+export const getAllCollections = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      q: searchQuery = "",
+      paymentDate,
+      startDate,
+      endDate,
+      loanCycleNo,
+      accountId,
+      collectorName,
+      paymentMode,
+      sortBy = "PaymentDate",
+      sortDir = "asc",
+    } = req.query;
+
+    const query = {};
+
+    // Optional simple equality filters
+    if (loanCycleNo) {
+      query.LoanCycleNo = { $regex: loanCycleNo, $options: "i" };
+    }
+    if (accountId) {
+      query.AccountId = { $regex: accountId, $options: "i" };
+    }
+    if (collectorName) {
+      query.CollectorName = { $regex: collectorName, $options: "i" };
+    }
+    if (paymentMode) {
+      query.PaymentMode = { $regex: paymentMode, $options: "i" };
+    }
+
+    // Date filters: either specific day (paymentDate) or range (startDate/endDate)
+    if (paymentDate) {
+      const startOfDay = new Date(paymentDate);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(paymentDate);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+      query.PaymentDate = { $gte: startOfDay, $lte: endOfDay };
+    } else if (startDate || endDate) {
+      const sd = startDate ? new Date(startDate) : null;
+      const ed = endDate ? new Date(endDate) : null;
+      if (sd) sd.setUTCHours(0, 0, 0, 0);
+      if (ed) ed.setUTCHours(23, 59, 59, 999);
+      query.PaymentDate = {
+        ...(sd ? { $gte: sd } : {}),
+        ...(ed ? { $lte: ed } : {}),
+      };
+    }
+
+    // Text search across common fields
+    if (searchQuery) {
+      const rx = { $regex: searchQuery, $options: "i" };
+      query.$or = [
+        { AccountId: rx },
+        { ClientNo: rx },
+        { LoanCycleNo: rx },
+        { CollectorName: rx },
+        { PaymentMode: rx },
+        { CollectionReferenceNo: rx },
+        { Bank: rx },
+        { Branch: rx },
+      ];
+    }
+
+    const limitValue = parseInt(limit);
+    const pageValue = parseInt(page);
+    const skip = (pageValue - 1) * limitValue;
+
+    // Build aggregation pipeline to include client name
+    const matchStage = { ...query };
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "loan_clients",
+          localField: "ClientNo",
+          foreignField: "ClientNo",
+          as: "clientInfo",
+        },
+      },
+      { $unwind: { path: "$clientInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          "client.ClientName": {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$clientInfo.FirstName", ""] },
+                  " ",
+                  { $ifNull: ["$clientInfo.MiddleName", ""] },
+                  " ",
+                  { $ifNull: ["$clientInfo.LastName", ""] },
+                ],
+              },
+            },
+          },
+          clientName: {
+            $trim: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$clientInfo.FirstName", ""] },
+                  " ",
+                  { $ifNull: ["$clientInfo.MiddleName", ""] },
+                  " ",
+                  { $ifNull: ["$clientInfo.LastName", ""] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    // Sorting
+    const sortField = typeof sortBy === "string" && sortBy.length > 0 ? sortBy : "PaymentDate";
+    const sortOrder = sortDir === "desc" ? -1 : 1;
+    pipeline.push({ $sort: { [sortField]: sortOrder, _id: 1 } });
+
+    // Pagination
+    if (limitValue !== 0) {
+      pipeline.push({ $skip: skip }, { $limit: limitValue });
+    }
+
+    const [collections, totalAgg] = await Promise.all([
+      LoanCollection.aggregate(pipeline),
+      LoanCollection.countDocuments(matchStage),
+    ]);
+
+    // Convert Decimal128 fields to strings for JSON safety
+    const toPlain = (obj) => {
+      if (obj instanceof Date) return obj.toISOString();
+      if (!obj || typeof obj !== "object") return obj;
+      // Avoid destructuring Date (would turn into empty object)
+      const out = Array.isArray(obj) ? [] : {};
+      for (const key in obj) {
+        const v = obj[key];
+        if (v && v.constructor && v.constructor.name === "Decimal128") {
+          out[key] = typeof v.toString === "function" ? v.toString() : String(v);
+        } else if (v instanceof Date) {
+          out[key] = v.toISOString();
+        } else if (v && typeof v === "object") {
+          out[key] = toPlain(v);
+        } else {
+          out[key] = v;
+        }
+      }
+      return out;
+    };
+
+    const formatted = collections.map((doc) => toPlain({ ...doc }));
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+      meta: { total: totalAgg, page: pageValue, limit: limitValue },
+    });
+  } catch (error) {
+    console.error("Error fetching collections:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // Get collections by LoanCycleNo
 export const getCollectionsByLoanCycleNo = async (req, res) => {
   try {

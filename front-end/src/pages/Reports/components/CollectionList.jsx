@@ -115,13 +115,71 @@ export default function CollectionList() {
       dataIndex: ["client", "ClientName"],
       key: "clientName",
       sorter: true,
+      render: (_, record) => {
+        const client = record.client || {};
+        const fromNested = client.ClientName;
+        const fromFlat = record.clientName || record.ClientName; // backend may add clientName
+        const constructed = [
+          record.clientInfo?.FirstName,
+          record.clientInfo?.MiddleName,
+          record.clientInfo?.LastName,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const name = (fromNested || fromFlat || constructed || "").trim();
+        return name || "N/A";
+      },
     },
     {
       title: "Payment Date",
       dataIndex: "PaymentDate",
       key: "PaymentDate",
       sorter: true,
-      render: (text) => dayjs(text).format("MM/DD/YYYY"),
+      render: (value) => {
+        if (!value) return "—";
+        // Date instance
+        if (value instanceof Date) {
+          const d = dayjs(value);
+          return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+        }
+        // Mongo Extended JSON variants
+        if (typeof value === "object") {
+          // { $date: "iso" } or { $date: { $numberLong: "..." } } or Date
+          if ("$date" in value) {
+            const dv = value.$date;
+            if (dv instanceof Date) {
+              const d = dayjs(dv);
+              return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+            }
+            if (typeof dv === "string") {
+              const d = dayjs(dv);
+              return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+            }
+            if (dv && typeof dv === "object" && "$numberLong" in dv) {
+              const num = Number(dv.$numberLong);
+              const d = dayjs(num);
+              return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+            }
+          }
+          // Direct numeric long in object { $numberLong: "..." }
+          if ("$numberLong" in value) {
+            const num = Number(value.$numberLong);
+            const d = dayjs(num);
+            return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+          }
+        }
+        // ISO string or numeric timestamp
+        if (typeof value === "string") {
+          const d = dayjs(value);
+          if (d.isValid()) return d.format("MM/DD/YYYY");
+        }
+        const n = Number(value);
+        if (!Number.isNaN(n)) {
+          const d2 = dayjs(n);
+          if (d2.isValid()) return d2.format("MM/DD/YYYY");
+        }
+        return "—";
+      },
     },
     {
       title: "Collector Name",
@@ -178,7 +236,7 @@ export default function CollectionList() {
   return (
     <>
       <Card>
-        <Title level={4}>Collection List</Title>
+        <Title level={4} style={{ marginTop: -8, marginBottom: 8 }}>Collection List</Title>
         <div
           style={{
             display: "flex",
@@ -200,7 +258,22 @@ export default function CollectionList() {
           </Space>
         </div>
         <Table
-          rowKey={(r) => r._id}
+          rowKey={(r) => {
+            // Normalize _id to a string; fall back to a deterministic composite key
+            const id = r && r._id;
+            if (typeof id === "string") return id;
+            if (id && typeof id === "object") {
+              if (typeof id.$oid === "string") return id.$oid;
+              if (typeof id.toString === "function") {
+                const s = id.toString();
+                if (s && s !== "[object Object]") return s;
+              }
+            }
+            const ts = r && r.PaymentDate ? dayjs(r.PaymentDate).valueOf() : "";
+            return [r?.AccountId, r?.LoanCycleNo, ts, r?.CollectionReferenceNo, r?.CollectionPayment]
+              .filter((v) => v !== undefined && v !== null)
+              .join("|");
+          }}
           columns={columns}
           dataSource={data}
           loading={loading}

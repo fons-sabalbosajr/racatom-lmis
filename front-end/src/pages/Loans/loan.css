@@ -1,8 +1,8 @@
 /* src/pages/loan.css */
 
 .loan-card {
-  background: #fff;
   border-radius: 12px;
+  color: var(--loan-text-color, #1f1f1f);
 }
 
 .loan-filters {
@@ -31,7 +31,6 @@
 
 .loan-col-sub {
   font-size: 12px;
-  color: #888;
 }
 
 .loan-modal .ant-modal-body {
@@ -45,25 +44,22 @@
 }
 
 .corporate-table {
-  background-color: #ffffff;
   border-radius: 12px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
 .corporate-table .ant-table-thead > tr > th {
-  background-color: #f5f7fa;
-  color: #2b3a55;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 2px solid #e4e6eb;
   text-align: center;
+  /* Use table header theme variables to ensure correct light/dark rendering */
+  background: var(--table-header-bg, #fafafa) !important;
+  color: var(--table-header-color, var(--loan-th-color, #434343)) !important;
 }
 
-.corporate-table .ant-table-tbody > tr:hover > td {
-  background-color: #f9fafc;
-}
+/* (intentionally left for future hover styles) */
 
 /* .loan-table .loan-status-card {
   background: #f9fafb;
@@ -101,7 +97,7 @@
 .loan-status-card .status-label {
   width: 110px;
   font-size: 11px;
-  color: #444;
+  color: var(--loan-label-color, inherit);
 }
 
 .loan-status-card .status-tag {
@@ -109,6 +105,7 @@
   height: 20px;
   font-size: 11px;
   padding: 0 6px;
+  /* Let Ant Design Tag color determine background and font color */
 }
 
 .loan-status-card .status-closed {
@@ -132,9 +129,6 @@
   }
 }
 
-.loan-needs-update {
-  background-color: #fff0f0 !important; /* Light red background */
-}
 
 /* Loans page: reduce primary button border radius */
 .loan-card .ant-btn-primary:not(.ant-btn-circle):not(.ant-btn-round) {
@@ -182,7 +176,6 @@
   min-width: 92px; /* keep labels aligned */
   font-weight: 600;
   font-size: 12px;
-  color: #555;
 }
 
 .info-value {
@@ -200,8 +193,33 @@
 .loan-table .ant-table-thead > tr > th {
   padding: 6px 8px !important; /* reduce vertical padding */
   line-height: 18px; /* tighten text line height */
+  /* Reinforce header background/text per theme for Loans table specifically */
+  background: var(--table-header-bg, #fafafa) !important;
+  color: var(--table-header-color, #262626) !important;
 }
 
 .loan-table .ant-table-thead > tr {
   height: 32px; /* target a compact header row */
+}
+
+/* Reduce overall page padding inside the Loans card */
+.loan-card .ant-card-body {
+  padding: 16px !important; /* was larger by default; make the page tighter */
+}
+
+/* Ensure Loans table rows always use theme-aware backgrounds/text */
+.loan-table .ant-table-tbody > tr > td {
+  background: var(--table-bg, #ffffff) !important;
+  color: var(--table-text-color, #1f1f1f) !important;
+}
+.loan-table .ant-table-tbody > tr:hover > td {
+  background: var(--table-row-hover-bg, #f5f5f5) !important;
+}
+.loan-table .ant-table-tbody > tr:active > td,
+.loan-table .ant-table-tbody > tr:focus > td {
+  background: var(--table-row-selected-bg, #e6f7ff) !important;
+}
+.loan-table .ant-table-tbody > tr.ant-table-row-selected > td,
+.loan-table .ant-table-tbody > tr.ant-table-row-selected:hover > td {
+  background: var(--table-row-selected-bg, #e6f7ff) !important;
 }

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal } from "antd";
+import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal, ColorPicker, Radio } from "antd";
 import { useDevSettings } from "../../../context/DevSettingsContext";
 import api from "../../../utils/axios";
+import "./devsettings.css";
 
 const { Title, Text } = Typography;
 
@@ -109,7 +110,7 @@ export default function DeveloperSettings() {
         padding: "4px 0",
       }}
     >
-      <span style={{ flex: 1 }}>{label}</span>
+      <span className="setting-row-label" style={{ flex: 1 }}>{label}</span>
       {children ?? (
         <Switch checked={checked} onChange={onChange} />
       )}
@@ -288,8 +289,65 @@ export default function DeveloperSettings() {
           <SettingRow
             label="Compact UI (reduce paddings/margins)"
             checked={settings.compactUI}
-            onChange={(v) => setSetting("compactUI", v)}
+            onChange={(v) => {
+              setSetting("compactUI", v);
+              message.success("Compact UI setting updated");
+            }}
           />
+          <Divider style={{ margin: "8px 0" }} />
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ minWidth: 120 }}>Sider Background</span>
+              <ColorPicker
+                value={settings.siderBg}
+                onChangeComplete={(c) => {
+                  setSetting("siderBg", c.toHexString());
+                  message.success("Sider color updated");
+                }}
+                format="hex"
+                presets={[
+                  { label: 'Blue', colors: ['#001529', '#002B5B', '#1677ff'] },
+                  { label: 'Gray', colors: ['#141414', '#1f1f1f', '#2f2f2f'] },
+                  { label: 'Green', colors: ['#0f3d3e', '#1b5e20', '#2e7d32'] },
+                  { label: 'Purple', colors: ['#1f1646', '#2b1c6f', '#722ed1'] },
+                ]}
+              />
+              <Space size={4} wrap>
+                {[
+                  '#001529', '#141414', '#2f2f2f', '#003a8c', '#391085', '#1b5e20'
+                ].map((c) => (
+                  <Button key={c} size="small" onClick={() => { setSetting('siderBg', c); message.success('Sider color updated'); }} style={{ background: c, color: '#fff', borderColor: '#0002' }}>
+                    {" "}
+                  </Button>
+                ))}
+              </Space>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ minWidth: 120 }}>Header Background</span>
+              <ColorPicker
+                value={settings.headerBg}
+                onChangeComplete={(c) => {
+                  setSetting("headerBg", c.toHexString());
+                  message.success("Header color updated");
+                }}
+                format="hex"
+                presets={[
+                  { label: 'Light', colors: ['#ffffff', '#fafafa', '#f5f5f5'] },
+                  { label: 'Dark', colors: ['#141414', '#1f1f1f', '#262626'] },
+                  { label: 'Brand', colors: ['#1677ff', '#fa8c16', '#eb2f96'] },
+                ]}
+              />
+              <Space size={4} wrap>
+                {[
+                  '#ffffff', '#141414', '#1677ff', '#fa8c16', '#eb2f96', '#262626'
+                ].map((c) => (
+                  <Button key={c} size="small" onClick={() => { setSetting('headerBg', c); message.success('Header color updated'); }} style={{ background: c, color: '#000', borderColor: '#0002' }}>
+                    {" "}
+                  </Button>
+                ))}
+              </Space>
+            </div>
+          </div>
         </Space>
       ),
     },
@@ -412,8 +470,8 @@ export default function DeveloperSettings() {
   ];
 
   return (
-    <div style={{ padding: 12 }}>
-      <Title level={3}>Developer Settings</Title>
+    <div className="dev-settings" style={{ padding: 12, paddingTop: 8 }}>
+      <Title level={3} style={{ marginTop: -6 }}>Developer Settings</Title>
       <Text type="secondary">
         Tools and switches for developers. Use responsibly.
       </Text>

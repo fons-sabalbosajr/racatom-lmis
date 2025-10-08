@@ -13,11 +13,11 @@
 .collections-summary .summary-label {
   min-width: 150px; /* align labels in each column */
   font-weight: 600;
-  color: #555;
+  color: var(--loan-label-color, #555);
 }
 
 .collections-summary .summary-value {
-  color: #222;
+  color: var(--loan-text-color, #222);
 }
 .collections-filters {
   display: flex;
@@ -36,15 +36,16 @@
   }
 }
 
+/* Theme-aligned row backgrounds for special cases */
 .disbursement-row {
-  background-color: #e6f7ff; /* Light blue for disbursement */
+  background-color: var(--table-row-selected-bg, #e6f7ff);
   font-weight: bold;
 }
 
 .late-payment-row {
-  background-color: #fff1f0; /* Light red for late payments */
+  background-color: var(--table-inactive-bg, #fff1f0);
 }
 
 .advanced-payment-row {
-  background-color: #f6ffed; /* Light green for advanced payments */
+  background-color: var(--table-row-hover-bg, #f6ffed);
 }
