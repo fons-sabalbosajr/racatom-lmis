@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
-import { Card, Col, Row, Statistic } from "antd";
-import { UserOutlined, ScheduleOutlined } from "@ant-design/icons";
+import { Card, Col, Row, Statistic, Button } from "antd";
+import { UserOutlined, ScheduleOutlined, EyeOutlined } from "@ant-design/icons";
 
-function DashboardStats({ stats, loading }) {
+function DashboardStats({ stats, loading, onShowUpcoming }) {
   useEffect(() => {
     //console.log("DashboardStats props:", { stats, loading });
   }, [stats, loading]);
@@ -36,15 +36,26 @@ function DashboardStats({ stats, loading }) {
       </Col>
       <Col xs={24} sm={12} md={6}>
         <Card className="dashboard-card">
-          <Statistic
-            title="Upcoming Payments"
-            value={stats.upcomingPayments}
-            precision={0}
-            loading={loading}
-            valueStyle={{ color: "#d48806" }}
-            prefix={<ScheduleOutlined />}
-            suffix="payments"
-          />
+          <div style={{ position: "relative" }}>
+            {onShowUpcoming && (
+              <Button
+                type="text"
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={onShowUpcoming}
+                style={{ position: "absolute", top: 0, right: 0 }}
+              />
+            )}
+            <Statistic
+              title="Upcoming Payments"
+              value={stats.upcomingPayments}
+              precision={0}
+              loading={loading}
+              valueStyle={{ color: "#d48806" }}
+              prefix={<ScheduleOutlined />}
+              suffix="accounts"
+            />
+          </div>
         </Card>
       </Col>
       <Col xs={24} sm={12} md={6}>

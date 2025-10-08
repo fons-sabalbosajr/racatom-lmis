@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Table, message, Pagination, Row, Col, Select, Tag } from 'antd';
+import { Modal, Table, message, Pagination, Row, Col, Select, Tag, Button, Space } from 'antd';
 import api from '../../../utils/axios';
-
-const statusColor = (status) => {
-  if (!status) return "default";
-  if (status.toLowerCase().includes("updated")) return "green";
-  if (status.toLowerCase().includes("pending")) return "orange";
-  if (status.toLowerCase().includes("rejected")) return "red";
-  return "blue";
-};
+import { getLoanStatusColor } from '../../../utils/statusColors';
 
 
 
-function ChartDetailsModal({ visible, onClose, title, filter }) {
+function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, pageSizeOptions: ['10', '20', '50', '100'] });
+
+  const fmtCurrency = (val) => `₱${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtDate = (date) => (date ? new Date(date).toLocaleDateString() : '—');
 
   const getDynamicColumns = () => {
     const coreColumns = [
@@ -25,9 +21,9 @@ function ChartDetailsModal({ visible, onClose, title, filter }) {
         key: 'applicant',
         render: (text, record) => (
           <div>
-            <div>{text}</div>
-            {record.loanInfo.loanNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Loan No: {record.loanInfo.loanNo}</div>}
-            {record.clientNo && <div style={{ fontSize: '0.85em', color: '#888' }}>Client No: {record.clientNo}</div>}
+            <div>{text || '—'}</div>
+            <div style={{ fontSize: '0.85em', color: '#888' }}>Loan No: {record.loanInfo?.loanNo || '—'}</div>
+            <div style={{ fontSize: '0.85em', color: '#888' }}>Client No: {record.clientNo || '—'}</div>
           </div>
         ),
       },
@@ -35,13 +31,19 @@ function ChartDetailsModal({ visible, onClose, title, filter }) {
         title: 'Loan Amount',
         dataIndex: ['loanInfo', 'amount'],
         key: 'amount',
-        render: (val) => `₱${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        render: (val) => fmtCurrency(val),
       },
       {
         title: 'Loan Balance',
         dataIndex: ['loanInfo', 'balance'],
         key: 'balance',
-        render: (val) => `₱${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        render: (val) => fmtCurrency(val),
+      },
+      {
+        title: 'Payment Mode',
+        dataIndex: ['loanInfo', 'paymentMode'],
+        key: 'paymentMode',
+        render: (val) => val || '—',
       },
     ];
 
@@ -49,14 +51,16 @@ function ChartDetailsModal({ visible, onClose, title, filter }) {
       title: 'Status',
       dataIndex: ['loanInfo', 'status'],
       key: 'status',
-      render: (status) => <Tag color={statusColor(status)}>{status}</Tag>,
+      render: (status) => {
+        return <Tag color={getLoanStatusColor(status)}>{status || '—'}</Tag>;
+      },
     };
 
     const dueDateColumn = {
       title: 'Due Date',
       dataIndex: ['loanInfo', 'maturityDate'],
       key: 'dueDate',
-      render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+      render: (date) => fmtDate(date),
     };
 
     const typeSpecificColumns = [];
@@ -66,12 +70,13 @@ function ChartDetailsModal({ visible, onClose, title, filter }) {
           title: 'Loan Type',
           dataIndex: ['loanInfo', 'type'],
           key: 'type',
+          render: (v) => v || '—',
         },
         {
           title: 'Start Payment Date',
           dataIndex: ['loanInfo', 'startPaymentDate'],
           key: 'startPaymentDate',
-          render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+          render: (date) => fmtDate(date),
         }
       );
     } else if (title.startsWith('Loans for Collector:')) {
@@ -81,33 +86,61 @@ function ChartDetailsModal({ visible, onClose, title, filter }) {
           title: 'Collector',
           dataIndex: ['loanInfo', 'collectorName'],
           key: 'collectorName',
+          render: (v) => v || '—',
         },
         {
           title: 'Loan Type',
           dataIndex: ['loanInfo', 'type'],
           key: 'type',
+          render: (v) => v || '—',
         },
         {
           title: 'Start Payment Date',
           dataIndex: ['loanInfo', 'startPaymentDate'],
           key: 'startPaymentDate',
-          render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+          render: (date) => fmtDate(date),
         },
         dueDateColumn,
         statusColumn,
+        {
+          title: 'Action',
+          key: 'action',
+          fixed: 'right',
+          render: (_, record) => (
+            <Space>
+              <Button type="link" onClick={() => onViewLoan && onViewLoan(record)}>View Details</Button>
+            </Space>
+          ),
+        },
       ];
     }
 
-    return [...coreColumns, ...typeSpecificColumns, dueDateColumn, statusColumn];
+    return [...coreColumns, ...typeSpecificColumns, dueDateColumn, statusColumn, {
+      title: 'Action', key: 'action', fixed: 'right', render: (_, record) => (
+        <Space>
+          <Button type='link' onClick={() => onViewLoan && onViewLoan(record)}>View Details</Button>
+        </Space>
+      ) }];
   };
 
   const fetchLoans = useCallback(async (page, limit) => {
     if (!filter) return;
     setLoading(true);
     try {
-      const response = await api.get('/loans', {
-        params: { ...filter, page, limit, sortBy: 'StartPaymentDate', sortDir: 'desc' },
+  // Default sorting; if upcoming filter active, sort by soonest due
+  const params = { page, limit, sortBy: filter?.upcoming ? 'MaturityDate' : 'StartPaymentDate', sortDir: filter?.upcoming ? 'asc' : 'desc' };
+      // Special handling for collectorName array
+      if (filter.collectorName) {
+        params.collectorName = Array.isArray(filter.collectorName)
+          ? filter.collectorName.join(',')
+          : filter.collectorName;
+      }
+      // Pass through other filters
+      Object.keys(filter).forEach((k) => {
+        if (k !== 'collectorName') params[k] = filter[k];
       });
+
+      const response = await api.get('/loans', { params });
       if (response.data.success) {
         setLoans(response.data.data);
         setMeta({

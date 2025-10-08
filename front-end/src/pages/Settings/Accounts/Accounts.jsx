@@ -17,6 +17,7 @@ import {
   Collapse,
   Table,
   Popconfirm,
+  Space, Switch
 } from "antd";
 import {
   EyeOutlined,
@@ -26,13 +27,15 @@ import {
   DeleteOutlined,
 } from "@ant-design/icons";
 import api from "../../../utils/axios";
-import { decryptData } from "../../../utils/storage";
+import { lsGet, lsSet } from "../../../utils/storage";
 import "./accounts.css";
+import { useDevSettings } from "../../../context/DevSettingsContext";
 
 const { Title } = Typography;
 const { Panel } = Collapse;
 
 const Accounts = () => {
+  const { settings } = useDevSettings();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
@@ -43,25 +46,35 @@ const Accounts = () => {
   const [photoFile, setPhotoFile] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [viewMode, setViewMode] = useState("Card"); // "Card" | "Table"
+  const [genLength, setGenLength] = useState(12);
+  const [genUpper, setGenUpper] = useState(true);
+  const [genLower, setGenLower] = useState(true);
+  const [genDigits, setGenDigits] = useState(true);
+  const [genSymbols, setGenSymbols] = useState(true);
+  const [genOutput, setGenOutput] = useState("");
 
   useEffect(() => {
     fetchUsers();
 
-    const encrypted = localStorage.getItem("onlineUser");
-    if (encrypted) {
-      try {
-        const username = decryptData(encrypted);
-        setCurrentUsername(username);
-      } catch (err) {
-        console.error("Failed to decrypt online username", err);
-      }
-    }
+    const username = lsGet("onlineUser");
+    if (username) setCurrentUsername(username);
   }, []);
 
   const fetchUsers = async () => {
     try {
       const res = await api.get("/users");
-      setUsers(res.data);
+      const raw = Array.isArray(res.data) ? res.data : [];
+      // Deduplicate by Username (fallback to _id) to avoid double cards
+      const seen = new Set();
+      const unique = [];
+      for (const u of raw) {
+        const key = (u && (u.Username || u._id)) ?? Math.random().toString();
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(u);
+        }
+      }
+      setUsers(unique);
     } catch (err) {
       console.error(err);
       message.error("Failed to load user accounts");
@@ -71,15 +84,8 @@ const Accounts = () => {
   };
 
   useEffect(() => {
-    const encrypted = localStorage.getItem("user"); // already storing logged-in user in Home.jsx
-    if (encrypted) {
-      try {
-        const userObj = decryptData(encrypted);
-        setCurrentUser(userObj); // store entire user (includes Position)
-      } catch (err) {
-        console.error("Failed to decrypt online user", err);
-      }
-    }
+    const userObj = lsGet("user");
+    if (userObj) setCurrentUser(userObj);
   }, []);
 
   const isOnline = (username) => currentUsername === username;
@@ -121,7 +127,7 @@ const Accounts = () => {
       // If editing your own profile, update the user data in localStorage
       if (editingUser?._id === currentUser?._id) {
         const updatedUser = res.data;
-        localStorage.setItem("user", JSON.stringify(updatedUser)); // Assuming you store raw JSON, adjust if encrypted
+        lsSet("user", updatedUser);
         setCurrentUser(updatedUser);
       }
 
@@ -191,9 +197,9 @@ const Accounts = () => {
       dataIndex: "Username",
       key: "Username",
       render: (val, record) =>
-        currentUser?.Position === "Developer"
+        currentUser?.Position === "Developer" || !settings.maskUsernames
           ? val
-          : "*".repeat(2) + val.slice(2),
+          : "*".repeat(2) + (val || "").slice(2),
     },
     {
       title: "Status",
@@ -225,7 +231,7 @@ const Accounts = () => {
             </Button>
           )}
 
-          {currentUser?.Position === "Developer" && (
+          {currentUser?.Position === "Developer" && settings.allowUserDelete && (
             <Popconfirm
               title="Are you sure delete this user?"
               onConfirm={() => handleDelete(record._id)}
@@ -375,6 +381,63 @@ const Accounts = () => {
           pagination={{ pageSize: 6 }}
         />
       )}
+
+      {/* Password Generator (available to all users) */}
+      <Card size="small" style={{ marginTop: 16 }} title="Password Generator">
+        <Row gutter={[12, 12]} align="middle">
+          <Col xs={24} md={12}>
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 90 }}>Length:</span>
+                <Input
+                  type="number"
+                  min={6}
+                  max={64}
+                  value={genLength}
+                  onChange={(e) => setGenLength(Number(e.target.value))}
+                  style={{ width: 100 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 90 }}>Uppercase:</span>
+                <Switch checked={genUpper} onChange={setGenUpper} />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 90 }}>Lowercase:</span>
+                <Switch checked={genLower} onChange={setGenLower} />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 90 }}>Digits:</span>
+                <Switch checked={genDigits} onChange={setGenDigits} />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 90 }}>Symbols:</span>
+                <Switch checked={genSymbols} onChange={setGenSymbols} />
+              </div>
+              <Space>
+                <Button onClick={() => {
+                  const pools = [];
+                  if (genUpper) pools.push("ABCDEFGHJKLMNPQRSTUVWXYZ");
+                  if (genLower) pools.push("abcdefghijkmnopqrstuvwxyz");
+                  if (genDigits) pools.push("23456789");
+                  if (genSymbols) pools.push("!@#$%^&*()-_=+[]{}");
+                  if (pools.length === 0) { message.error("Select at least one character set"); return; }
+                  const pick = (s) => s[Math.floor(Math.random() * s.length)];
+                  let pwd = pools.map(pick).join("");
+                  const all = pools.join("");
+                  for (let i = pwd.length; i < genLength; i++) pwd += pick(all);
+                  pwd = pwd.split("").sort(() => Math.random() - 0.5).join("");
+                  setGenOutput(pwd);
+                }}>Generate</Button>
+                <Button onClick={() => { navigator.clipboard.writeText(genOutput || ""); message.success("Copied to clipboard"); }} disabled={!genOutput}>Copy</Button>
+              </Space>
+            </Space>
+          </Col>
+          <Col xs={24} md={12}>
+            <Input.TextArea rows={3} value={genOutput} readOnly placeholder="Generated password will appear here" />
+          </Col>
+        </Row>
+      </Card>
 
       {/* Edit Modal */}
       <Modal

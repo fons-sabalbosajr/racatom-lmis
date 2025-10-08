@@ -11,10 +11,12 @@ import ExportLoanSummaryPDF from "../../utils/ExportLoanSummaryPDF";
 import "./loan.css";
 
 import UpdateStatusSummaryModal from "./components/UpdateStatusSummaryModal";
+import { useDevSettings } from "../../context/DevSettingsContext";
 
 const { Title } = Typography;
 
 export default function Loans() {
+  const { settings } = useDevSettings();
   const [data, setData] = useState([]); // Holds the loans for the current page
   const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0 });
   const [loading, setLoading] = useState(false);
@@ -66,12 +68,21 @@ export default function Loans() {
           loanStatus,
           paymentMode,
           year,
+          minimal: true,
           sortBy: field || "AccountId",
           sortDir: order === "descend" ? "desc" : "asc",
         },
       });
       if (res.data.success) {
-        setData(res.data.data);
+        // Use server-computed fields (collectionStatus, counts) to avoid N+1 requests per row
+        const loans = res.data.data || [];
+        // Ensure a safe fallback label when collectionStatus is missing
+        const normalized = loans.map((loan) => ({
+          ...loan,
+          collectionStatus: loan.collectionStatus || "No Data Encoded",
+        }));
+
+        setData(normalized);
         setMeta(res.data.meta);
       } else {
         message.error("Failed to load loans");
@@ -315,7 +326,7 @@ export default function Loans() {
     }
   };
 
-  const columns = getLoanColumns({
+  let columns = getLoanColumns({
     viewLoan,
     onUpdateSingleLoan,
     viewCollectionSummary,
@@ -323,6 +334,10 @@ export default function Loans() {
     generateLoanSummary,
     onUpdateStatus: handleUpdateStatus,
   });
+
+  if (!settings.showStatusSummary) {
+    columns = columns.filter((c) => c.key !== "status");
+  }
 
   const exportExcel = async () => {
     try {

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { Modal, Form, Select, Button, message } from "antd";
+import { Modal, Form, Select, Button, message, Tag, Typography } from "antd";
 import axios from "../../../utils/axios";
 
 const { Option } = Select;
@@ -10,6 +10,24 @@ const UpdateStatusSummaryModal = ({ visible, loan, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [loanStatuses, setLoanStatuses] = useState([]);
   const [processStatuses, setProcessStatuses] = useState([]);
+
+  // Color maps copied from LoanColumns.jsx for visual consistency
+  const LOAN_STATUS_COLORS = {
+    UPDATED: "green",
+    ARREARS: "orange",
+    "PAST DUE": "red",
+    LITIGATION: "volcano",
+    DORMANT: "gray",
+    CLOSED: "default",
+  };
+
+  const LOAN_PROCESS_STATUS_COLORS = {
+    Updated: "green",
+    Approved: "blue",
+    Pending: "gold",
+    Released: "purple",
+    "Loan Released": "purple",
+  };
 
   useEffect(() => {
     if (visible) {
@@ -73,10 +91,14 @@ const UpdateStatusSummaryModal = ({ visible, loan, onClose, onSuccess }) => {
           label="Loan Status"
           rules={[{ required: true, message: "Please select a loan status!" }]}
         >
-          <Select placeholder="Select a status">
+          <Select placeholder="Select a status" optionLabelProp="label">
             {loanStatuses.map((status) => (
-              <Option key={status} value={status}>
-                {status}
+              <Option
+                key={status}
+                value={status}
+                label={status}
+              >
+                <Tag color={LOAN_STATUS_COLORS[status] || "default"}>{status}</Tag>
               </Option>
             ))}
           </Select>
@@ -88,14 +110,35 @@ const UpdateStatusSummaryModal = ({ visible, loan, onClose, onSuccess }) => {
             { required: true, message: "Please select a process status!" },
           ]}
         >
-          <Select placeholder="Select a status">
+          <Select placeholder="Select a status" optionLabelProp="label">
             {processStatuses.map((status) => (
-              <Option key={status} value={status}>
-                {status}
+              <Option
+                key={status}
+                value={status}
+                label={status}
+              >
+                <Tag color={LOAN_PROCESS_STATUS_COLORS[status] || "default"}>{status}</Tag>
               </Option>
             ))}
           </Select>
         </Form.Item>
+
+        {/* Preview of selected values with colors */}
+        <div style={{ marginTop: 8 }}>
+          <Typography.Text type="secondary">Current selection:</Typography.Text>
+          <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {form.getFieldValue('status') && (
+              <Tag color={LOAN_STATUS_COLORS[form.getFieldValue('status')] || 'default'}>
+                {form.getFieldValue('status')}
+              </Tag>
+            )}
+            {form.getFieldValue('processStatus') && (
+              <Tag color={LOAN_PROCESS_STATUS_COLORS[form.getFieldValue('processStatus')] || 'default'}>
+                {form.getFieldValue('processStatus')}
+              </Tag>
+            )}
+          </div>
+        </div>
       </Form>
     </Modal>
   );

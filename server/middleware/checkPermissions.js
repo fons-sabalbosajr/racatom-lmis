@@ -66,3 +66,19 @@ export const canDeleteUser = async (req, res, next) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+export const developerOnly = async (req, res, next) => {
+  try {
+    const loggedInUser = await getLoggedInUser(req);
+    if (!loggedInUser) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    if (String(loggedInUser.Position).toLowerCase() === "developer") {
+      return next();
+    }
+    return res.status(403).json({ success: false, message: "Developer access required." });
+  } catch (err) {
+    console.error("developerOnly error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

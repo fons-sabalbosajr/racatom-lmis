@@ -302,6 +302,9 @@ export const getLoans = async (req, res) => {
       needsUpdate = false,
       sortBy = "AccountId",
       sortDir = "asc",
+      collectorName,
+      minimal,
+      upcoming,
     } = req.query;
 
     const matchQuery = {};
@@ -312,6 +315,23 @@ export const getLoans = async (req, res) => {
     if (year) matchQuery.AccountId = { $regex: `^RCT-${year}`, $options: "i" };
     if (needsUpdate === "true") {
       matchQuery.LoanCycleNo = { $regex: "-R", $options: "i" };
+    }
+
+    // Filter by collector names (can be array or comma-separated string)
+    if (collectorName) {
+      let names = [];
+      if (Array.isArray(collectorName)) names = collectorName;
+      else if (typeof collectorName === "string") names = collectorName.split(",");
+      names = names.map((n) => String(n).trim()).filter(Boolean);
+      if (names.length > 0) {
+        matchQuery.CollectorName = { $in: names };
+      }
+    }
+
+    // Upcoming payments: active loans with positive balance
+    if (upcoming === "true") {
+      matchQuery.LoanStatus = { ...(matchQuery.LoanStatus || {}), $ne: "CLOSED" };
+      matchQuery.LoanBalance = { $gt: 0 };
     }
 
     // ✅ MODIFIED: Expanded search to include client's name from the joined collection.
@@ -386,34 +406,55 @@ export const getLoans = async (req, res) => {
         },
       },
 
-      {
-        $project: {
-          _id: 1,
-          AccountId: 1,
-          ClientNo: 1,
-          LoanCycleNo: 1,
-          LoanType: 1,
-          LoanStatus: 1,
-          LoanProcessStatus: 1,
-          LoanTerm: 1,
-          LoanAmount: 1,
-          PrincipalAmount: 1,
-          LoanBalance: 1,
-          LoanInterest: 1,
-          Penalty: 1,
-          PaymentMode: 1,
-          CollectorName: 1,
-          StartPaymentDate: 1, // ensure StartPaymentDate is available if you sort by it
-          MaturityDate: 1, // <-- make MaturityDate available in pipeline
-          createdAt: 1,
-          updatedAt: 1,
-          person: 1,
-          address: 1,
-          fullName: 1,
-          collectionCount: 1,
-          latestCollectionUpdate: 1,
-        },
-      },
+      minimal
+        ? {
+            $project: {
+              _id: 1,
+              AccountId: 1,
+              ClientNo: 1,
+              LoanCycleNo: 1,
+              LoanType: 1,
+              LoanStatus: 1,
+              LoanProcessStatus: 1,
+              LoanAmount: 1,
+              LoanBalance: 1,
+              PaymentMode: 1,
+              CollectorName: 1,
+              StartPaymentDate: 1,
+              MaturityDate: 1,
+              fullName: 1,
+              collectionCount: 1,
+              latestCollectionUpdate: 1,
+            },
+          }
+        : {
+            $project: {
+              _id: 1,
+              AccountId: 1,
+              ClientNo: 1,
+              LoanCycleNo: 1,
+              LoanType: 1,
+              LoanStatus: 1,
+              LoanProcessStatus: 1,
+              LoanTerm: 1,
+              LoanAmount: 1,
+              PrincipalAmount: 1,
+              LoanBalance: 1,
+              LoanInterest: 1,
+              Penalty: 1,
+              PaymentMode: 1,
+              CollectorName: 1,
+              StartPaymentDate: 1,
+              MaturityDate: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              person: 1,
+              address: 1,
+              fullName: 1,
+              collectionCount: 1,
+              latestCollectionUpdate: 1,
+            },
+          },
 
       // keep existing sort-by behavior from request query
       { $sort: { [sortBy]: sortOrder, ClientNo: sortOrder } },
@@ -458,6 +499,8 @@ export const getLoans = async (req, res) => {
         amount: loan.LoanAmount || 0,
         balance: loan.LoanBalance || 0,
         paymentMode: loan.PaymentMode || "N/A",
+        type: loan.LoanType || "N/A",
+        collectorName: loan.CollectorName || "N/A",
         // <-- include the maturity date (and start date if you want)
         startPaymentDate: loan.StartPaymentDate || null,
         maturityDate: loan.MaturityDate || null,

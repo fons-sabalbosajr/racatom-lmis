@@ -1,0 +1,11 @@
+.db-settings {
+	padding: 8px;
+}
+
+.db-settings .ant-card {
+	width: 100%;
+}
+
+.db-settings .danger-zone .ant-card-head-title {
+	color: #c0392b;
+}

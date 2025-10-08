@@ -336,6 +336,37 @@ router.post("/reset-password/:token", async (req, res) => {
   }
 });
 
+// ---------- Change Password (authenticated) ----------
+router.put("/change-password", requireAuth, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Both old and new password are required" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    // Compare old password (handle plaintext legacy and bcrypt)
+    let isMatch = false;
+    if (user.Password?.startsWith("$2a$") || user.Password?.startsWith("$2b$")) {
+      isMatch = await bcrypt.compare(oldPassword, user.Password);
+    } else {
+      isMatch = oldPassword === user.Password; // legacy
+    }
+
+    if (!isMatch) return res.status(401).json({ success: false, message: "Old password is incorrect" });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.Password = hashed;
+    await user.save();
+    return res.json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Change password error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 // ---------- Protected Route ----------
 router.get("/me", requireAuth, async (req, res) => {
   try {

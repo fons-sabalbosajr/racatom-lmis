@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Spin, message } from "antd";
 import axios from "axios";
-import { encryptData } from "../utils/storage";
+import { lsSet, lsClearAllApp } from "../utils/storage";
 
 function ProtectedRoute({ children }) {
   const [isValid, setIsValid] = useState(null);
@@ -19,15 +19,15 @@ function ProtectedRoute({ children }) {
 
         if (user) {
           // Optional: store minimal user info in localStorage
-          localStorage.setItem("user", encryptData(user));
+          lsSet("user", user);
           setIsValid(true);
         } else {
           setIsValid(false);
         }
       } catch (err) {
         console.error("ProtectedRoute /auth/me error:", err.response?.data || err);
-        message.error("Session expired. Please login again.");
-        localStorage.removeItem("user");
+  message.error("Session expired. Please login again.");
+  lsClearAllApp();
         setIsValid(false);
       }
     };

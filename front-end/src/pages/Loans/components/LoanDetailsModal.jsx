@@ -607,34 +607,36 @@ export default function LoanDetailsModal({
     {
       title: "Loan No. & Status",
       key: "loanNoAndStatus",
+      align: "left",
       render: (record) => (
         <>
-          <div>
-            <strong>Loan No:</strong> {record.LoanNo || "N/A"}
+          <div className="info-row">
+            <span className="info-label">Loan No:</span>
+            <span className="info-value">{record.LoanNo || "N/A"}</span>
           </div>
-          <div style={{ fontSize: "12px", color: "#888", marginTop: 4 }}>
-            <strong>Loan Type:</strong>{" "}
+          <div className="info-row">
+            <span className="info-label">Loan Type:</span>
             <Tag
-              style={{ fontSize: "10px" }}
+              className="info-tag"
               color={LOAN_TYPE_COLORS[record.LoanType] || "default"}
             >
-              {record.LoanType}
+              {record.LoanType || "N/A"}
             </Tag>
           </div>
-          <div style={{ marginTop: 8 }}>
-            <strong>Status:</strong>{" "}
+          <div className="info-row">
+            <span className="info-label">Status:</span>
             <Tag
-              style={{ fontSize: "10px" }}
+              className="info-tag"
               color={LOAN_STATUS_COLORS[record.LoanStatus] || "default"}
             >
-              {record.LoanStatus}
+              {record.LoanStatus || "N/A"}
             </Tag>
           </div>
           {record.LoanProcessStatus && (
-            <div style={{ fontSize: "12px", color: "#888", marginTop: 4 }}>
-              <strong>Process Status:</strong>{" "}
+            <div className="info-row">
+              <span className="info-label">Process Status:</span>
               <Tag
-                style={{ fontSize: "10px" }}
+                className="info-tag"
                 color={
                   LOAN_PROCESS_STATUS_COLORS[record.LoanProcessStatus] ||
                   "default"
@@ -651,46 +653,93 @@ export default function LoanDetailsModal({
     {
       title: "Amounts",
       key: "amounts",
+      align: "left",
       width: 180,
       render: (record) => (
         <>
-          <div>Loan: {formatCurrency(record.LoanAmount)}</div>
+          <div className="info-row">
+            <span className="info-label">Loan:</span>
+            <span className="info-value">
+              {formatCurrency(record.LoanAmount)}
+            </span>
+          </div>
           {record.PrincipalAmount && (
-            <div>Principal: {formatCurrency(record.PrincipalAmount)}</div>
+            <div className="info-row">
+              <span className="info-label">Principal:</span>
+              <span className="info-value">
+                {formatCurrency(record.PrincipalAmount)}
+              </span>
+            </div>
           )}
-          <div>Balance: {formatCurrency(record.RunningBalance)}</div>
-          <div>Interest: {formatCurrency(record.LoanInterest)}</div>
-          <div>Penalty: {formatCurrency(record.Penalty)}</div>
-          <div>Amort: {formatCurrency(record.LoanAmortization)}</div>
+          <div className="info-row">
+            <span className="info-label">Balance:</span>
+            <span className="info-value">
+              {formatCurrency(record.RunningBalance)}
+            </span>
+          </div>
+          <div className="info-row">
+            <span className="info-label">Interest:</span>
+            <span className="info-value">
+              {formatCurrency(
+                Math.max(
+                  Number(record.LoanAmount || 0) -
+                    Number(record.PrincipalAmount || 0),
+                  0
+                )
+              )}
+            </span>
+          </div>
+          <div className="info-row">
+            <span className="info-label">Penalty:</span>
+            <span className="info-value">
+              {formatCurrency(record.Penalty)}
+            </span>
+          </div>
+          <div className="info-row">
+            <span className="info-label">Amort:</span>
+            <span className="info-value">
+              {formatCurrency(record.LoanAmortization)}
+            </span>
+          </div>
         </>
       ),
     },
     {
       title: "Dates, Term & Collector",
       key: "datesTermAndCollector",
+      align: "left",
       width: 200,
       render: (record) => (
         <>
           {record.StartPaymentDate && (
-            <div>
-              Payment Start:{" "}
-              {dayjs(record.StartPaymentDate).format("MM/DD/YYYY")}
+            <div className="info-row">
+              <span className="info-label">Payment Start:</span>
+              <span className="info-value">
+                {dayjs(record.StartPaymentDate).format("MM/DD/YYYY")}
+              </span>
             </div>
           )}
           {record.MaturityDate && (
-            <div>
-              Payment Maturity:{" "}
-              {dayjs(record.MaturityDate).format("MM/DD/YYYY")}
+            <div className="info-row">
+              <span className="info-label">Payment Maturity:</span>
+              <span className="info-value">
+                {dayjs(record.MaturityDate).format("MM/DD/YYYY")}
+              </span>
             </div>
           )}
-          <div style={{ marginTop: 8 }}>
-            <strong>Term:</strong> {record.LoanTerm}
+          <div className="info-row">
+            <span className="info-label">Term:</span>
+            <span className="info-value">{record.LoanTerm || "N/A"}</span>
           </div>
-          <div>
-            <strong>Payment:</strong> {record.PaymentMode}
+          <div className="info-row">
+            <span className="info-label">Payment:</span>
+            <span className="info-value">{record.PaymentMode || "N/A"}</span>
           </div>
-          <div style={{ marginTop: 8 }}>
-            <strong>Collector:</strong> {record.CollectorName}
+          <div className="info-row">
+            <span className="info-label">Collector:</span>
+            <span className="info-value">
+              {record.CollectorName || "N/A"}
+            </span>
           </div>
         </>
       ),
@@ -699,12 +748,15 @@ export default function LoanDetailsModal({
       title: "Remarks",
       dataIndex: "Remarks",
       key: "remarks",
+      className: "col-remarks",
       width: 150,
       render: (text) => text || "N/A",
     },
     {
       title: "Action",
       key: "action",
+      align: "center",
+      className: "col-action",
       width: 100,
       render: (text, record) => (
         <Space size="small">

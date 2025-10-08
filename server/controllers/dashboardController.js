@@ -10,8 +10,14 @@ export const getDashboardStats = async (req, res) => {
     ]);
     const totalDisbursed = totalDisbursedAggregate.length > 0 ? totalDisbursedAggregate[0].total : 0;
 
+    // Upcoming payments: count active (non-closed) loans that likely still require payments.
+    // This avoids relying solely on date formats which may vary (string/Date/EJSON) in some datasets.
     const upcomingPayments = await LoanCycle.countDocuments({
-      MaturityDate: { $gt: new Date() },
+      LoanStatus: { $ne: "CLOSED" },
+      $or: [
+        { LoanBalance: { $gt: 0 } },
+        { LoanBalance: { $exists: false } },
+      ],
     });
 
     const averageLoanAmount = totalLoans > 0 ? totalDisbursed / totalLoans : 0;

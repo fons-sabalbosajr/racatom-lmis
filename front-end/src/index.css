@@ -42,6 +42,15 @@ a:hover {
   body {
     font-size: 15px;
   }
+
+/* Compact UI global adjustments */
+.compact-ui .ant-card-body { padding: 12px; }
+.compact-ui .ant-table-thead > tr > th { padding: 6px 8px; }
+.compact-ui .ant-table-tbody > tr > td { padding: 6px 8px; }
+.compact-ui .ant-form-item { margin-bottom: 8px; }
+.compact-ui .ant-list-item { padding: 6px 8px; }
+.compact-ui .ant-modal-body { padding: 12px; }
+.compact-ui .ant-btn { height: 28px; padding: 0 10px; }
   /* Adjust padding for main content areas if necessary */
   .ant-layout-content {
     padding: 16px !important;
@@ -93,4 +102,10 @@ a:hover {
   .ant-card-body {
     padding: 12px !important;
   }
+}
+
+/* Global Ant Design primary button border radius override */
+/* Keeps circle/round variants intact */
+.ant-btn-primary:not(.ant-btn-circle):not(.ant-btn-round) {
+  border-radius: 4px !important;
 }

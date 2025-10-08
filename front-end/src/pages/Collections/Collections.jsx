@@ -37,6 +37,7 @@ import "./collections.css";
 import AddCollectionModal from "./components/AddCollectionModal";
 import EditCollectionModal from "./components/EditCollectionModal";
 import { exportData } from "../../utils/exportUtils";
+import { useDevSettings } from "../../context/DevSettingsContext";
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -44,6 +45,7 @@ const { TabPane } = Tabs;
 const { Option } = Select;
 
 const Collections = ({ loan }) => {
+  const { settings } = useDevSettings();
   const [form] = Form.useForm();
   const [collections, setCollections] = useState([]);
   const [allCollections, setAllCollections] = useState([]);
@@ -75,6 +77,66 @@ const Collections = ({ loan }) => {
     useState(false);
   const [collectors, setCollectors] = useState([]);
 
+  // Consistent currency formatting to match LoanInfoTab
+  const formatCurrency = (val) => {
+    const n = Number(val ?? 0);
+    return `₱${n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  // Build a stable key for deduplication. Prefers Ref No; falls back to date+amount+collector+runningBalance
+  const buildCollectionKey = (c) => {
+    const dateKey = c.PaymentDate ? dayjs(c.PaymentDate).format("YYYY-MM-DD") : "";
+    const ref = (c.CollectionReferenceNo || "").trim();
+    const amt = Number(c.CollectionPayment || 0).toFixed(2);
+    const rb = Number(c.RunningBalance || 0).toFixed(2);
+    const collector = (c.CollectorName || "").trim();
+    // Include LoanCycleNo to prevent cross-loan collisions
+    const cycle = (c.LoanCycleNo || loan?.loanInfo?.loanNo || "").trim();
+    return ref
+      ? `${cycle}||REF||${ref}||${dateKey}||${amt}`
+      : `${cycle}||ALT||${dateKey}||${amt}||${collector}||${rb}`;
+  };
+
+  // Ensure a deterministic sort: by PaymentDate asc, then createdAt asc
+  const sortCollections = (list) => {
+    return [...list].sort((a, b) => {
+      const da = a.PaymentDate ? dayjs(a.PaymentDate) : null;
+      const db = b.PaymentDate ? dayjs(b.PaymentDate) : null;
+      if (da && db) {
+        if (da.isBefore(db)) return -1;
+        if (da.isAfter(db)) return 1;
+      } else if (da && !db) {
+        return -1;
+      } else if (!da && db) {
+        return 1;
+      }
+      const ca = a.createdAt ? dayjs(a.createdAt) : null;
+      const cb = b.createdAt ? dayjs(b.createdAt) : null;
+      if (ca && cb) {
+        if (ca.isBefore(cb)) return -1;
+        if (ca.isAfter(cb)) return 1;
+      }
+      return 0;
+    });
+  };
+
+  // Remove duplicate collection entries based on the stable key
+  const dedupeCollections = (list) => {
+    const seen = new Set();
+    const result = [];
+    for (const item of list) {
+      const key = buildCollectionKey(item);
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(item);
+      }
+    }
+    return sortCollections(result);
+  };
+
   const fetchCollections = useCallback(() => {
     if (!loan?.loanInfo?.loanNo) {
       setAllCollections([]);
@@ -88,7 +150,12 @@ const Collections = ({ loan }) => {
       })
       .then((response) => {
         if (response.data.success) {
-          setAllCollections(response.data.data);
+          // Optionally dedupe on fetch for consistent order
+          const raw = response.data.data || [];
+          const processed = settings.collectionsDedupeOnFetch
+            ? dedupeCollections(raw)
+            : sortCollections(raw);
+          setAllCollections(processed);
           const hasImported = response.data.data.some(
             (c) => c.Source === "imported"
           );
@@ -202,6 +269,30 @@ const Collections = ({ loan }) => {
     }
   };
 
+  const handleDedupeCollections = async () => {
+    if (!loan?.loanInfo?.loanNo) return;
+    try {
+      const res = await api.post("/loan-collections/dedupe", {
+        loanCycleNo: loan.loanInfo.loanNo,
+        dryRun: false,
+      });
+      if (res.data.success) {
+        const deleted = res.data.deleted || 0;
+        if (deleted > 0) {
+          message.success(`Removed ${deleted} duplicate collection(s).`);
+        } else {
+          message.info("No duplicate collections found.");
+        }
+        fetchCollections();
+      } else {
+        message.error(res.data.message || "Dedupe failed.");
+      }
+    } catch (err) {
+      console.error("Dedupe error:", err);
+      message.error("Failed to dedupe collections.");
+    }
+  };
+
   const handleUpdateCollector = async () => {
     try {
       const values = await form.validateFields();
@@ -274,9 +365,10 @@ const Collections = ({ loan }) => {
       0
     );
     const lastCollection = allCollections[allCollections.length - 1];
-    const remainingBalance = lastCollection
-      ? lastCollection.RunningBalance
-      : loan?.loanInfo?.amount;
+    const remainingBalance =
+      lastCollection && lastCollection.RunningBalance !== undefined
+        ? Number(lastCollection.RunningBalance)
+        : Number(loan?.loanInfo?.balance ?? 0);
 
     return {
       totalCollections,
@@ -306,17 +398,17 @@ const Collections = ({ loan }) => {
     {
       title: "Payment",
       dataIndex: "CollectionPayment",
-      render: (v) => `₱${parseFloat(v || 0).toLocaleString()}`,
+      render: (v) => formatCurrency(v),
     },
     {
       title: "Balance",
       dataIndex: "RunningBalance",
-      render: (v) => `₱${parseFloat(v || 0).toLocaleString()}`,
+      render: (v) => formatCurrency(v),
     },
     {
       title: "Penalty",
       dataIndex: "Penalty",
-      render: (v) => `₱${parseFloat(v || 0).toLocaleString()}`,
+      render: (v) => formatCurrency(v),
     },
     { title: "Collector", dataIndex: "CollectorName" },
     {
@@ -350,55 +442,81 @@ const Collections = ({ loan }) => {
       key: "1",
       label: "Collection Summary",
       children: (
-        <Row gutter={16}>
-          <Col span={8}>
-            <p>
-              <b>Loan Amount:</b> ₱
-              {parseFloat(collectionSummary?.loanAmount || 0).toLocaleString()}
-            </p>
-            <p>
-              <b>Start Date:</b>{" "}
-              {collectionSummary?.startDate
-                ? dayjs(collectionSummary.startDate).format("MM/DD/YYYY")
-                : "N/A"}
-            </p>
-            <p>
-              <b>Maturity Date:</b>{" "}
-              {collectionSummary?.maturityDate
-                ? dayjs(collectionSummary.maturityDate).format("MM/DD/YYYY")
-                : "N/A"}
-            </p>
-          </Col>
-          <Col span={8}>
-            <p>
-              <b>Total Collections:</b> {collectionSummary?.totalCollections || 0}
-            </p>
-            <p>
-              <b>Principal Paid:</b> ₱
-              {(collectionSummary?.totalPrincipalPaid || 0).toLocaleString()}
-            </p>
-            <p>
-              <b>Interest Paid:</b> ₱
-              {(collectionSummary?.totalInterestPaid || 0).toLocaleString()}
-            </p>
-          </Col>
-          <Col span={8}>
-            <p>
-              <b>Total Amount Collected:</b> ₱
-              {(collectionSummary?.totalAmountCollected || 0).toLocaleString()}
-            </p>
-            <p>
-              <b>Total Penalty:</b> ₱
-              {(collectionSummary?.totalPenalty || 0).toLocaleString()}
-            </p>
-            <p>
-              <b>Remaining Balance:</b> ₱
-              {parseFloat(
-                collectionSummary?.remainingBalance || 0
-              ).toLocaleString()}
-            </p>
-          </Col>
-        </Row>
+        <div className="collections-summary">
+          <Row gutter={16}>
+            <Col span={8}>
+              <div className="summary-row">
+                <span className="summary-label">Total Amount:</span>
+                <span className="summary-value">
+                  {formatCurrency(loan?.loanInfo?.amount || 0)}
+                </span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Principal:</span>
+                <span className="summary-value">
+                  {formatCurrency(loan?.loanInfo?.principal || 0)}
+                </span>
+              </div>
+             
+              <div className="summary-row">
+                <span className="summary-label">Start Date:</span>
+                <span className="summary-value">
+                  {loan?.loanInfo?.startPaymentDate
+                    ? dayjs(loan.loanInfo.startPaymentDate).format("MM/DD/YYYY")
+                    : "N/A"}
+                </span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Maturity Date:</span>
+                <span className="summary-value">
+                  {loan?.loanInfo?.maturityDate
+                    ? dayjs(loan.loanInfo.maturityDate).format("MM/DD/YYYY")
+                    : "N/A"}
+                </span>
+              </div>
+            </Col>
+            <Col span={8}>
+              <div className="summary-row">
+                <span className="summary-label">Total Collections:</span>
+                <span className="summary-value">
+                  {collectionSummary?.totalCollections || 0}
+                </span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Principal Paid:</span>
+                <span className="summary-value">
+                  ₱{(collectionSummary?.totalPrincipalPaid || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Interest Paid:</span>
+                <span className="summary-value">
+                  ₱{(collectionSummary?.totalInterestPaid || 0).toLocaleString()}
+                </span>
+              </div>
+            </Col>
+            <Col span={8}>
+              <div className="summary-row">
+                <span className="summary-label">Total Amount Collected:</span>
+                <span className="summary-value">
+                  ₱{(collectionSummary?.totalAmountCollected || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Total Penalty:</span>
+                <span className="summary-value">
+                  ₱{(collectionSummary?.totalPenalty || 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="summary-row">
+                <span className="summary-label">Remaining Balance:</span>
+                <span className="summary-value">
+                  ₱{formatCurrency(collectionSummary?.remainingBalance || 0).replace("₱", "")}
+                </span>
+              </div>
+            </Col>
+          </Row>
+        </div>
       ),
     },
   ];
@@ -452,26 +570,36 @@ const Collections = ({ loan }) => {
           </Button>
         )}
         <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setIsAddModalVisible(true)}
+          style={{ marginRight: 8 }}
+          onClick={handleDedupeCollections}
         >
-          Add Collection
+          Clean Duplicates
         </Button>
-        <Button
-          style={{ background: "green", color: "white", marginLeft: 8 }}
-          icon={<UploadOutlined />}
-          onClick={() => setIsUploadModalVisible(true)}
-        >
-          Upload File
-        </Button>
-        <Button
-          style={{ background: "blue", color: "white", marginLeft: 8 }}
-          icon={<ImportOutlined />}
-          onClick={handleImportCollections}
-        >
-          {hasImportedCollections ? "Reimport Data" : "Import Collections"}
-        </Button>
+        {settings.collectionsShowImportActions && (
+          <>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsAddModalVisible(true)}
+            >
+              Add Collection
+            </Button>
+            <Button
+              style={{ background: "green", color: "white", marginLeft: 8 }}
+              icon={<UploadOutlined />}
+              onClick={() => setIsUploadModalVisible(true)}
+            >
+              Upload File
+            </Button>
+            <Button
+              style={{ background: "blue", color: "white", marginLeft: 8 }}
+              icon={<ImportOutlined />}
+              onClick={handleImportCollections}
+            >
+              {hasImportedCollections ? "Reimport Data" : "Import Collections"}
+            </Button>
+          </>
+        )}
         <Dropdown menu={exportMenu}>
           <Button style={{ marginLeft: 8 }}>
             Export <DownOutlined />

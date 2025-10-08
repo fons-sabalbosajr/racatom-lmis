@@ -3,6 +3,70 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import User from "../models/UserAccount.js";
 
+// Centralized app name used in email subjects and headers
+const APP_NAME = process.env.APP_NAME || "RCT Loan Management System";
+
+// Shared, branded email layout
+function renderEmail({
+  title = APP_NAME,
+  heading = "",
+  subheading = "",
+  bodyHtml = "",
+  ctaText,
+  ctaHref,
+  footerNote = `© ${new Date().getFullYear()} ${APP_NAME}`,
+}) {
+  return `
+  <!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${title}</title>
+    <style>
+      :root {
+        --brand:#1a73e8;
+        --brand-dark:#1558b1;
+        --bg:#f6f9fc;
+        --text:#2d3748;
+        --muted:#718096;
+        --card:#ffffff;
+      }
+      body{margin:0;padding:0;background:var(--bg);font-family:Segoe UI,Roboto,Arial,sans-serif;color:var(--text);}
+      .wrapper{padding:24px;}
+      .card{max-width:640px;margin:0 auto;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.06)}
+      .hero{background:linear-gradient(135deg,#1a73e8 0%,#4f46e5 100%);padding:28px 24px;color:#fff}
+      .app{font-size:14px;opacity:.9;letter-spacing:.6px}
+      h1{margin:8px 0 0;font-size:22px}
+      h2{margin:0;font-size:16px;font-weight:500;opacity:.95}
+      .content{padding:24px}
+      p{line-height:1.6;margin:0 0 14px}
+      .btn{display:inline-block;padding:12px 20px;border-radius:8px;background:var(--brand);color:#fff;text-decoration:none;font-weight:600}
+      .btn:hover{background:var(--brand-dark)}
+      .note{margin-top:18px;font-size:12px;color:var(--muted)}
+      .footer{padding:18px 24px;text-align:center;color:var(--muted);font-size:12px}
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="hero">
+          <div class="app">${APP_NAME}</div>
+          ${heading ? `<h1>${heading}</h1>` : ""}
+          ${subheading ? `<h2>${subheading}</h2>` : ""}
+        </div>
+        <div class="content">
+          ${bodyHtml}
+          ${ctaText && ctaHref ? `<p style="text-align:center;margin-top:22px"><a class="btn" href="${ctaHref}">${ctaText}</a></p>` : ""}
+          <div class="note">${footerNote}</div>
+        </div>
+        <div class="footer">${APP_NAME}</div>
+      </div>
+    </div>
+  </body>
+  </html>`;
+}
+
 /**
  * Send verification email
  * @param {string} email - recipient email
@@ -19,41 +83,19 @@ export async function sendVerificationEmail(email, user, isResend = false) {
 
     const verifyURL = `${process.env.FRONTEND_URL}/verify/${user.verificationToken}`;
     const subject = isResend
-      ? "Reminder: Verify Your Email - RCT Loan Management System"
-      : "Verify Your Email - RCT Loan Management System";
+      ? `[${APP_NAME}] Reminder: Verify your email`
+      : `[${APP_NAME}] Verify your email`;
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
-        <h2 style="color: #1a73e8;">Hello ${
-          user.FullName || user.Username
-        },</h2>
-        <p>
-          ${
-            isResend
-              ? "This is a quick reminder."
-              : "Thank you for registering with us."
-          }
-          Please verify your email to activate your account.
-        </p>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verifyURL}" 
-             style="display:inline-block; padding:12px 24px; background:#1a73e8; color:#fff; 
-             text-decoration:none; font-weight:bold; border-radius:6px;">
-            Verify Email
-          </a>
-        </div>
-
-        <p style="color: #555; font-size: 14px;">
-          For your security, this link will expire after use.  
-          If you did not create an account, you can safely ignore this email.
-        </p>
-
-        <p style="color:#888; font-size: 12px; text-align:center; margin-top: 40px;">
-          © ${new Date().getFullYear()} RCT Loan Management System
-        </p>
-      </div>
-    `;
+    const html = renderEmail({
+      heading: "Verify your email",
+      subheading: `Hello ${user.FullName || user.Username}, and welcome!`,
+      bodyHtml: `
+        <p>Thanks for signing up. Please confirm your email address to activate your ${APP_NAME} account.</p>
+        <p>If you didn’t create an account, you can safely ignore this email.</p>
+      `,
+      ctaText: "Verify Email",
+      ctaHref: verifyURL,
+    });
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -66,7 +108,7 @@ export async function sendVerificationEmail(email, user, isResend = false) {
     });
 
     await transporter.sendMail({
-      from: `"RCT Loan Management System" <${process.env.EMAIL_USER}>`,
+      from: `"${APP_NAME}" <${process.env.EMAIL_USER}>`,
       to: email,
       subject,
       html,
@@ -89,27 +131,19 @@ export async function sendResetPasswordEmail(email, rawToken) {
   try {
     const resetURL = `${process.env.FRONTEND_URL}/reset-password/${rawToken}`;
 
-    const subject = "Reset Your Password - RCT Loan Management System";
+    const subject = `[${APP_NAME}] Password reset`;
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2>Password Reset Request</h2>
-        <p>We received a request to reset your password for your account. If this was you, please click the button below:</p>
-        
-        <p style="margin: 20px 0;">
-          <a href="${resetURL}" 
-             style="background-color: #1a73e8; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 5px; display: inline-block;">
-            Reset Password
-          </a>
-        </p>
-
-        <p><strong>This link will expire in 1 hour.</strong></p>
-        <p>If you didn’t request a password reset, you can safely ignore this email. Your account will remain secure.</p>
-        
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;" />
-        <p style="font-size: 12px; color: #777;">© ${new Date().getFullYear()} RCT Loan Management System</p>
-      </div>
-    `;
+    const html = renderEmail({
+      heading: "Password reset request",
+      subheading: "Let’s get you back into your account",
+      bodyHtml: `
+        <p>We received a request to reset your password. Click the button below to choose a new one.</p>
+        <p><strong>For your security, this link expires in 1 hour.</strong></p>
+        <p>If you didn’t request this, you can safely ignore this message—your account remains secure.</p>
+      `,
+      ctaText: "Reset Password",
+      ctaHref: resetURL,
+    });
 
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -122,7 +156,7 @@ export async function sendResetPasswordEmail(email, rawToken) {
     });
 
     const info = await transporter.sendMail({
-      from: `"RCT Loan Management System" <${process.env.EMAIL_USER}>`,
+      from: `"${APP_NAME}" <${process.env.EMAIL_USER}>`,
       to: email,
       subject,
       html,

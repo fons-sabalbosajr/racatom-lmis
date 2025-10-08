@@ -5,7 +5,7 @@ import LoanCycle from '../models/LoanCycle.js';
 // Get all users
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find({}, "-verificationToken -resetPasswordToken -resetPasswordExpires");
+  const users = await User.find({}, "-verificationToken -resetPasswordToken -resetPasswordExpires");
 
     const usersWithPhoto = users.map(user => {
       const obj = user.toObject();
@@ -14,10 +14,9 @@ export const getUsers = async (req, res) => {
       if (obj.Photo && obj.Photo.length) obj.Photo = obj.Photo.toString("base64");
       else obj.Photo = null;
 
-      // Mark plain-text passwords as not verified
-      if (!obj.Password || !obj.Password.startsWith("$2b$")) {
-        obj.isVerified = false;
-      }
+      // Do NOT override isVerified here; respect the DB value.
+      // Instead, optionally expose a diagnostic flag the UI can use if needed.
+      obj.passwordHashed = !!(obj.Password && obj.Password.startsWith("$2b$"));
 
       return obj;
     });

@@ -272,7 +272,6 @@ const LoanApplication = ({
       footer={null}
       width={1000}
       centered
-      form={form}
     >
       <Steps current={current} style={{ margin: "24px 0" }}>
         {stepTitles.map((title) => (

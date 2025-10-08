@@ -3,7 +3,7 @@ import { Form, Input, Button, Typography, message, Card, Divider } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import axios from "axios";
-import { encryptData } from "../../utils/storage";
+import { encryptData, lsSet } from "../../utils/storage";
 import "./login.css";
 
 import lmisLogo from "../../assets/lmis.svg";
@@ -47,9 +47,9 @@ function Login() {
       const user = res.data?.data?.user;
       if (!user) throw new Error("Invalid server response.");
 
-      localStorage.setItem("user", encryptData(user));
-      // mark user as online
-      localStorage.setItem("onlineUser", encryptData(user.Username));
+  lsSet("user", user);
+  // mark user as online
+  lsSet("onlineUser", user.Username);
       //message.success(`Welcome, ${user.FullName || values.Username}`);
 
       navigate("/"); // redirect to Home

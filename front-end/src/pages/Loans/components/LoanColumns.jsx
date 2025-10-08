@@ -10,29 +10,11 @@ import {
 
 const { Text } = Typography;
 
-// Corporate Color Palette
-const LOAN_STATUS_COLORS = {
-  UPDATED: "green",
-  ARREARS: "orange",
-  "PAST DUE": "red",
-  LITIGATION: "volcano",
-  DORMANT: "gray",
-  CLOSED: "default",
-};
+import { getLoanStatusColor, getProcessStatusColor, getCollectionStatusColor } from "../../../utils/statusColors";
 
-const LOAN_PROCESS_STATUS_COLORS = {
-  Updated: "green",
-  Approved: "blue",
-  Pending: "gold",
-  Released: "purple",
-  "Loan Released": "purple",
-};
+// Corporate Color Palette (moved to shared util for Loan Status)
 
-const COLLECTION_STATUS_COLORS = {
-  Updated: "green",
-  Outdated: "magenta",
-  "No Data Encoded": "gray",
-};
+// Mappings moved to shared util
 
 export const getLoanColumns = ({
   viewLoan,
@@ -67,31 +49,33 @@ export const getLoanColumns = ({
     key: "client",
     width: 270,
     render: (_, record) => {
-      // 🧠 Try both sources: new backend (clientInfo) and old structure (person)
-      const firstName =
-        record.clientInfo?.FirstName ||
-        record.person?.firstName ||
-        record.FirstName ||
-        "";
-      const middleName =
-        record.clientInfo?.MiddleName ||
-        record.person?.middleName ||
-        record.MiddleName ||
-        "";
-      const lastName =
-        record.clientInfo?.LastName ||
-        record.person?.lastName ||
-        record.LastName ||
-        "";
-
-      const fullName = `${firstName} ${middleName} ${lastName}`
-        .replace(/\s+/g, " ")
-        .trim();
+      // Prefer server-provided fullName (fast/minimal payload path), then fall back to clientInfo/person
+      let fullName = record.fullName;
+      if (!fullName) {
+        const firstName =
+          record.clientInfo?.FirstName ||
+          record.person?.firstName ||
+          record.FirstName ||
+          "";
+        const middleName =
+          record.clientInfo?.MiddleName ||
+          record.person?.middleName ||
+          record.MiddleName ||
+          "";
+        const lastName =
+          record.clientInfo?.LastName ||
+          record.person?.lastName ||
+          record.LastName ||
+          "";
+        fullName = `${firstName} ${middleName} ${lastName}`
+          .replace(/\s+/g, " ")
+          .trim();
+      }
 
       const clientNo =
+        record.loanInfo?.clientNo ||
         record.ClientNo ||
         record.clientInfo?.ClientNo ||
-        record.loanInfo?.clientNo ||
         record.clientNo;
 
       return (
@@ -156,58 +140,60 @@ export const getLoanColumns = ({
       const isClosed = loanStatus === "CLOSED";
 
       return (
-        <div className="loan-status-card">
+        <div className="loan-status-card compact">
           {/* Row 1 - Loan Status */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 6,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Text strong style={{ width: 110 }}>
+          <div className="status-row with-action">
+            <div className="status-item">
+              <Text strong className="status-label">
                 Loan Status:
               </Text>
-              <Tag color={LOAN_STATUS_COLORS[loanStatus] || "default"}>
+              <Tag
+                className="status-tag"
+                color={getLoanStatusColor(loanStatus)}
+              >
                 {loanStatus}
               </Tag>
             </div>
             <Tooltip title="Update Status">
               <Button
                 type="text"
-                icon={<EditOutlined />}
+                shape="circle"
+                icon={<EditOutlined style={{ fontSize: 12 }} />}
                 size="small"
+                style={{
+                  width: 24,
+                  height: 24,
+                  padding: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
                 onClick={() => onUpdateStatus(record)}
               />
             </Tooltip>
           </div>
 
           {/* Row 2 - Process Status */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              marginBottom: 6,
-            }}
-          >
-            <Text strong style={{ width: 110 }}>
+          <div className="status-row">
+            <Text strong className="status-label">
               Process Status:
             </Text>
-            <Tag color={LOAN_PROCESS_STATUS_COLORS[processStatus] || "default"}>
+            <Tag
+              className="status-tag"
+              color={getProcessStatusColor(processStatus)}
+            >
               {processStatus}
             </Tag>
           </div>
 
           {/* Row 3 - Collections */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Text strong style={{ width: 110 }}>
+          <div className="status-row">
+            <Text strong className="status-label">
               Collections:
             </Text>
             <Tag
-              color={COLLECTION_STATUS_COLORS[collectionStatus] || "default"}
+              className="status-tag"
+              color={getCollectionStatusColor(collectionStatus)}
             >
               {collectionStatus}
             </Tag>
@@ -215,7 +201,7 @@ export const getLoanColumns = ({
 
           {/* Optional - Closed Tag */}
           {isClosed && (
-            <div style={{ marginTop: 8, textAlign: "center" }}>
+            <div className="status-closed">
               <Tag color="default" style={{ fontStyle: "italic" }}>
                 Closed Account
               </Tag>

@@ -24,14 +24,16 @@ import {
   FundViewOutlined, // ✅ Peso replacement
   CalendarOutlined,
   MessageOutlined, // ✅ Message icon
+  CodeOutlined,
 } from "@ant-design/icons";
-import { decryptData } from "../../utils/storage";
+import { lsGet, lsClearAllApp } from "../../utils/storage";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import "./home.css";
 import logo from "../../assets/lmis.svg"; // your logo
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import api from "../../utils/axios";
+import { useDevSettings } from "../../context/DevSettingsContext";
 
 dayjs.extend(relativeTime);
 
@@ -40,16 +42,9 @@ const { Text } = Typography;
 const { Panel } = Collapse;
 
 function Home() {
+  const { settings } = useDevSettings();
   const [collapsed, setCollapsed] = useState(false);
-  const [user, setUser] = useState(() => {
-    try {
-      const encryptedUser = localStorage.getItem("user");
-      return encryptedUser ? decryptData(encryptedUser) : null;
-    } catch (err) {
-      console.error("Failed to decrypt user:", err);
-      return null;
-    }
-  });
+  const [user, setUser] = useState(() => lsGet("user"));
 
   const [notifications, setNotifications] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -134,9 +129,8 @@ function Home() {
         { withCredentials: true }
       );
 
-      // Clear all relevant localStorage keys
-      localStorage.removeItem("user"); // logged-in user data
-      localStorage.removeItem("onlineUser"); // encrypted online username
+  // Clear all relevant localStorage keys
+  lsClearAllApp();
       setUser(null); // clear user state in frontend
       setNotifications([]); // clear notifications state
 
@@ -190,7 +184,7 @@ function Home() {
   ];
 
   return (
-    <Layout className="home-layout">
+    <Layout className={`home-layout ${settings.compactUI ? "compact-ui" : ""}`}>
       <Sider
         collapsible
         collapsed={collapsed}
@@ -212,12 +206,24 @@ function Home() {
           <img src={logo} alt="RCT LMS" style={{ width: 32, height: 32 }} />
           {!collapsed && <span style={{ fontSize: "13px" }}>RACATOM-LMIS</span>}
         </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          onClick={({ key }) => navigate(key)}
-          items={[
+        {(() => {
+          const settingsChildren = [
+            { key: "/settings/loan-rates", label: "Loan Rates Config" },
+            { key: "/settings/employees", label: "Employee Accounts" },
+            { key: "/settings/collectors", label: "Collector Accounts" },
+            { key: "/settings/database", label: "Database" },
+            { key: "/settings/announcements", label: "Announcements" },
+            { key: "/settings/accounting", label: "Accounting Center" },
+          ];
+          if (user?.Position === "Developer") {
+            settingsChildren.push({
+              key: "/settings/developer",
+              label: "Developer Settings",
+              icon: <CodeOutlined />,
+            });
+          }
+
+          const menuItems = [
             {
               key: "/dashboard",
               label: "Dashboard",
@@ -241,17 +247,20 @@ function Home() {
               key: "/settings",
               label: "Settings",
               icon: <SettingOutlined />,
-              children: [
-                { key: "/settings/loan-rates", label: "Loan Rates Config" },
-                { key: "/settings/employees", label: "Employee Accounts" },
-                { key: "/settings/collectors", label: "Collector Accounts" },
-                { key: "/settings/database", label: "Database" },
-                { key: "/settings/announcements", label: "Announcements" },
-                { key: "/settings/accounting", label: "Accounting Center" },
-              ],
+              children: settingsChildren,
             },
-          ]}
-        />
+          ];
+
+          return (
+            <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[location.pathname]}
+          onClick={({ key }) => navigate(key)}
+          items={menuItems}
+            />
+          );
+        })()}
       </Sider>
 
       <Layout>

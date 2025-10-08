@@ -8,6 +8,7 @@ import {
   getDistinctPaymentModes,
   getDistinctCollectorNames,
   bulkUpdateCollector,
+  dedupeCollections,
 } from "../controllers/loanCollectionController.js";
 
 const router = express.Router();
@@ -23,5 +24,8 @@ router.delete("/:id", deleteCollection);
 
 // ✅ Bulk update collectors
 router.patch("/bulk-update", /* requireAuth, */ bulkUpdateCollector);
+
+// ✅ Deduplicate collections (global or per LoanCycleNo)
+router.post("/dedupe", /* requireAuth, */ dedupeCollections);
 
 export default router;

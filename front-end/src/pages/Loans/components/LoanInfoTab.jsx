@@ -7,6 +7,7 @@ export default function LoanInfoTab({ mergedLoans, loanInfoColumns }) {
   return (
     <>
       <Table
+        className="loan-info-table"
         dataSource={mergedLoans}
         columns={loanInfoColumns}
         rowKey={(record) => record._id || `${record.Source}-${record.LoanNo}`}

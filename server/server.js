@@ -27,6 +27,7 @@ import loanCollectionImportRoutes from "./routes/loanCollectionImportRoutes.js";
 
 import parseCollectionRoutes from "./routes/parseCollectionRoutes.js";
 import loanClientApplicationRoute from "./routes/loanClientApplicationRoute.js";
+import databaseRoutes from "./routes/databaseRoutes.js";
 
 
 const app = express();
@@ -61,6 +62,8 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/loan-collections", loanCollectionImportRoutes);
 app.use("/api/parse", parseCollectionRoutes);
 app.use("/api/loan_clients_application", loanClientApplicationRoute);
+// Database maintenance (developer-only)
+app.use("/api/database", databaseRoutes);
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {

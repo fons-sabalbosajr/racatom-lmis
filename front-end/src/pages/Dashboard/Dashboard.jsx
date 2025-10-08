@@ -51,6 +51,19 @@ function Dashboard() {
   const [pendingCount, setPendingCount] = useState(0);
   const [loanRates, setLoanRates] = useState([]);
 
+  // Fetch pending applications count
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const res = await api.get("/loan_clients_application/pending");
+      if (res.data?.success) {
+        setPendingCount(Array.isArray(res.data.data) ? res.data.data.length : 0);
+      }
+    } catch (err) {
+      // keep silent to avoid noisy UI; console.debug for dev
+      // console.debug("Pending count fetch error", err?.response?.data || err?.message);
+    }
+  }, []);
+
   const viewLoan = async (record) => {
     setLoading(true);
     try {
@@ -91,29 +104,36 @@ function Dashboard() {
     }
   };
 
-  const fetchDashboardData = useCallback(
+  // Fetch dashboard charts and stats (once or when dashboard-level filters change)
+  const fetchChartsAndStats = useCallback(async () => {
+    try {
+      const statsRes = await api.get("/dashboard/stats");
+      if (statsRes.data.success) {
+        setStats(statsRes.data.data.stats);
+        setChartData(statsRes.data.data.loanStatusChartData);
+        setLoanTypeData(statsRes.data.data.loanTypeChartData);
+        setLoanCollectorData(statsRes.data.data.loanCollectorChartData || []);
+      } else {
+        message.error("Failed to load dashboard statistics.");
+      }
+    } catch (err) {
+      console.error(err);
+      message.error("An error occurred while fetching dashboard statistics.");
+    }
+  }, []);
+
+  // Fetch paginated recent loans for the table (does not touch charts)
+  const fetchRecentLoans = useCallback(
     async (page, limit, sortBy, sortDir, filters) => {
       setLoading(true);
       try {
-        // Fetch dashboard stats
-        const statsRes = await api.get("/dashboard/stats");
-        if (statsRes.data.success) {
-          setStats(statsRes.data.data.stats);
-          setChartData(statsRes.data.data.loanStatusChartData);
-          setLoanTypeData(statsRes.data.data.loanTypeChartData);
-          setLoanCollectorData(statsRes.data.data.loanCollectorChartData || []); // Set new chart data
-        } else {
-          message.error("Failed to load dashboard statistics.");
-        }
-
-        // Fetch paginated data for the table
         const recentLoansRes = await api.get("/loans", {
           params: {
             page,
             limit,
             sortBy,
             sortDir,
-            q: filters?.searchTerm || "", // ✅ FIX: send as "q"
+            q: filters?.searchTerm || "",
           },
         });
 
@@ -130,7 +150,7 @@ function Dashboard() {
         }
       } catch (err) {
         console.error(err);
-        message.error("An error occurred while fetching dashboard data.");
+        message.error("An error occurred while fetching recent loans.");
       } finally {
         setLoading(false);
       }
@@ -153,9 +173,45 @@ function Dashboard() {
       }
     };
 
-    fetchDashboardData(meta.page, meta.limit, sort.sortBy, sort.sortDir, {});
+    fetchChartsAndStats();
+    fetchRecentLoans(meta.page, meta.limit, sort.sortBy, sort.sortDir, {});
     fetchLoanRates(); // ✅ load once on mount
-  }, [fetchDashboardData]);
+    fetchPendingCount();
+  }, [fetchChartsAndStats, fetchRecentLoans]);
+
+  // Real-time update: poll pending count every 10s, pause when tab hidden
+  useEffect(() => {
+    let intervalId;
+    const start = () => {
+      intervalId = setInterval(fetchPendingCount, 10000);
+    };
+    const stop = () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+    // Start immediately
+    start();
+    // Visibility handler
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        fetchPendingCount();
+        start();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [fetchPendingCount]);
+
+  // When pending modal closes, refresh count (approvals/rejections may have changed it)
+  useEffect(() => {
+    if (!pendingModalVisible) {
+      fetchPendingCount();
+    }
+  }, [pendingModalVisible, fetchPendingCount]);
 
   const handleTableChange = (pagination, filters, sorter) => {
     let newSortBy = sort.sortBy;
@@ -168,7 +224,7 @@ function Dashboard() {
 
     setSort({ sortBy: newSortBy, sortDir: newSortDir });
 
-    fetchDashboardData(
+    fetchRecentLoans(
       pagination.current,
       pagination.pageSize,
       newSortBy,
@@ -209,7 +265,13 @@ function Dashboard() {
           </Space>
         </div>
       </div>
-      <DashboardStats stats={stats} loading={loading} />
+      <DashboardStats
+        stats={stats}
+        loading={loading}
+        onShowUpcoming={() =>
+          handleChartClick({ upcoming: true, sortBy: 'MaturityDate', sortDir: 'asc' }, 'Upcoming Payments: Accounts with Balance')
+        }
+      />
       <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
         <Col xs={24} md={12}>
           <LoanStatusChart
@@ -267,6 +329,7 @@ function Dashboard() {
           onClose={() => setDetailsModalVisible(false)}
           title={detailsModalTitle}
           filter={detailsModalFilter}
+          onViewLoan={(record) => viewLoan(record)}
         />
       )}
     </div>

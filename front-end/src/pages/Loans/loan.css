@@ -72,6 +72,50 @@
   padding: 2px 7px;
 } */
 
+/* Compact Status Summary styling */
+.loan-status-card.compact {
+  /* remove background and border per request */
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.loan-status-card .status-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.loan-status-card .status-row.with-action {
+  justify-content: space-between;
+}
+
+.loan-status-card .status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loan-status-card .status-label {
+  width: 110px;
+  font-size: 11px;
+  color: #444;
+}
+
+.loan-status-card .status-tag {
+  line-height: 18px;
+  height: 20px;
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.loan-status-card .status-closed {
+  margin-top: 6px;
+  text-align: center;
+}
+
 
 @media (max-width: 768px) {
   .loan-filters {
@@ -90,4 +134,74 @@
 
 .loan-needs-update {
   background-color: #fff0f0 !important; /* Light red background */
+}
+
+/* Loans page: reduce primary button border radius */
+.loan-card .ant-btn-primary:not(.ant-btn-circle):not(.ant-btn-round) {
+  border-radius: 4px !important;
+}
+
+/* LoanInfoTab table: left-align tag values and compact size */
+.loan-info-table .ant-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 11px;
+  height: 20px;
+  line-height: 18px;
+  padding: 0 6px;
+}
+
+.loan-info-table .ant-table-cell {
+  vertical-align: middle;
+  text-align: left;
+}
+
+/* Exclusions: keep Remarks and Action columns from forced left alignment */
+.loan-info-table .col-remarks,
+.loan-info-table .col-action,
+.loan-info-table .col-remarks .ant-table-cell,
+.loan-info-table .col-action .ant-table-cell {
+  text-align: inherit;
+}
+
+/* LoanDetailsModal: left-aligned rows in Loan No. & Status column */
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0; /* remove top margin on first row */
+}
+
+/* add small spacing only between consecutive rows */
+.info-row + .info-row {
+  margin-top: 2px;
+}
+
+.info-label {
+  min-width: 92px; /* keep labels aligned */
+  font-weight: 600;
+  font-size: 12px;
+  color: #555;
+}
+
+.info-value {
+  font-size: 12px;
+}
+
+.info-tag {
+  font-size: 11px !important;
+  height: 20px;
+  line-height: 18px;
+  padding: 0 6px;
+}
+
+/* Loans table: compact header height */
+.loan-table .ant-table-thead > tr > th {
+  padding: 6px 8px !important; /* reduce vertical padding */
+  line-height: 18px; /* tighten text line height */
+}
+
+.loan-table .ant-table-thead > tr {
+  height: 32px; /* target a compact header row */
 }

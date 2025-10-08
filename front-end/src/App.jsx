@@ -23,6 +23,7 @@ import Database from "./pages/Settings/Database/Database";
 import Announcements from "./pages/Settings/Annoucements/Announcements";
 import CollectorAccounts from "./pages/Settings/CollectorAccounts/CollectorAccounts";
 import Accounting from "./pages/Settings/AccountingCenter/AccountingCenter";
+import DeveloperSettings from "./pages/Settings/Developer/DeveloperSettings";
 
 function App() {
   return (
@@ -68,6 +69,7 @@ function App() {
         <Route path="settings/announcements/:id" element={<Announcements />} />
         <Route path="settings/announcements" element={<Announcements />} />
         <Route path="settings/accounting" element={<Accounting />} />
+  <Route path="settings/developer" element={<DeveloperSettings />} />
 
         {/* Default redirect inside settings */}
         <Route

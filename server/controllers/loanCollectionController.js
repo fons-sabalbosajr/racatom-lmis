@@ -187,3 +187,132 @@ export const bulkUpdateCollector = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+/**
+ * Deduplicate loan collections either globally or scoped to a specific LoanCycleNo.
+ * Strategy:
+ *  - If CollectionReferenceNo exists, group by (LoanCycleNo, refNo, PaymentDate(day), Amount)
+ *  - Otherwise, group by (LoanCycleNo, PaymentDate(day), Amount, CollectorName, RunningBalance)
+ *  - Keep the newest by createdAt; delete older ones.
+ * Accepts: { loanCycleNo?: string, dryRun?: boolean }
+ */
+export const dedupeCollections = async (req, res) => {
+  try {
+    const { loanCycleNo, dryRun = false } = req.body || {};
+
+    const matchStage = {};
+    if (loanCycleNo) {
+      matchStage.LoanCycleNo = loanCycleNo;
+    }
+
+    const pipeline = [
+      { $match: matchStage },
+      { $sort: { createdAt: -1 } }, // newest first so first id is kept
+      {
+        $project: {
+          _id: 1,
+          createdAt: 1,
+          LoanCycleNo: 1,
+          PaymentDate: 1,
+          CollectorName: 1,
+          CollectionReferenceNo: {
+            $trim: { input: { $ifNull: ["$CollectionReferenceNo", ""] } },
+          },
+          amountStr: { $toString: { $ifNull: ["$CollectionPayment", 0] } },
+          runBalStr: { $toString: { $ifNull: ["$RunningBalance", 0] } },
+          dateDay: {
+            $cond: [
+              { $ifNull: ["$PaymentDate", false] },
+              { $dateToString: { format: "%Y-%m-%d", date: "$PaymentDate" } },
+              "",
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          hasRef: { $gt: [{ $strLenCP: "$CollectionReferenceNo" }, 0] },
+        },
+      },
+      {
+        $addFields: {
+          primaryKey: {
+            $cond: [
+              "$hasRef",
+              {
+                $concat: [
+                  "$LoanCycleNo",
+                  "||REF||",
+                  "$CollectionReferenceNo",
+                  "||",
+                  "$dateDay",
+                  "||",
+                  "$amountStr",
+                ],
+              },
+              {
+                $concat: [
+                  "$LoanCycleNo",
+                  "||ALT||",
+                  "$dateDay",
+                  "||",
+                  "$amountStr",
+                  "||",
+                  { $ifNull: ["$CollectorName", ""] },
+                  "||",
+                  "$runBalStr",
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$primaryKey",
+          ids: { $push: "$_id" },
+          count: { $sum: 1 },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+    ];
+
+    const agg = await LoanCollection.aggregate(pipeline);
+    // Build list of ids to delete (keep newest which is index 0 due to sort)
+    const toDelete = [];
+    agg.forEach((g) => {
+      if (Array.isArray(g.ids) && g.ids.length > 1) {
+        toDelete.push(...g.ids.slice(1));
+      }
+    });
+
+    if (dryRun) {
+      return res.json({
+        success: true,
+        scope: loanCycleNo || "global",
+        duplicatesGroups: agg.length,
+        toDeleteCount: toDelete.length,
+        sampleGroup: agg[0] || null,
+      });
+    }
+
+    if (toDelete.length === 0) {
+      return res.json({
+        success: true,
+        scope: loanCycleNo || "global",
+        message: "No duplicates found",
+        deleted: 0,
+      });
+    }
+
+    const delRes = await LoanCollection.deleteMany({ _id: { $in: toDelete } });
+    return res.json({
+      success: true,
+      scope: loanCycleNo || "global",
+      deleted: delRes.deletedCount || 0,
+    });
+  } catch (err) {
+    console.error("Dedupe failed:", err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+};
