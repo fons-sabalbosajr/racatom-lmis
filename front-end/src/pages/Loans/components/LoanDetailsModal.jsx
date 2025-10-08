@@ -993,7 +993,12 @@ export default function LoanDetailsModal({
             {
               key: "4",
               label: "Collections",
-              children: loan && <Collections loan={loan} />,
+              children: loan && (
+                <Collections
+                  loan={loan}
+                  loanCycles={mergedLoans.map((m) => m.LoanNo).filter(Boolean)} // 🟢 pass loan nos
+                />
+              ),
             },
             {
               key: "5",
