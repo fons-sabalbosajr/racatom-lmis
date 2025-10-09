@@ -1,16 +1,26 @@
 import mongoose from "mongoose";
+import fs from "fs";
+import path from "path";
 import LoanClient from "../models/LoanClient.js";
 import LoanCycle from "../models/LoanCycle.js";
 import LoanCollection from "../models/LoanCollection.js"; // New import
+import LoanDocument from "../models/LoanDocument.js";
 import ExcelJS from "exceljs";
 import LoanClientApplication from "../models/LoanClientApplication.js";
 
 // Merge / reshape function
 const transformLoan = (doc) => {
   const loan = doc;
+  // Provide resilient fallbacks for name components
+  const firstNameFallback =
+    loan.FirstName || loan.firstName || loan.person?.firstName || "";
+  const middleNameFallback =
+    loan.MiddleName || loan.middleName || loan.person?.middleName || "";
+  const lastNameFallback =
+    loan.LastName || loan.lastName || loan.person?.lastName || "";
 
-  const fullName = [loan.FirstName, loan.MiddleName, loan.LastName]
-    .filter(Boolean)
+  const fullName = [firstNameFallback, middleNameFallback, lastNameFallback]
+    .filter((p) => p && String(p).trim().length > 0)
     .join(" ");
 
   return {
@@ -20,9 +30,9 @@ const transformLoan = (doc) => {
     accountId: loan.AccountId,
     collectionCount: loan.collectionCount, // Include collection count
     person: {
-      firstName: loan.FirstName,
-      middleName: loan.MiddleName,
-      lastName: loan.LastName,
+      firstName: firstNameFallback,
+      middleName: middleNameFallback,
+      lastName: lastNameFallback,
       birthAddress: loan.BirthAddress,
       civilStatus: loan.CivilStatus,
       dateOfBirth: loan.DateOfBirth,
@@ -32,6 +42,15 @@ const transformLoan = (doc) => {
       occupation: loan.Occupation,
       companyName: loan.CompanyName,
       workAddress: loan.WorkAddress,
+      // Duplicated / denormalized fields for existing frontend (LoanPersonalInfoTab)
+      // These originally lived under separate objects `contact` & `spouse` but the
+      // UI expects them inside `person.*` resulting in N/A displays.
+      contactNo: loan.ContactNumber,
+      alternateContactNo: loan.AlternateContactNumber,
+      email: loan.Email,
+      spouseFirstName: loan.Spouse ? loan.Spouse.FirstName : "",
+      spouseMiddleName: loan.Spouse ? loan.Spouse.MiddleName : "",
+      spouseLastName: loan.Spouse ? loan.Spouse.LastName : "",
     },
     loanInfo: {
       loanNo: loan.LoanCycleNo,
@@ -384,6 +403,23 @@ export const getLoans = async (req, res) => {
           "person.firstName": "$clientInfo.FirstName",
           "person.middleName": "$clientInfo.MiddleName",
           "person.lastName": "$clientInfo.LastName",
+          "person.gender": "$clientInfo.Gender",
+          "person.civilStatus": "$clientInfo.CivilStatus",
+          "person.birthAddress": "$clientInfo.BirthAddress",
+          "person.dateOfBirth": "$clientInfo.DateOfBirth",
+          "person.monthlyIncome": "$clientInfo.MonthlyIncome",
+          "person.numberOfChildren": "$clientInfo.NumberOfChildren",
+          "person.occupation": "$clientInfo.Occupation",
+          "person.companyName": "$clientInfo.CompanyName",
+          "person.workAddress": "$clientInfo.WorkAddress",
+
+          "contact.contactNumber": "$clientInfo.ContactNumber",
+          "contact.alternateContactNumber": "$clientInfo.AlternateContactNumber",
+          "contact.email": "$clientInfo.Email",
+
+          "spouse.firstName": { $ifNull: ["$clientInfo.Spouse.FirstName", ""] },
+          "spouse.middleName": { $ifNull: ["$clientInfo.Spouse.MiddleName", ""] },
+          "spouse.lastName": { $ifNull: ["$clientInfo.Spouse.LastName", ""] },
 
           // Add fullName so frontend always has a consistent field
           fullName: {
@@ -452,6 +488,8 @@ export const getLoans = async (req, res) => {
               updatedAt: 1,
               person: 1,
               address: 1,
+              contact: 1,
+              spouse: 1,
               fullName: 1,
               collectionCount: 1,
               latestCollectionUpdate: 1,
@@ -625,10 +663,39 @@ export const updateLoan = async (req, res) => {
       }, {});
     };
 
+    // Extract special fields expected by frontend but mapped differently in DB
+    const rawPerson = person || {};
+    const {
+      contactNo,
+      alternateContactNo,
+      email,
+      spouseFirstName,
+      spouseMiddleName,
+      spouseLastName,
+      ...personRest
+    } = rawPerson;
+
     const loanClientUpdate = {
-      ...toPascalCase(person),
+      ...toPascalCase(personRest),
       ...toPascalCase(address),
     };
+    // Manual mappings for differently named schema fields
+    if (contactNo !== undefined) loanClientUpdate.ContactNumber = contactNo;
+    if (alternateContactNo !== undefined)
+      loanClientUpdate.AlternateContactNumber = alternateContactNo;
+    if (email !== undefined) loanClientUpdate.Email = email;
+    // Spouse nested object mapping
+    const anySpouseProvided =
+      spouseFirstName !== undefined ||
+      spouseMiddleName !== undefined ||
+      spouseLastName !== undefined;
+    if (anySpouseProvided) {
+      loanClientUpdate.Spouse = {
+        ...(spouseFirstName !== undefined && { FirstName: spouseFirstName }),
+        ...(spouseMiddleName !== undefined && { MiddleName: spouseMiddleName }),
+        ...(spouseLastName !== undefined && { LastName: spouseLastName }),
+      };
+    }
     const loanCycleUpdate = { ...rest };
     if (loanInfo) {
       if (loanInfo.status) loanCycleUpdate.LoanStatus = loanInfo.status;
@@ -651,6 +718,40 @@ export const updateLoan = async (req, res) => {
     Object.keys(loanCycleUpdate).forEach(
       (key) => loanCycleUpdate[key] === undefined && delete loanCycleUpdate[key]
     );
+
+    // 🔐 Prevent accidental wiping of existing non-empty values with blank strings
+    // Fetch existing client (once) to compare
+    let existingClientDoc = await LoanClient.findOne({ ClientNo: (await LoanCycle.findById(id))?.ClientNo });
+    if (existingClientDoc) {
+      Object.keys(loanClientUpdate).forEach((key) => {
+        if (
+          typeof loanClientUpdate[key] === "string" &&
+          loanClientUpdate[key].trim() === "" &&
+          existingClientDoc[key] && existingClientDoc[key].toString().trim() !== ""
+        ) {
+          // Keep original non-empty value
+            delete loanClientUpdate[key];
+        }
+      });
+      // Handle nested spouse object separately
+      if (loanClientUpdate.Spouse) {
+        const existingSpouse = existingClientDoc.Spouse || {};
+        ["FirstName", "MiddleName", "LastName"].forEach((nKey) => {
+          if (
+            loanClientUpdate.Spouse[nKey] !== undefined &&
+            typeof loanClientUpdate.Spouse[nKey] === "string" &&
+            loanClientUpdate.Spouse[nKey].trim() === "" &&
+            existingSpouse[nKey] && existingSpouse[nKey].trim() !== ""
+          ) {
+            delete loanClientUpdate.Spouse[nKey];
+          }
+        });
+        // If Spouse becomes empty after pruning, remove it to avoid unnecessary update
+        if (Object.keys(loanClientUpdate.Spouse).length === 0) {
+          delete loanClientUpdate.Spouse;
+        }
+      }
+    }
 
     let updatedLoanCycle;
     if (Object.keys(loanCycleUpdate).length > 0) {
@@ -886,24 +987,218 @@ export const getLoansByClientNo = async (req, res) => {
 export const getDocumentsByClientNo = async (req, res) => {
   try {
     const { clientNo } = req.params;
-    // Placeholder: Replace with actual Document model query
-    // const documents = await Document.find({ ClientNo: clientNo });
-    const documents = []; // No Document model available, returning empty array
-
-    if (!documents || documents.length === 0) {
-      return res.json({
-        success: true,
-        data: [],
-        message: "No documents found for this client.",
-      });
-    }
-
-    res.json({ success: true, data: documents });
+    const documents = await LoanDocument.find({ ClientNo: clientNo }).sort({ createdAt: -1 });
+    return res.json({ success: true, data: documents });
   } catch (err) {
     console.error("Error in getDocumentsByClientNo:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const getDocumentsByAccountId = async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const documents = await LoanDocument.find({ AccountId: accountId }).sort({ createdAt: -1 });
+    return res.json({ success: true, data: documents });
+  } catch (err) {
+    console.error("Error in getDocumentsByAccountId:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getDocumentsByAccountAndCycle = async (req, res) => {
+  try {
+    const { accountId, loanCycleNo } = req.params;
+    const documents = await LoanDocument.find({ AccountId: accountId, LoanCycleNo: loanCycleNo }).sort({ createdAt: -1 });
+    return res.json({ success: true, data: documents });
+  } catch (err) {
+    console.error("Error in getDocumentsByAccountAndCycle:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Create document from external link (e.g., Google Drive)
+export const createDocumentLink = async (req, res) => {
+  try {
+    const { clientNo } = req.params;
+    const { accountId } = req.body;
+    const { name, link, type, source } = req.body;
+    if (!name || !link) {
+      return res.status(400).json({ success: false, message: "Name and link are required" });
+    }
+    const doc = await LoanDocument.create({
+      ClientNo: clientNo,
+      AccountId: accountId,
+      name,
+      link,
+      type: type || inferTypeFromName(name || link),
+      source: source || inferSourceFromLink(link),
+      uploadedBy: req.user
+        ? {
+            _id: req.user._id,
+            username: req.user.Username,
+            position: req.user.Position,
+          }
+        : undefined,
+    });
+    res.status(201).json({ success: true, data: doc });
+  } catch (err) {
+    console.error("Error in createDocumentLink:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Upload (file) document controller (expects formidable-parsed file attached on req.fileMeta by middleware)
+export const uploadDocumentFile = async (req, res) => {
+  try {
+    const { clientNo } = req.params;
+    const { accountId } = req.body || {};
+    const file = req.fileMeta; // set by middleware
+    if (!file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+    const doc = await LoanDocument.create({
+      ClientNo: clientNo,
+      AccountId: accountId,
+      name: req.body?.name || file.originalFilename || file.newFilename,
+      storagePath: file.relativePath,
+      url: `/uploads/loan-documents/${file.newFilename}`,
+      mimeType: file.mimetype,
+      size: file.size,
+      ext: path.extname(file.originalFilename).toLowerCase(),
+      type: inferTypeFromName(file.originalFilename),
+      source: "upload",
+      uploadedBy: req.user
+        ? {
+            _id: req.user._id,
+            username: req.user.Username,
+            position: req.user.Position,
+          }
+        : undefined,
+    });
+    res.status(201).json({ success: true, data: doc });
+  } catch (err) {
+    console.error("Error in uploadDocumentFile:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Create document link by AccountId (derive ClientNo)
+export const createDocumentLinkByAccountId = async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    let { name, link, type, source } = req.body;
+    if (Array.isArray(name)) name = name[name.length - 1];
+    if (Array.isArray(link)) link = link[link.length - 1];
+    if (Array.isArray(type)) type = type[type.length - 1];
+    if (Array.isArray(source)) source = source[source.length - 1];
+    if (!name || !link) {
+      return res.status(400).json({ success: false, message: "Name and link are required" });
+    }
+    const loanCycle = await LoanCycle.findOne({ AccountId: accountId }).select("ClientNo AccountId");
+    if (!loanCycle) {
+      return res.status(404).json({ success: false, message: "Account not found" });
+    }
+    const doc = await LoanDocument.create({
+      ClientNo: loanCycle.ClientNo,
+      AccountId: accountId,
+      LoanCycleNo: loanCycle.LoanCycleNo,
+      name,
+      link,
+      type: type || inferTypeFromName(name || link),
+      source: source || inferSourceFromLink(link),
+      uploadedBy: req.user
+        ? {
+            _id: req.user._id,
+            username: req.user.Username,
+            position: req.user.Position,
+          }
+        : undefined,
+    });
+    res.status(201).json({ success: true, data: doc });
+  } catch (err) {
+    console.error("Error in createDocumentLinkByAccountId:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Upload document file by AccountId (derive ClientNo)
+export const uploadDocumentFileByAccountId = async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const loanCycle = await LoanCycle.findOne({ AccountId: accountId }).select("ClientNo AccountId");
+    if (!loanCycle) {
+      return res.status(404).json({ success: false, message: "Account not found" });
+    }
+    const file = req.fileMeta;
+    if (!file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+    // Normalize body fields (can arrive as single-value arrays from FormData parsing)
+    const rawName = req.body?.name;
+    const rawType = req.body?.type;
+    const rawSource = req.body?.source;
+    const safeName = Array.isArray(rawName) ? rawName[rawName.length - 1] : rawName;
+    const safeType = Array.isArray(rawType) ? rawType[rawType.length - 1] : rawType;
+    const safeSource = Array.isArray(rawSource) ? rawSource[rawSource.length - 1] : rawSource;
+    const doc = await LoanDocument.create({
+      ClientNo: loanCycle.ClientNo,
+      AccountId: accountId,
+      LoanCycleNo: loanCycle.LoanCycleNo,
+      name: safeName || file.originalFilename || file.newFilename,
+      storagePath: file.relativePath,
+      url: `/uploads/loan-documents/${file.newFilename}`,
+      mimeType: file.mimetype,
+      size: file.size,
+      ext: path.extname(file.originalFilename).toLowerCase(),
+      type: safeType || inferTypeFromName(file.originalFilename),
+      source: safeSource || "upload",
+      uploadedBy: req.user
+        ? {
+            _id: req.user._id,
+            username: req.user.Username,
+            position: req.user.Position,
+          }
+        : undefined,
+    });
+    res.status(201).json({ success: true, data: doc });
+  } catch (err) {
+    console.error("Error in uploadDocumentFileByAccountId:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Delete document
+export const deleteDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await LoanDocument.findById(id);
+    if (!doc) return res.status(404).json({ success: false, message: "Document not found" });
+    // Remove file from disk if stored locally
+    if (doc.storagePath && fs.existsSync(doc.storagePath)) {
+      try { fs.unlinkSync(doc.storagePath); } catch {}
+    }
+    await doc.deleteOne();
+    res.json({ success: true, message: "Document deleted" });
+  } catch (err) {
+    console.error("Error in deleteDocument:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Helper inference functions
+function inferTypeFromName(name = "") {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".pdf")) return "pdf";
+  if (lower.match(/\.(jpg|jpeg|png|gif|webp)$/)) return "image";
+  if (lower.match(/\.(doc|docx)$/)) return "doc";
+  if (lower.match(/\.(xls|xlsx)$/)) return "sheet";
+  return "other";
+}
+function inferSourceFromLink(link = "") {
+  if (link.includes("drive.google.com")) return "Google Drive";
+  return "External";
+}
 
 // GET loans by AccountId
 export const getLoansByAccountId = async (req, res) => {
@@ -1589,5 +1884,58 @@ export const exportLoansExcel = async (req, res) => {
       error: error.message,
       stack: error.stack,
     });
+  }
+};
+
+// DEBUG: Return raw loan client document (no transforms) for a given client number
+export const debugGetRawClient = async (req, res) => {
+  try {
+    const { clientNo } = req.params;
+    if (!clientNo) return res.status(400).json({ success: false, message: "clientNo required" });
+    const doc = await LoanClient.findOne({ ClientNo: clientNo });
+    if (!doc) return res.status(404).json({ success: false, message: "Client not found" });
+    res.json({ success: true, data: doc });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// DEBUG: List clients whose any name component is blank or null
+export const debugListClientsMissingNames = async (_req, res) => {
+  try {
+    const clients = await LoanClient.find({
+      $or: [
+        { FirstName: { $in: [null, ""] } },
+        { LastName: { $in: [null, ""] } },
+      ],
+    }).limit(200);
+    res.json({ success: true, count: clients.length, data: clients });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// DEBUG: Manually repair / set client names if they were accidentally blanked
+export const debugUpdateClientNames = async (req, res) => {
+  try {
+    const { clientNo } = req.params;
+    const { firstName, middleName, lastName } = req.body || {};
+    if (!clientNo) return res.status(400).json({ success: false, message: "clientNo required" });
+    if (!firstName && !lastName) {
+      return res.status(400).json({ success: false, message: "At least firstName or lastName must be provided" });
+    }
+    const update = {};
+    if (firstName !== undefined) update.FirstName = firstName;
+    if (middleName !== undefined) update.MiddleName = middleName;
+    if (lastName !== undefined) update.LastName = lastName;
+    const doc = await LoanClient.findOneAndUpdate(
+      { ClientNo: clientNo },
+      { $set: update },
+      { new: true }
+    );
+    if (!doc) return res.status(404).json({ success: false, message: "Client not found" });
+    res.json({ success: true, data: doc });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

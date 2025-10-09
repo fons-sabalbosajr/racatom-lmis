@@ -150,9 +150,59 @@ export default function LoanDetailsModal({
   const [loanNoError, setLoanNoError] = useState(""); // State for LoanNo validation
 
   useEffect(() => {
-    setEditedLoan(loan);
+    if (loan) {
+      const newEditedLoan = {
+        ...loan,
+        person: loan.person || {},
+        address: loan.address || {},
+      };
+      setEditedLoan(newEditedLoan);
+    } else {
+      setEditedLoan(null);
+    }
     setIsEditing(false);
   }, [loan]);
+
+  // Fallback: if name fields are blank, attempt to pull raw client doc (debug endpoint) and hydrate
+  useEffect(() => {
+    const needNameHydration =
+      visible &&
+      editedLoan &&
+      loan?.clientNo &&
+      (!editedLoan.person?.firstName || !editedLoan.person?.lastName);
+    if (!needNameHydration) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/loans/debug/raw-client/${loan.clientNo}`);
+        if (cancelled) return;
+        if (res.data?.success && res.data.data) {
+          const raw = res.data.data;
+          // Only hydrate if raw has non-empty names
+            if (raw.FirstName || raw.MiddleName || raw.LastName) {
+              setEditedLoan((prev) => {
+                if (!prev) return prev;
+                const next = { ...prev, person: { ...(prev.person || {}) } };
+                if (raw.FirstName) next.person.firstName = raw.FirstName;
+                if (raw.MiddleName) next.person.middleName = raw.MiddleName;
+                if (raw.LastName) next.person.lastName = raw.LastName;
+                return next;
+              });
+            }
+        }
+      } catch (e) {
+        // Silent fail; leave fields blank
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.log('[LoanDetailsModal] Name hydration failed', e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, editedLoan, loan?.clientNo]);
 
   useEffect(() => {
     if (visible) {
@@ -225,30 +275,34 @@ export default function LoanDetailsModal({
 
   const handleSave = async () => {
     try {
-      // Create a payload and map the fields to match the backend model
       const payload = {
         ...editedLoan,
-        ClientNo: editedLoan.clientNo, // Ensure correct casing
-        AccountId: editedLoan.accountId, // Ensure correct casing
+        ClientNo: editedLoan.clientNo,
+        AccountId: editedLoan.accountId,
         loanInfo: {
           ...editedLoan.loanInfo,
-          LoanCycleNo: editedLoan.loanInfo.loanNo, // Map loanNo to LoanCycleNo
+          LoanCycleNo:
+            editedLoan.loanInfo?.loanNo || editedLoan.loanInfo?.LoanCycleNo,
         },
       };
 
       const res = await api.put(`/loans/${editedLoan._id}`, payload);
       if (res.data.success) {
         message.success("Loan details updated successfully!");
-        if (onLoanUpdate) {
-          onLoanUpdate(); // This refreshes the main loans table
+        // Update local state with any normalized / updated values returned
+        if (res.data.data) {
+          setEditedLoan((prev) => ({ ...prev, ...res.data.data }));
         }
-        onClose();
+        if (onLoanUpdate) onLoanUpdate();
+        // Keep modal open; just exit edit mode
       } else {
         message.error(res.data.message || "Failed to update loan details.");
+        return;
       }
     } catch (err) {
       console.error("Error saving loan details:", err);
       message.error("Error saving loan details.");
+      return;
     } finally {
       setIsEditing(false);
     }
@@ -691,9 +745,7 @@ export default function LoanDetailsModal({
           </div>
           <div className="info-row">
             <span className="info-label">Penalty:</span>
-            <span className="info-value">
-              {formatCurrency(record.Penalty)}
-            </span>
+            <span className="info-value">{formatCurrency(record.Penalty)}</span>
           </div>
           <div className="info-row">
             <span className="info-label">Amort:</span>
@@ -737,9 +789,7 @@ export default function LoanDetailsModal({
           </div>
           <div className="info-row">
             <span className="info-label">Collector:</span>
-            <span className="info-value">
-              {record.CollectorName || "N/A"}
-            </span>
+            <span className="info-value">{record.CollectorName || "N/A"}</span>
           </div>
         </>
       ),
@@ -988,7 +1038,13 @@ export default function LoanDetailsModal({
             {
               key: "3",
               label: "Documents",
-              children: <LoanDocumentsTab documents={loan.clientDocuments} />,
+              children: (
+                <LoanDocumentsTab
+                  loan={loan}
+                  accountId={loan?.accountId || loan?.AccountId}
+                  cycles={mergedLoans}
+                />
+              ),
             },
             {
               key: "4",

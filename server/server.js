@@ -24,7 +24,8 @@ import loanCollectionRoutes from "./routes/loanCollectionRoutes.js";
 import dashboardRoutes from "./routes/dashboard.js";
 
 import loanCollectionImportRoutes from "./routes/loanCollectionImportRoutes.js";
-
+import path from "path";
+import fs from "fs";
 import parseCollectionRoutes from "./routes/parseCollectionRoutes.js";
 import loanClientApplicationRoute from "./routes/loanClientApplicationRoute.js";
 import databaseRoutes from "./routes/databaseRoutes.js";
@@ -35,6 +36,11 @@ const app = express();
 // Middleware
 app.use(express.json({ limit: "10mb" })); // parse JSON body
 app.use(cookieParser()); // parse cookies
+
+// Static serving for uploaded loan documents (must be after app is created)
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(uploadsDir));
 
 // Enable CORS with credentials
 app.use(

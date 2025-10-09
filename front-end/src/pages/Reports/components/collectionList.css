@@ -1,0 +1,25 @@
+.collection-action-btn.ant-btn {
+  border-radius: 4px !important;
+  /* Use square-ish dimension with centered icon */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px; /* uniform padding to center */
+  width: 24px; /* ensure consistent clickable target */
+  height: 24px;
+  line-height: 1; /* prevent vertical offset */
+}
+
+/* Remove extra right margin for icon-only buttons */
+.collection-action-btn.ant-btn .ant-btn-icon {
+  margin-inline-end: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px; /* tweak if needed */
+}
+
+/* Ensure no unexpected text spacing if any text slips in */
+.collection-action-btn.ant-btn > span:not(.ant-btn-icon) {
+  display: none;
+}

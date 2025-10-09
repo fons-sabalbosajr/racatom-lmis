@@ -1,12 +1,31 @@
 .dashboard-title-container {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start; /* align items to top */
+  gap: 12px;
+  margin-bottom: 4px; /* tighter spacing below title area */
 }
 
 .dashboard-actions {
   display: flex;
   gap: 8px; /* space between buttons */
+  align-items: flex-start;
+  padding-top: 4px; /* nudge buttons downward minimally */
+}
+
+/* Ensure dashboard content can extend and be scrollable inside parent scroll area */
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.dashboard-title {
+  margin: 0; /* remove default bottom margin */
+  line-height: 1.1;
+  font-weight: 600;
+  font-size: 1.4rem; /* smaller than default level 2 */
+  padding-top: 2px; /* nudge downward if needed for visual centering */
 }
 
 .pending-applications-btn {

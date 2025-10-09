@@ -243,7 +243,7 @@ function Dashboard() {
   return (
     <div className="dashboard-container">
       <div className="dashboard-title-container">
-        <Title level={2}>Loan Management Dashboard</Title>
+        <Title level={3} className="dashboard-title">Loan Management Dashboard</Title>
         <div className="dashboard-actions">
           <Button
             type="primary"

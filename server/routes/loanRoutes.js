@@ -11,6 +11,13 @@ import {
   exportReport,
   getLoansByClientNo,
   getDocumentsByClientNo,
+  getDocumentsByAccountId,
+  createDocumentLink,
+  uploadDocumentFile,
+  deleteDocument,
+  createDocumentLinkByAccountId,
+  uploadDocumentFileByAccountId,
+  getDocumentsByAccountAndCycle,
   getLoansByAccountId,
   getLoanTransactions,
   generateStatementOfAccount,
@@ -22,7 +29,11 @@ import {
   getApprovedClients,
   createLoanCycle,
   exportLoansExcel,
+  debugGetRawClient,
+  debugListClientsMissingNames,
+  debugUpdateClientNames,
 } from "../controllers/loanController.js";
+import uploadLoanDocument from "../middleware/uploadLoanDocument.js";
 
 const router = express.Router();
 
@@ -53,6 +64,11 @@ router.get("/years", getLoanYears);
 router.get("/export", exportLoansExcel);
 router.get("/export/:reportType", exportReport);
 
+// DEBUG routes (place before parameterized :id route)
+router.get("/debug/raw-client/:clientNo", debugGetRawClient);
+router.get("/debug/clients/missing-names", debugListClientsMissingNames);
+router.post("/debug/update-client-names/:clientNo", debugUpdateClientNames);
+
 // GET loans by account id
 router.get("/account/:accountId", getLoansByAccountId);
 
@@ -61,6 +77,28 @@ router.get("/client/:clientNo", getLoansByClientNo);
 
 // GET documents by client number
 router.get("/client/:clientNo/documents", getDocumentsByClientNo);
+// GET documents by account id
+router.get("/account/:accountId/documents", getDocumentsByAccountId);
+// GET documents by account id + loan cycle
+router.get("/account/:accountId/cycle/:loanCycleNo/documents", getDocumentsByAccountAndCycle);
+// POST link by account id
+router.post("/account/:accountId/documents/link", createDocumentLinkByAccountId);
+// POST upload by account id
+router.post(
+  "/account/:accountId/documents/upload",
+  (req, res, next) => uploadLoanDocument(req, res, next),
+  uploadDocumentFileByAccountId
+);
+// POST create external/drive link
+router.post("/client/:clientNo/documents/link", createDocumentLink);
+// POST file upload (single) uses formidable middleware
+router.post(
+  "/client/:clientNo/documents/upload",
+  (req, res, next) => uploadLoanDocument(req, res, next),
+  uploadDocumentFile
+);
+// DELETE document
+router.delete("/documents/:id", deleteDocument);
 
 // NEW: Get loan details by loanCycleNo
 router.get("/details-by-cycle/:loanCycleNo", getLoanDetailsByCycleNo);

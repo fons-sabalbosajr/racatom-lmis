@@ -226,14 +226,20 @@ function Home() {
   const siderToggleBg = lighten(siderBg, 0.10);
 
   return (
-    <Layout className={`home-layout ${settings.compactUI ? "compact-ui" : ""}`}>
+    <Layout className={`home-layout ${collapsed ? "collapsed" : ""} ${settings.compactUI ? "compact-ui" : ""}`}>
       <Sider
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
         width={200}
-  theme={menuTheme}
+        theme={menuTheme}
         style={{
+          position: "fixed",
+          insetInlineStart: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 101,
+          overflow: "auto",
           background: siderBg,
           "--sider-bg": siderBg,
           "--sider-sub-bg": siderSubBg,
@@ -324,6 +330,7 @@ function Home() {
             alignItems: "center",
             gap: "16px",
             background: headerBg,
+            color: headerText,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -532,15 +539,19 @@ function Home() {
           </div>
         </Header>
 
-        {/* Content */}
-        <Content className="home-content" style={{ margin: "16px" }}>
-          <Outlet />
-        </Content>
-
-        {/* Footer */}
-        <Footer className="home-footer">
-          © {new Date().getFullYear()} RACATOM Corp. Loan Management System
-        </Footer>
+        <div className="home-content-wrapper">
+          <div className="home-sider-spacer" />
+          <div className="home-scroll-area">
+            <div className="home-scroll-inner">
+              <Content className="home-content">
+                <Outlet />
+              </Content>
+              <Footer className="home-footer">
+                © {new Date().getFullYear()} RACATOM Corp. Loan Management System
+              </Footer>
+            </div>
+          </div>
+        </div>
       </Layout>
     </Layout>
   );

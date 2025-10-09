@@ -167,19 +167,23 @@ export const getLoanColumns = ({
                 {loanStatus}
               </Tag>
             </div>
-            <Tooltip title="Update Status">
+            <Tooltip title="Quick Update Status" size="small">
               <Button
-                type="text"
-                shape="circle"
-                icon={<EditOutlined style={{ fontSize: 12 }} />}
+                icon={<EditOutlined style={{ fontSize: 10 }} />}
                 size="small"
+                className="loan-status-update-btn"
                 style={{
-                  width: 24,
-                  height: 24,
+                  background: '#27ae60',
+                  borderColor: '#27ae60',
+                  color: '#fff',
+                  width: 20,
+                  height: 20,
                   padding: 0,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  borderRadius: 4,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  lineHeight: 1,
                 }}
                 onClick={() => onUpdateStatus(record)}
               />

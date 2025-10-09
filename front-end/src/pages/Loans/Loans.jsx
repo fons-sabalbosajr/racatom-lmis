@@ -68,7 +68,6 @@ export default function Loans() {
           loanStatus,
           paymentMode,
           year,
-          minimal: true,
           sortBy: field || "AccountId",
           sortDir: order === "descend" ? "desc" : "asc",
         },
@@ -235,8 +234,6 @@ export default function Loans() {
         if (currentLoan) {
           const combinedLoanData = {
             ...currentLoan,
-            person: record.person,
-            address: record.address,
             allClientLoans: loansRes.data.data,
             clientDocuments: docsRes.data.data,
           };
@@ -333,14 +330,11 @@ export default function Loans() {
           );
 
           if (currentLoan) {
-            const combinedLoanData = {
-              ...currentLoan,
-              person: selectedLoan.person,
-              address: selectedLoan.address,
-              allClientLoans: loansRes.data.data,
-              clientDocuments: docsRes.data.data,
-            };
-            setSelectedLoan(combinedLoanData);
+                      const combinedLoanData = {
+                        ...currentLoan,
+                        allClientLoans: loansRes.data.data,
+                        clientDocuments: docsRes.data.data,
+                      };            setSelectedLoan(combinedLoanData);
           } else {
             setModalVisible(false);
             message.info("The selected loan details may have been updated.");

@@ -14,9 +14,14 @@ import {
   Checkbox,
 } from "antd";
 import { EditOutlined, FileTextOutlined } from "@ant-design/icons";
+import { Tag } from "antd";
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+// Ensure UTC plugin is loaded once (dayjs is a singleton)
+dayjs.extend(utc);
 import EditCollectionModal from "./EditCollectionModal";
+import "./collectionList.css";
 
 const { Title } = Typography;
 const { Search } = Input;
@@ -137,46 +142,38 @@ export default function CollectionList() {
       sorter: true,
       render: (value) => {
         if (!value) return "—";
-        // Date instance
-        if (value instanceof Date) {
-          const d = dayjs(value);
-          return d.isValid() ? d.format("MM/DD/YYYY") : "—";
-        }
-        // Mongo Extended JSON variants
-        if (typeof value === "object") {
-          // { $date: "iso" } or { $date: { $numberLong: "..." } } or Date
-          if ("$date" in value) {
-            const dv = value.$date;
-            if (dv instanceof Date) {
-              const d = dayjs(dv);
-              return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+        // Helper to coerce various backend date shapes into a dayjs instance in UTC (to avoid TZ shifts adding/subtracting a day)
+        const coerceToDay = (raw) => {
+          // Direct Date
+            if (raw instanceof Date) return dayjs.utc(raw.toISOString());
+            // Mongo Extended JSON variants
+            if (raw && typeof raw === "object") {
+              if ("$date" in raw) {
+                const dv = raw.$date;
+                if (dv instanceof Date) return dayjs.utc(dv.toISOString());
+                if (typeof dv === "string") return dayjs.utc(dv);
+                if (dv && typeof dv === "object" && "$numberLong" in dv) {
+                  return dayjs.utc(Number(dv.$numberLong));
+                }
+              }
+              if ("$numberLong" in raw) {
+                return dayjs.utc(Number(raw.$numberLong));
+              }
             }
-            if (typeof dv === "string") {
-              const d = dayjs(dv);
-              return d.isValid() ? d.format("MM/DD/YYYY") : "—";
+            // String / numeric
+            if (typeof raw === "string") {
+              // If string without time (YYYY-MM-DD), treat as that date in UTC to keep day stable
+              if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return dayjs.utc(raw + "T00:00:00Z");
+              return dayjs.utc(raw);
             }
-            if (dv && typeof dv === "object" && "$numberLong" in dv) {
-              const num = Number(dv.$numberLong);
-              const d = dayjs(num);
-              return d.isValid() ? d.format("MM/DD/YYYY") : "—";
-            }
-          }
-          // Direct numeric long in object { $numberLong: "..." }
-          if ("$numberLong" in value) {
-            const num = Number(value.$numberLong);
-            const d = dayjs(num);
-            return d.isValid() ? d.format("MM/DD/YYYY") : "—";
-          }
-        }
-        // ISO string or numeric timestamp
-        if (typeof value === "string") {
-          const d = dayjs(value);
-          if (d.isValid()) return d.format("MM/DD/YYYY");
-        }
-        const n = Number(value);
-        if (!Number.isNaN(n)) {
-          const d2 = dayjs(n);
-          if (d2.isValid()) return d2.format("MM/DD/YYYY");
+            const num = Number(raw);
+            if (!Number.isNaN(num)) return dayjs.utc(num);
+            return null;
+        };
+
+        const d = coerceToDay(value);
+        if (d && d.isValid()) {
+          return d.format("MM/DD/YYYY");
         }
         return "—";
       },
@@ -192,7 +189,18 @@ export default function CollectionList() {
       dataIndex: "PaymentMode",
       key: "PaymentMode",
       sorter: true,
-      render: (text) => text || "Cash",
+      render: (text) => {
+        const mode = (text || "Cash").toUpperCase();
+        const colorMap = {
+          CASH: "green",
+          GCASH: "blue",
+          CHEQUE: "gold",
+          CHECK: "gold",
+          BANK: "geekblue",
+          ONLINE: "purple",
+        };
+        return <Tag color={colorMap[mode] || "default"}>{mode}</Tag>;
+      },
     },
     {
       title: "Amount",
@@ -216,16 +224,20 @@ export default function CollectionList() {
         <Space>
           <Tooltip title="Edit">
             <Button
-              type="link"
+              type="primary"
               icon={<EditOutlined />}
               onClick={() => handleEdit(record)}
+              className="collection-action-btn"
+              size="small"
             />
           </Tooltip>
           <Tooltip title="Generate Receipt Voucher">
             <Button
-              type="link"
+              type="primary"
               icon={<FileTextOutlined />}
               onClick={() => handleGenerateVoucher(record)}
+              className="collection-action-btn"
+              size="small"
             />
           </Tooltip>
         </Space>
