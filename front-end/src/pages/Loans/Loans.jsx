@@ -232,11 +232,69 @@ export default function Loans() {
         );
 
         if (currentLoan) {
+          // Hydrate unified person and address fields so PersonalInfoTab shows correct values
+          const ci = currentLoan.clientInfo || {};
+          const rawPerson = currentLoan.person || {};
+          const unifiedPerson = {
+            ...rawPerson,
+            firstName:
+              rawPerson.firstName || currentLoan.FirstName || ci.FirstName || "",
+            middleName:
+              rawPerson.middleName || currentLoan.MiddleName || ci.MiddleName || "",
+            lastName:
+              rawPerson.lastName || currentLoan.LastName || ci.LastName || "",
+            // Contacts (best-effort from multiple shapes)
+            contactNo:
+              rawPerson.contactNo ||
+              currentLoan.contact?.contactNumber ||
+              currentLoan.ContactNumber ||
+              ci.contactNumber ||
+              ci.ContactNumber ||
+              "",
+            alternateContactNo:
+              rawPerson.alternateContactNo ||
+              currentLoan.contact?.alternateContactNumber ||
+              currentLoan.AlternateContactNumber ||
+              ci.alternateContactNumber ||
+              ci.AlternateContactNumber ||
+              "",
+            email:
+              rawPerson.email ||
+              currentLoan.contact?.email ||
+              currentLoan.Email ||
+              ci.email ||
+              ci.Email ||
+              "",
+          };
+
+          const unifiedAddress =
+            currentLoan.address ||
+            ci.address || {
+              barangay:
+                (ci.address && ci.address.barangay) ||
+                ci.Barangay ||
+                currentLoan.Barangay ||
+                "",
+              city:
+                (ci.address && ci.address.city) ||
+                ci.City ||
+                currentLoan.City ||
+                "",
+              province:
+                (ci.address && ci.address.province) ||
+                ci.Province ||
+                currentLoan.Province ||
+                "",
+            };
+
           const combinedLoanData = {
             ...currentLoan,
+            person: unifiedPerson,
+            address: unifiedAddress,
             allClientLoans: loansRes.data.data,
             clientDocuments: docsRes.data.data,
           };
+
           setSelectedLoan(combinedLoanData);
           setModalVisible(true);
         } else {
@@ -441,7 +499,7 @@ export default function Loans() {
         pagination={false}
         onChange={handleTableChange}
         scroll={{ x: 1100 }}
-        className="loan-table corporate-table"
+  className="loan-table corporate-table loans-with-bottom-gap"
         rowClassName={(record) =>
           record.loanInfo?.loanNo && record.loanInfo.loanNo.includes("-R")
             ? "loan-needs-update"
@@ -449,7 +507,7 @@ export default function Loans() {
         }
         footer={() => (
           <div
-            style={{ display: "flex", alignItems: "center", padding: "10px 0" }}
+            style={{ display: "flex", alignItems: "center", padding: "12px 0 28px" }}
           >
             <div style={{ flex: 1, textAlign: "left" }}>
               <Typography.Text italic>

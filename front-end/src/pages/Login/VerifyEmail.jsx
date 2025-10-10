@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Form, Input, Button, Typography, Card, Divider, message } from "antd";
 import { UserOutlined, MailOutlined } from "@ant-design/icons";
 import { useLocation, Link } from "react-router-dom";
-import axios from "axios";
+import api from "../../utils/axios";
 
 const { Title, Text } = Typography;
 
@@ -23,7 +23,7 @@ function VerifyEmail() {
     setLoading(true);
     try {
       const payload = identifier.includes("@") ? { email: identifier } : { username: identifier };
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/resend-verification`, payload);
+  const response = await api.post(`/auth/resend-verification`, payload);
 
       message.success(response.data?.message || "✅ Verification email resent. Check your inbox.");
     } catch (err) {

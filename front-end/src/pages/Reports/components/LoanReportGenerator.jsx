@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Card, Select, DatePicker, Button, Space, Typography, Table, message } from "antd";
-import api from "../../../utils/axios";
+import api, { API_BASE_URL } from "../../../utils/axios";
 import moment from "moment";
 
 const { Option } = Select;
@@ -105,7 +105,7 @@ const LoanReportGenerator = () => {
     }
 
     window.open(
-      `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/loans/export/${type.replace(/([A-Z])/g, '-$1').toLowerCase()}?${params.toString()}`,
+      `${API_BASE_URL}/loans/export/${type.replace(/([A-Z])/g, '-$1').toLowerCase()}?${params.toString()}`,
       "_blank"
     );
   };

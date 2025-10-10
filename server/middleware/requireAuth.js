@@ -3,7 +3,10 @@ import jwt from "jsonwebtoken";
 import User from "../models/UserAccount.js";
 
 export default async function requireAuth(req, res, next) {
-  const token = req.cookies?.token || req.headers?.authorization?.split?.(" ")[1];
+  // Prefer Authorization header (per-tab token) over shared cookie token
+  const headerToken = req.headers?.authorization?.split?.(" ")[1];
+  const cookieToken = req.cookies?.token;
+  const token = headerToken || cookieToken;
 
   if (!token) {
     return res.status(401).json({ success: false, message: "Unauthorized: No token provided" });
@@ -26,6 +29,7 @@ export default async function requireAuth(req, res, next) {
     return next();
   } catch (err) {
     console.error("requireAuth error:", err.message);
-    return res.status(403).json({ success: false, message: "Unauthorized: Invalid or expired token" });
+    // Use 401 so clients treat it as an authentication failure and re-login
+    return res.status(401).json({ success: false, message: "Unauthorized: Invalid or expired token" });
   }
 }

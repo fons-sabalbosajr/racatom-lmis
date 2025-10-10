@@ -223,3 +223,13 @@
 .loan-table .ant-table-tbody > tr.ant-table-row-selected:hover > td {
   background: var(--table-row-selected-bg, #e6f7ff) !important;
 }
+
+/* Ensure Loans page leaves extra space at the bottom for the fixed app footer */
+.loans-with-bottom-gap {
+  padding-bottom: 24px; /* base gap for small screens */
+}
+@media (min-width: 768px) {
+  .loans-with-bottom-gap {
+    padding-bottom: 36px; /* larger gap for desktop */
+  }
+}

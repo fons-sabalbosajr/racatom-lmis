@@ -17,22 +17,14 @@ import {
   Collapse,
   Table,
   Popconfirm,
-  Space, Switch
 } from "antd";
-import {
-  EyeOutlined,
-  EyeInvisibleOutlined,
-  UserOutlined,
-  UploadOutlined,
-  DeleteOutlined,
-} from "@ant-design/icons";
+import { UserOutlined, UploadOutlined, DeleteOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
 import { lsGet, lsSet } from "../../../utils/storage";
 import "./accounts.css";
 import { useDevSettings } from "../../../context/DevSettingsContext";
 
 const { Title } = Typography;
-const { Panel } = Collapse;
 
 const Accounts = () => {
   const { settings } = useDevSettings();
@@ -40,18 +32,15 @@ const Accounts = () => {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [showUsername, setShowUsername] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => lsGet("user"));
   const [form] = Form.useForm();
   const [photoFile, setPhotoFile] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [viewMode, setViewMode] = useState("Card"); // "Card" | "Table"
-  const [genLength, setGenLength] = useState(12);
-  const [genUpper, setGenUpper] = useState(true);
-  const [genLower, setGenLower] = useState(true);
-  const [genDigits, setGenDigits] = useState(true);
-  const [genSymbols, setGenSymbols] = useState(true);
-  const [genOutput, setGenOutput] = useState("");
+  const [loadError, setLoadError] = useState(null);
+  const [retrying, setRetrying] = useState(false);
+  const abortRef = React.useRef(null);
+  // Removed password generator state (moved to Developer Settings > Tools)
 
   useEffect(() => {
     fetchUsers();
@@ -60,9 +49,33 @@ const Accounts = () => {
     if (username) setCurrentUsername(username);
   }, []);
 
+  // Show employee list based on user position
+  const isDev = (() => {
+    const pos = String(currentUser?.Position || "").trim().toLowerCase();
+    return pos === "developer" || pos === "administrator";
+  })();
+
   const fetchUsers = async () => {
     try {
-      const res = await api.get("/users");
+      setLoadError(null);
+      // cancel any previous in-flight request
+      if (abortRef.current) {
+        try {
+          abortRef.current.abort();
+        } catch (e) {
+          void 0;
+        }
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
+      // race with a manual timeout (e.g., 12s) to avoid spinner hangs
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Request timed out")), 12000)
+      );
+      const res = await Promise.race([
+        api.get("/users", { signal: controller.signal }),
+        timeout,
+      ]);
       const raw = Array.isArray(res.data) ? res.data : [];
       // Deduplicate by Username (fallback to _id) to avoid double cards
       const seen = new Set();
@@ -76,8 +89,14 @@ const Accounts = () => {
       }
       setUsers(unique);
     } catch (err) {
+      if (err.name === "CanceledError" || (err.message && err.message.includes("canceled"))) {
+        // This is an expected error when the request is canceled.
+        // We can silently ignore it.
+        return;
+      }
       console.error(err);
-      message.error("Failed to load user accounts");
+      const isTimeout = /timed out/i.test(String(err?.message || ""));
+      setLoadError(isTimeout ? "Request timed out. Please try again." : "Failed to load user accounts.");
     } finally {
       setLoading(false);
     }
@@ -108,10 +127,7 @@ const Accounts = () => {
       const values = await form.validateFields();
 
       // Restrict non-developers from editing others
-      if (
-        currentUser?.Position !== "Developer" &&
-        editingUser?.Username !== currentUser?.Username
-      ) {
+      if (!isDev && editingUser?.Username !== currentUser?.Username) {
         message.error("You are not allowed to edit this account.");
         return;
       }
@@ -170,9 +186,28 @@ const Accounts = () => {
   if (loading)
     return (
       <div className="accounts-loading">
-        <Spin spinning={true}>
-          <div>Loading users...</div>
-        </Spin>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+          <Spin spinning={true}>
+            <div>Loading users...</div>
+          </Spin>
+          {loadError && (
+            <>
+              <div style={{ color: "#ff4d4f" }}>{loadError}</div>
+              <Button
+                type="primary"
+                loading={retrying}
+                onClick={async () => {
+                  setRetrying(true);
+                  setLoading(true);
+                  await fetchUsers();
+                  setRetrying(false);
+                }}
+              >
+                Retry
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     );
 
@@ -196,8 +231,8 @@ const Accounts = () => {
       title: "Username",
       dataIndex: "Username",
       key: "Username",
-      render: (val, record) =>
-        currentUser?.Position === "Developer" || !settings.maskUsernames
+      render: (val) =>
+        isDev || !settings.maskUsernames
           ? val
           : "*".repeat(2) + (val || "").slice(2),
     },
@@ -224,14 +259,13 @@ const Accounts = () => {
       key: "actions",
       render: (_, record) => (
         <>
-          {(currentUser?.Position === "Developer" ||
-            currentUser?.Username === record.Username) && (
+          {(isDev || currentUser?.Username === record.Username) && (
             <Button type="link" onClick={() => openEditModal(record)}>
               Edit
             </Button>
           )}
 
-          {currentUser?.Position === "Developer" && settings.allowUserDelete && (
+          {isDev && settings.allowUserDelete && (
             <Popconfirm
               title="Are you sure delete this user?"
               onConfirm={() => handleDelete(record._id)}
@@ -245,6 +279,8 @@ const Accounts = () => {
       ),
     },
   ];
+
+  // Self-service panel removed: all users see the employee list below with restricted actions for non-developers.
 
   return (
     <div className="accounts-container">
@@ -292,7 +328,7 @@ const Accounts = () => {
                           className="account-card"
                           hoverable
                           actions={[
-                            (currentUser?.Position === "Developer" ||
+                            (isDev ||
                               currentUser?.Username === user.Username) && (
                               <Button
                                 size="small"
@@ -302,7 +338,7 @@ const Accounts = () => {
                                 Edit
                               </Button>
                             ),
-                            currentUser?.Position === "Developer" && (
+                            isDev && (
                               <Popconfirm
                                 title="Are you sure you want to delete this user?"
                                 onConfirm={() => handleDelete(user._id)}
@@ -341,7 +377,7 @@ const Accounts = () => {
                                 </div>
                                 <div>
                                   <strong>Username:</strong>{" "}
-                                  {currentUser?.Position === "Developer"
+                                  {isDev
                                     ? user.Username
                                     : "*".repeat(2) + user.Username.slice(2)}
                                 </div>
@@ -382,62 +418,7 @@ const Accounts = () => {
         />
       )}
 
-      {/* Password Generator (available to all users) */}
-      <Card size="small" style={{ marginTop: 16 }} title="Password Generator">
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} md={12}>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ minWidth: 90 }}>Length:</span>
-                <Input
-                  type="number"
-                  min={6}
-                  max={64}
-                  value={genLength}
-                  onChange={(e) => setGenLength(Number(e.target.value))}
-                  style={{ width: 100 }}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ minWidth: 90 }}>Uppercase:</span>
-                <Switch checked={genUpper} onChange={setGenUpper} />
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ minWidth: 90 }}>Lowercase:</span>
-                <Switch checked={genLower} onChange={setGenLower} />
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ minWidth: 90 }}>Digits:</span>
-                <Switch checked={genDigits} onChange={setGenDigits} />
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ minWidth: 90 }}>Symbols:</span>
-                <Switch checked={genSymbols} onChange={setGenSymbols} />
-              </div>
-              <Space>
-                <Button onClick={() => {
-                  const pools = [];
-                  if (genUpper) pools.push("ABCDEFGHJKLMNPQRSTUVWXYZ");
-                  if (genLower) pools.push("abcdefghijkmnopqrstuvwxyz");
-                  if (genDigits) pools.push("23456789");
-                  if (genSymbols) pools.push("!@#$%^&*()-_=+[]{}");
-                  if (pools.length === 0) { message.error("Select at least one character set"); return; }
-                  const pick = (s) => s[Math.floor(Math.random() * s.length)];
-                  let pwd = pools.map(pick).join("");
-                  const all = pools.join("");
-                  for (let i = pwd.length; i < genLength; i++) pwd += pick(all);
-                  pwd = pwd.split("").sort(() => Math.random() - 0.5).join("");
-                  setGenOutput(pwd);
-                }}>Generate</Button>
-                <Button onClick={() => { navigator.clipboard.writeText(genOutput || ""); message.success("Copied to clipboard"); }} disabled={!genOutput}>Copy</Button>
-              </Space>
-            </Space>
-          </Col>
-          <Col xs={24} md={12}>
-            <Input.TextArea rows={3} value={genOutput} readOnly placeholder="Generated password will appear here" />
-          </Col>
-        </Row>
-      </Card>
+      {/* Password Generator moved to Developer Settings > Tools */}
 
       {/* Edit Modal */}
       <Modal
@@ -452,9 +433,8 @@ const Accounts = () => {
         okButtonProps={{
           disabled:
             form.getFieldsError().some(({ errors }) => errors.length) || // block if validation errors
-            (currentUser?.Position !== "Developer" &&
-              currentUser?.Username !== editingUser?.Username) || // block non-dev editing others
-            (currentUser?.Position !== "Developer" &&
+            (!isDev && currentUser?.Username !== editingUser?.Username) || // block non-dev editing others
+            (!isDev &&
               editingUser?._id === currentUser?._id &&
               form.getFieldValue("Position")?.trim().toLowerCase() ===
                 "developer"), // block self-promotion to Developer
@@ -515,10 +495,10 @@ const Accounts = () => {
             label="Position"
             rules={[
               { required: true },
-              ({ getFieldValue }) => ({
+              () => ({
                 validator(_, value) {
                   if (
-                    currentUser?.Position !== "Developer" &&
+                    !isDev &&
                     editingUser?._id === currentUser?._id &&
                     value?.trim().toLowerCase() === "developer"
                   ) {
@@ -533,7 +513,7 @@ const Accounts = () => {
               }),
             ]}
           >
-            {currentUser?.Position === "Developer" ? (
+            {isDev ? (
               <Input />
             ) : editingUser?._id === currentUser?._id ? (
               <Input />
@@ -548,7 +528,7 @@ const Accounts = () => {
             label="Username"
             rules={[{ required: true }]}
           >
-            {currentUser?.Position === "Developer" ? (
+            {isDev ? (
               <Input />
             ) : (
               <Input

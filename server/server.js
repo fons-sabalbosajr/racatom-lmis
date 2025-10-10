@@ -29,24 +29,50 @@ import fs from "fs";
 import parseCollectionRoutes from "./routes/parseCollectionRoutes.js";
 import loanClientApplicationRoute from "./routes/loanClientApplicationRoute.js";
 import databaseRoutes from "./routes/databaseRoutes.js";
+import runtimeFlags from "./utils/runtimeFlags.js";
+import User from "./models/UserAccount.js";
 
 
 const app = express();
+
+// Google Drive upload config is read from environment:
+// - DRIVE_FOLDER_ID: target parent folder ID(s), comma-separated
+// - DRIVE_KEY_FILE or DRIVE_SA_KEY_BASE64 or DRIVE_SERVICE_ACCOUNT_JSON
+// - DRIVE_SHARE_PUBLIC=true to auto-share as anyone-with-link reader
 
 // Middleware
 app.use(express.json({ limit: "10mb" })); // parse JSON body
 app.use(cookieParser()); // parse cookies
 
-// Static serving for uploaded loan documents (must be after app is created)
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-app.use("/uploads", express.static(uploadsDir));
+// Static serving for uploaded loan documents remains for backward compatibility.
+// When Google Drive is configured (any DRIVE_FOLDER_* set), skip creating/serving local uploads.
+const hasDriveFolders = Boolean(
+  (process.env.DRIVE_FOLDER_IMAGES_ID && process.env.DRIVE_FOLDER_IMAGES_ID.trim()) ||
+  (process.env.DRIVE_FOLDER_DOCS_ID && process.env.DRIVE_FOLDER_DOCS_ID.trim()) ||
+  (process.env.DRIVE_FOLDER_ID && process.env.DRIVE_FOLDER_ID.trim())
+);
+if (!hasDriveFolders) {
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  app.use("/uploads", express.static(uploadsDir));
+}
 
-// Enable CORS with credentials
+// Enable CORS with credentials (support multiple origins)
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173", // frontend URL
-    credentials: true, // allow cookies to be sent
+    origin: (origin, callback) => {
+      const envList = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || "http://localhost:5173")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      // In dev, allow any origin if not explicitly set
+      if (!origin) return callback(null, true); // curl / server-to-server
+      if (envList.includes(origin)) return callback(null, true);
+      if (process.env.NODE_ENV !== "production") return callback(null, true);
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
+    credentials: true,
   })
 );
 
@@ -54,6 +80,33 @@ app.use(
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
+
+// Maintenance-mode gate: block non-developers when active
+app.use(async (req, res, next) => {
+  try {
+    if (!runtimeFlags.maintenance) return next();
+
+    // Allow auth routes to let developers log in
+    if (req.path.startsWith("/api/auth")) return next();
+    // Allow developers to access database and any route if they are dev
+  const token = req.headers?.authorization?.split?.(" ")[1] || req.cookies?.token;
+    if (!token) return res.status(503).json({ success: false, message: "Maintenance mode active" });
+    try {
+      // reuse requireAuth logic minimally (avoid circular import): verify via User lookup on decoded token id
+      const jwt = (await import("jsonwebtoken")).default;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded?.id) {
+        const u = await User.findById(decoded.id).select("Position");
+        if (u && String(u.Position).toLowerCase() === "developer") return next();
+      }
+    } catch (e) {
+      // ignore and block below
+    }
+    return res.status(503).json({ success: false, message: "Maintenance mode active" });
+  } catch (err) {
+    return res.status(503).json({ success: false, message: "Maintenance mode" });
+  }
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -70,6 +123,45 @@ app.use("/api/parse", parseCollectionRoutes);
 app.use("/api/loan_clients_application", loanClientApplicationRoute);
 // Database maintenance (developer-only)
 app.use("/api/database", databaseRoutes);
+
+// Lightweight health check: confirms server is up and whether Drive config looks present
+app.get("/api/health", (req, res) => {
+  try {
+    const driveConfigured = Boolean(
+      (process.env.DRIVE_FOLDER_IMAGES_ID && process.env.DRIVE_FOLDER_IMAGES_ID.trim()) ||
+      (process.env.DRIVE_FOLDER_DOCS_ID && process.env.DRIVE_FOLDER_DOCS_ID.trim()) ||
+      (process.env.DRIVE_FOLDER_ID && process.env.DRIVE_FOLDER_ID.trim())
+    );
+    const secretsPaths = [
+      path.join(process.cwd(), "secrets", "google_drive_credentials.json"),
+      path.join(process.cwd(), "secrets", "rct-credentials.json"),
+    ];
+    const driveCredsFound = secretsPaths.some((p) => {
+      try { return fs.existsSync(p); } catch { return false; }
+    }) || Boolean(
+      (process.env.DRIVE_KEY_FILE && process.env.DRIVE_KEY_FILE.trim()) ||
+      (process.env.DRIVE_SA_KEY_BASE64 && process.env.DRIVE_SA_KEY_BASE64.trim()) ||
+      (process.env.DRIVE_SERVICE_ACCOUNT_JSON && process.env.DRIVE_SERVICE_ACCOUNT_JSON.trim())
+    );
+
+    return res.json({
+      success: true,
+      server: "ok",
+      mongo: mongoose.connection?.readyState === 1 ? "connected" : "not-connected",
+      drive: {
+        foldersConfigured: driveConfigured,
+        credentialsPresent: !!driveCredsFound,
+        sharePublic: String(process.env.DRIVE_SHARE_PUBLIC || "").toLowerCase() === "true",
+      },
+      env: {
+        clientOrigins: (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean),
+        port: process.env.PORT || 5000,
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
 
 // Default error handler (optional, improves debugging)
 app.use((err, req, res, next) => {

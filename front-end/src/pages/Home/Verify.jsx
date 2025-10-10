@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, Spin, Typography, message } from "antd";
+import { Card, Spin, Typography } from "antd";
+import api from "../../utils/axios";
 
 const { Text } = Typography;
 
@@ -19,16 +20,9 @@ function Verify() {
       }
 
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/auth/verify-token/${token}`
-        );
-        const data = await res.json();
-
-        if (res.ok) {
-          setStatusMessage(data.message);
-        } else {
-          setStatusMessage(data.message);
-        }
+        const res = await api.get(`/auth/verify-token/${token}`);
+        const data = res.data;
+        setStatusMessage(data?.message || "Verification complete.");
       } catch (err) {
         console.error(err);
         setStatusMessage("An error occurred during verification. Please try again.");

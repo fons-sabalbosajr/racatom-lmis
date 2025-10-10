@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal, ColorPicker, Radio } from "antd";
+import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal, ColorPicker, Radio, Card, Checkbox } from "antd";
 import { useDevSettings } from "../../../context/DevSettingsContext";
 import api from "../../../utils/axios";
 import "./devsettings.css";
@@ -16,6 +16,8 @@ export default function DeveloperSettings() {
   const [verifying, setVerifying] = useState({}); // { [userId]: boolean }
   const [positionUpdating, setPositionUpdating] = useState({}); // { [userId]: boolean }
   const [tempPwdSubmitting, setTempPwdSubmitting] = useState(false);
+  const [permModal, setPermModal] = useState({ open: false, user: null });
+  const [permState, setPermState] = useState(null);
 
   const fetchUsers = async () => {
     try {
@@ -167,6 +169,7 @@ export default function DeveloperSettings() {
                   <Space>
                     <Button size="small" onClick={() => sendResetEmail(record)} loading={!!sendingReset[record._id]}>Send Reset Email</Button>
                     <Button size="small" onClick={() => openTempPwdModal(record)}>Set Temp Password</Button>
+                    <Button size="small" onClick={() => openPermissionsModal(record)}>Manage Access</Button>
                   </Space>
                 ),
               },
@@ -240,6 +243,63 @@ export default function DeveloperSettings() {
   const openTempPwdModal = (user) => {
     setTempPwdValue("");
     setTempPwdModal({ open: true, user });
+  };
+
+  const openPermissionsModal = (user) => {
+    // initialize state from user.permissions or defaults
+    const defaults = {
+      menus: {
+        dashboard: true,
+        loans: true,
+        reports: true,
+        settings: true,
+        settingsDatabase: false,
+        settingsEmployees: false,
+        settingsCollectors: true,
+        settingsAnnouncements: true,
+        settingsAccounting: true,
+        developerSettings: false,
+      },
+      actions: {
+        canView: true,
+        canEdit: false,
+        canDelete: false,
+        loans: { canView: true, canEdit: false, canDelete: false },
+        collections: { canView: true, canEdit: false, canDelete: false },
+        reports: { canView: true, canEdit: false, canDelete: false },
+        users: { canView: false, canEdit: false, canDelete: false },
+      },
+    };
+    // Deep-merge defaults with existing permissions so all expected keys (like Employee Accounts, Announcements) are present
+    const mergePerms = (base, extra) => ({
+      menus: { ...base.menus, ...(extra?.menus || {}) },
+      actions: {
+        ...base.actions,
+        ...(extra?.actions || {}),
+        loans: { ...base.actions.loans, ...(extra?.actions?.loans || {}) },
+        collections: { ...base.actions.collections, ...(extra?.actions?.collections || {}) },
+        reports: { ...base.actions.reports, ...(extra?.actions?.reports || {}) },
+        users: { ...base.actions.users, ...(extra?.actions?.users || {}) },
+      },
+    });
+    const existing = (user.permissions && Object.keys(user.permissions).length) ? user.permissions : null;
+    const p = mergePerms(defaults, existing);
+    setPermState(JSON.parse(JSON.stringify(p)));
+    setPermModal({ open: true, user });
+  };
+
+  const savePermissions = async () => {
+    try {
+      if (!permModal.user || !permState) return;
+      await api.put(`/users/${permModal.user._id}`, { permissions: permState });
+      message.success("Permissions updated");
+      setPermModal({ open: false, user: null });
+      setPermState(null);
+      fetchUsers();
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to update permissions";
+      message.error(msg);
+    }
   };
 
   const submitTempPwd = async () => {
@@ -407,6 +467,13 @@ export default function DeveloperSettings() {
       ),
     },
     {
+      key: "tools",
+      label: "Tools",
+      children: (
+        <PasswordGeneratorCard />
+      ),
+    },
+    {
       key: "loans",
       label: "Loans",
       children: (
@@ -451,6 +518,30 @@ export default function DeveloperSettings() {
             label="Allow delete user (UI)"
             checked={settings.allowUserDelete}
             onChange={(v) => setSetting("allowUserDelete", v)}
+          />
+        </Space>
+      ),
+    },
+    {
+      key: "manage-access",
+      label: "Manage Access (UI toggles)",
+      children: (
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <SettingRow
+            label="Show Settings / Employee Accounts"
+            checked={settings.accessEmployees}
+            onChange={(v) => setSetting("accessEmployees", v)}
+          />
+          <SettingRow
+            label="Show Settings / Announcements"
+            checked={settings.accessAnnouncements}
+            onChange={(v) => setSetting("accessAnnouncements", v)}
+          />
+          <Alert
+            type="info"
+            showIcon
+            message="These toggles affect UI visibility only"
+            description="They hide or show the menu items locally. They do not change server-side permissions. Use Manage Access per user to control backend permissions."
           />
         </Space>
       ),
@@ -504,6 +595,142 @@ export default function DeveloperSettings() {
           <Text type="secondary">This will immediately set the user's password and email them the temporary password. Ask the user to change it after login.</Text>
         </Space>
       </Modal>
+      <Modal
+        title={`Manage Access${permModal.user ? ` — ${permModal.user.FullName || permModal.user.Username}` : ""}`}
+        open={permModal.open}
+        onCancel={() => { setPermModal({ open: false, user: null }); setPermState(null); }}
+        onOk={savePermissions}
+        okText="Save"
+        width={720}
+      >
+        {permState ? (
+          <Space direction="vertical" style={{ width: "100%" }} size="large">
+            <Card size="small" title="Menu Access">
+              {(() => {
+                const menuLabels = {
+                  dashboard: "Dashboard",
+                  loans: "Loans",
+                  reports: "Reports",
+                  settings: "Settings (root)",
+                  settingsDatabase: "Settings / Database",
+                  settingsEmployees: "Settings / Employee Accounts",
+                  settingsCollectors: "Settings / Collector Accounts",
+                  settingsAnnouncements: "Settings / Announcements",
+                  settingsAccounting: "Settings / Accounting Center",
+                  developerSettings: "Developer Settings",
+                };
+                const order = [
+                  "dashboard",
+                  "loans",
+                  "reports",
+                  "settings",
+                  "settingsEmployees",
+                  "settingsCollectors",
+                  "settingsAnnouncements",
+                  "settingsAccounting",
+                  "settingsDatabase",
+                  "developerSettings",
+                ];
+                const keys = Array.from(new Set([...order, ...Object.keys(permState.menus || {})]));
+                return (
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    {keys.map((k) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{menuLabels[k] || k}</span>
+                        <Switch
+                          checked={!!permState.menus[k]}
+                          onChange={(val) => setPermState((prev) => ({ ...prev, menus: { ...prev.menus, [k]: val } }))}
+                        />
+                      </div>
+                    ))}
+                  </Space>
+                );
+              })()}
+            </Card>
+            <Card size="small" title="Global Actions">
+              <Space>
+                <Checkbox checked={!!permState.actions.canView} onChange={(e) => setPermState((p) => ({ ...p, actions: { ...p.actions, canView: e.target.checked } }))}>View</Checkbox>
+                <Checkbox checked={!!permState.actions.canEdit} onChange={(e) => setPermState((p) => ({ ...p, actions: { ...p.actions, canEdit: e.target.checked } }))}>Edit</Checkbox>
+                <Checkbox checked={!!permState.actions.canDelete} onChange={(e) => setPermState((p) => ({ ...p, actions: { ...p.actions, canDelete: e.target.checked } }))}>Delete</Checkbox>
+              </Space>
+            </Card>
+            <Card size="small" title="Module Actions">
+              {Object.keys(permState.actions).filter((k) => typeof permState.actions[k] === 'object').map((mod) => (
+                <div key={mod} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                  <strong style={{ width: 120, textTransform: 'capitalize' }}>{mod}</strong>
+                  <Space>
+                    <Checkbox checked={!!permState.actions[mod].canView} onChange={(e) => setPermState((p) => ({ ...p, actions: { ...p.actions, [mod]: { ...p.actions[mod], canView: e.target.checked } } }))}>View</Checkbox>
+                    <Checkbox checked={!!permState.actions[mod].canEdit} onChange={(e) => setPermState((p) => ({ ...p, actions: { ...p.actions, [mod]: { ...p.actions[mod], canEdit: e.target.checked } } }))}>Edit</Checkbox>
+                    <Checkbox checked={!!permState.actions[mod].canDelete} onChange={(e) => setPermState((p) => ({ ...p, actions: { ...p.actions, [mod]: { ...p.actions[mod], canDelete: e.target.checked } } }))}>Delete</Checkbox>
+                  </Space>
+                </div>
+              ))}
+            </Card>
+          </Space>
+        ) : (
+          <div>No permissions loaded.</div>
+        )}
+      </Modal>
     </div>
+  );
+}
+
+function PasswordGeneratorCard() {
+  const [genLength, setGenLength] = useState(12);
+  const [genUpper, setGenUpper] = useState(true);
+  const [genLower, setGenLower] = useState(true);
+  const [genDigits, setGenDigits] = useState(true);
+  const [genSymbols, setGenSymbols] = useState(true);
+  const [genOutput, setGenOutput] = useState("");
+  return (
+    <Card size="small" title="Password Generator">
+      <Space direction="vertical" style={{ width: "100%" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span style={{ minWidth: 90 }}>Length:</span>
+          <Input
+            type="number"
+            min={6}
+            max={64}
+            value={genLength}
+            onChange={(e) => setGenLength(Number(e.target.value))}
+            style={{ width: 100 }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span style={{ minWidth: 90 }}>Uppercase:</span>
+          <Switch checked={genUpper} onChange={setGenUpper} />
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span style={{ minWidth: 90 }}>Lowercase:</span>
+          <Switch checked={genLower} onChange={setGenLower} />
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span style={{ minWidth: 90 }}>Digits:</span>
+          <Switch checked={genDigits} onChange={setGenDigits} />
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span style={{ minWidth: 90 }}>Symbols:</span>
+          <Switch checked={genSymbols} onChange={setGenSymbols} />
+        </div>
+        <Space>
+          <Button onClick={() => {
+            const pools = [];
+            if (genUpper) pools.push("ABCDEFGHJKLMNPQRSTUVWXYZ");
+            if (genLower) pools.push("abcdefghijkmnopqrstuvwxyz");
+            if (genDigits) pools.push("23456789");
+            if (genSymbols) pools.push("!@#$%^&*()-_=+[]{}");
+            if (pools.length === 0) { message.error("Select at least one character set"); return; }
+            const pick = (s) => s[Math.floor(Math.random() * s.length)];
+            let pwd = pools.map(pick).join("");
+            const all = pools.join("");
+            for (let i = pwd.length; i < genLength; i++) pwd += pick(all);
+            pwd = pwd.split("").sort(() => Math.random() - 0.5).join("");
+            setGenOutput(pwd);
+          }}>Generate</Button>
+          <Button onClick={() => { navigator.clipboard.writeText(genOutput || ""); message.success("Copied to clipboard"); }} disabled={!genOutput}>Copy</Button>
+        </Space>
+        <Input.TextArea rows={3} value={genOutput} readOnly placeholder="Generated password will appear here" />
+      </Space>
+    </Card>
   );
 }

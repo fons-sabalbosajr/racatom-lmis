@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Form, Input, Button, Card, message, Typography } from "antd";
-import axios from "axios";
+import api from "../../utils/axios";
 import { useNavigate, Link } from "react-router-dom";
 
 const { Title } = Typography;
@@ -12,7 +12,7 @@ function ForgotPassword() {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/auth/forgot-password`, values);
+  await api.post(`/auth/forgot-password`, values);
       message.success("Password reset email sent. Check your inbox.");
       navigate("/login");
     } catch (err) {

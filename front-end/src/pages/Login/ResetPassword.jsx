@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Form, Input, Button, Card, message, Typography } from "antd";
-import axios from "axios";
+import api from "../../utils/axios";
 import { useNavigate, useParams } from "react-router-dom";
 
 const { Title } = Typography;
@@ -13,7 +13,7 @@ function ResetPassword() {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/auth/reset-password/${token}`, values);
+  await api.post(`/auth/reset-password/${token}`, values);
       message.success("Password reset successful. You can now login.");
       navigate("/login");
     } catch (err) {

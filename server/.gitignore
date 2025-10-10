@@ -24,3 +24,6 @@ build/
 
 # VSCode settings
 .vscode/
+
+# Ignore secrets folder inside this server directory
+secrets/

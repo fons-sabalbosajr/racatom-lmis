@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Card,
   Row,
@@ -11,6 +11,12 @@ import {
   Spin,
   Table,
   Tooltip,
+  Modal,
+  Form,
+  InputNumber,
+  Input,
+  Select,
+  Button,
 } from "antd";
 import {
   DollarCircleOutlined,
@@ -41,7 +47,6 @@ import "./accountingCenter.css";
 dayjs.extend(isBetween);
 
 const { Title, Text } = Typography;
-const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
 
 // --- Helper Functions ---
@@ -168,7 +173,7 @@ const CollectionBreakdownChart = React.memo(({ data }) => {
   );
 });
 
-const RecentTransactions = React.memo(({ transactions, loading }) => {
+const RecentTransactions = React.memo(({ transactions, loading, onOpen }) => {
   const columns = [
     {
       title: "Date",
@@ -179,16 +184,26 @@ const RecentTransactions = React.memo(({ transactions, loading }) => {
         dayjs(a.PaymentDate).unix() - dayjs(b.PaymentDate).unix(),
       defaultSortOrder: "descend",
     },
+    { title: "Account Id", dataIndex: "AccountId", key: "accountId" },
     { title: "Client No", dataIndex: "ClientNo", key: "clientNo" },
     { title: "Loan Cycle No", dataIndex: "LoanCycleNo", key: "loanCycleNo" },
     { title: "Collector", dataIndex: "CollectorName", key: "collector" },
-    { title: "Payment Type", dataIndex: "PaymentType", key: "paymentType" },
+    { title: "Payment Mode", dataIndex: "PaymentMode", key: "paymentMode" },
     {
       title: "Amount",
       dataIndex: "CollectionPayment",
       key: "amount",
       render: (text) => formatCurrency(text),
       sorter: (a, b) => a.CollectionPayment - b.CollectionPayment,
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      render: (_, rec) => (
+        <Button size="small" onClick={() => onOpen && onOpen(rec)}>Details</Button>
+      ),
+      fixed: "right",
+      width: 96,
     },
   ];
 
@@ -198,7 +213,18 @@ const RecentTransactions = React.memo(({ transactions, loading }) => {
         columns={columns}
         dataSource={transactions}
         loading={loading}
-        rowKey="_id"
+        rowKey={(r) => {
+          // Prefer stringified _id; fallback to a composite key to guarantee uniqueness
+          const id = r?._id && typeof r._id === "object" && typeof r._id.toString === "function" ? r._id.toString() : r?._id;
+          const key = [
+            id || "",
+            r?.AccountId || "",
+            r?.LoanCycleNo || "",
+            r?.CollectionReferenceNo || "",
+            r?.PaymentDate || "",
+          ].join("|");
+          return key || Math.random().toString(36).slice(2);
+        }}
         pagination={{ pageSize: 10 }}
         scroll={{ x: "max-content" }}
       />
@@ -218,69 +244,99 @@ const AccountingCenter = () => {
   });
   const [allCollections, setAllCollections] = useState([]);
   const [filteredCollections, setFilteredCollections] = useState([]);
+  // Transactions tab: load full dataset once on demand
+  const [allTransactions, setAllTransactions] = useState([]);
+  const [txLoading, setTxLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("1");
+  // Details modal state
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [detailsForm] = Form.useForm();
+  const [pmodeOptions, setPmodeOptions] = useState([]);
+  const [collectorOptions, setCollectorOptions] = useState([]);
+
+  // Preload dropdown options for modal
+  useEffect(() => {
+    const loadLookups = async () => {
+      try {
+        const [pm, cn] = await Promise.all([
+          api.get("/loan-collections/payment-modes"),
+          api.get("/loan-collections/collector-names"),
+        ]);
+        if (pm.data?.success) setPmodeOptions((pm.data.data || []).filter(Boolean));
+        if (cn.data?.success) setCollectorOptions((cn.data.data || []).filter(Boolean));
+      } catch (e) {
+        // non-blocking
+      }
+    };
+    loadLookups();
+  }, []);
   const [dateRange, setDateRange] = useState([
     dayjs().subtract(30, "days"),
     dayjs(),
   ]);
 
+  // Fetch disbursed once (overall stat) and collections for the current range
+  const fetchDisbursed = useCallback(async () => {
+    try {
+      const statsRes = await api.get("/dashboard/stats");
+      const dashboardStats = statsRes.data?.data?.stats || {};
+      setStats((prev) => ({
+        ...prev,
+        totalDisbursed: Number(dashboardStats.totalDisbursed || 0),
+      }));
+    } catch (e) {
+      // Non-blocking; show a soft message
+      console.warn("Dashboard stats fetch failed:", e?.message || e);
+    }
+  }, []);
+
+  const fetchCollectionsForRange = useCallback(async (start, end) => {
+    if (!start || !end) return;
+    setLoading(true);
+    try {
+      const params = {
+        startDate: start.startOf("day").toDate().toISOString(),
+        endDate: end.endOf("day").toDate().toISOString(),
+        limit: 0, // fetch all within range in a single request
+        sortBy: "PaymentDate",
+        sortDir: "asc",
+      };
+      const res = await api.get("/loan-collections", { params });
+      if (!res.data?.success)
+        throw new Error(res.data?.message || "Failed to load collections");
+
+      const rows = Array.isArray(res.data.data) ? res.data.data : [];
+      setAllCollections(rows);
+      setFilteredCollections(rows);
+
+      // Aggregate stats from returned rows
+      const sum = (arr, key) =>
+        arr.reduce((acc, curr) => acc + Number(curr?.[key] || 0), 0);
+      const totalCollected = sum(rows, "CollectionPayment");
+      const totalPrincipal = sum(rows, "PrincipalPaid");
+      const totalInterest = sum(rows, "CollectedInterest");
+      setStats((prev) => ({
+        ...prev,
+        totalCollected,
+        totalPrincipal,
+        totalInterest,
+      }));
+    } catch (e) {
+      console.error("Collections fetch failed:", e);
+      message.error(
+        e?.response?.data?.message || e?.message || "Failed to load collections"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const statsRes = await api.get("/dashboard/stats");
-        const dashboardStats = statsRes.data.success
-          ? statsRes.data.data.stats
-          : {};
-
-        const loansRes = await api.get("/loans", { params: { limit: 50000 } });
-        if (!loansRes.data.success) {
-          throw new Error("Could not fetch loan list.");
-        }
-        const loans = loansRes.data.data;
-
-        const collectionPromises = loans
-          .filter((loan) => loan.loanInfo && loan.loanInfo.loanNo)
-          .map((loan) =>
-            api.get(`/loan-collections/${loan.loanInfo.loanNo}`, {
-              params: { limit: 50000 },
-            })
-          );
-
-        const collectionResults = await Promise.all(collectionPromises);
-        const allCollectionsData = collectionResults.flatMap((res) =>
-          res.data.success ? res.data.data : []
-        );
-
-        setAllCollections(allCollectionsData);
-
-        const totalCollected = allCollectionsData.reduce(
-          (acc, curr) => acc + parseFloat(curr.CollectionPayment || 0),
-          0
-        );
-        // Correctly sum PrincipalPaid and InterestPaid
-        const totalPrincipal = allCollectionsData.reduce(
-          (acc, curr) => acc + parseFloat(curr.PrincipalPaid || 0),
-          0
-        );
-        const totalInterest = allCollectionsData.reduce(
-          (acc, curr) => acc + parseFloat(curr.CollectedInterest || 0),
-          0
-        );
-
-        setStats({
-          totalDisbursed: dashboardStats.totalDisbursed || 0,
-          totalCollected,
-          totalPrincipal,
-          totalInterest,
-        });
-      } catch (error) {
-        console.error("Failed to fetch accounting data:", error);
-        message.error("Failed to fetch accounting data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    fetchDisbursed();
+    const [start, end] = dateRange;
+    fetchCollectionsForRange(start, end);
   }, []);
 
   useEffect(() => {
@@ -335,6 +391,14 @@ const AccountingCenter = () => {
     ].filter((item) => item.value > 0);
   }, [filteredCollections]);
 
+  // Always show Transactions sorted by most recent date first
+  const transactionsRows = useMemo(() => {
+    const rows = allTransactions.length ? allTransactions : filteredCollections;
+    return [...rows].sort(
+      (a, b) => dayjs(b.PaymentDate).valueOf() - dayjs(a.PaymentDate).valueOf()
+    );
+  }, [allTransactions, filteredCollections]);
+
   if (loading && allCollections.length === 0) {
     return (
       <Spin
@@ -345,25 +409,24 @@ const AccountingCenter = () => {
     );
   }
 
-  return (
-    <div className="accounting-center-container">
-      <Title level={2}>Accounting Center</Title>
-      <Text type="secondary">
-        Financial overview and reporting for your loan operations.
-      </Text>
-
-      <Tabs defaultActiveKey="1" style={{ marginTop: 20 }}>
-        <TabPane
-          tab={
-            <span>
-              <BarChartOutlined /> Overview
-            </span>
-          }
-          key="1"
-        >
+  // Build Tabs items for AntD v5
+  const tabsItems = [
+    {
+      key: "1",
+      label: (
+        <span>
+          <BarChartOutlined /> Overview
+        </span>
+      ),
+      children: (
+        <>
           <RangePicker
             value={dateRange}
-            onChange={setDateRange}
+            onChange={(range) => {
+              setDateRange(range);
+              const [s, e] = range || [];
+              if (s && e) fetchCollectionsForRange(s, e);
+            }}
             style={{ marginBottom: 16 }}
             allowClear
           />
@@ -376,18 +439,214 @@ const AccountingCenter = () => {
               <CollectionBreakdownChart data={breakdownData} />
             </Col>
           </Row>
-        </TabPane>
-        <TabPane
-          tab={
-            <span>
-              <FileTextOutlined /> Transactions
-            </span>
+        </>
+      ),
+    },
+    {
+      key: "2",
+      label: (
+        <span>
+          <FileTextOutlined /> Transactions
+        </span>
+      ),
+      children: (
+        <RecentTransactions
+          transactions={transactionsRows}
+          loading={txLoading || loading}
+          onOpen={(rec) => {
+            setSelectedTx(rec);
+            detailsForm.setFieldsValue({
+              PaymentDate: rec?.PaymentDate ? dayjs(rec.PaymentDate) : null,
+              PaymentMode: rec?.PaymentMode || undefined,
+              CollectorName: rec?.CollectorName || undefined,
+              CollectionPayment: Number(rec?.CollectionPayment || 0),
+              PrincipalPaid: Number(rec?.PrincipalPaid || 0),
+              CollectedInterest: Number(rec?.CollectedInterest || 0),
+              Penalty: Number(rec?.Penalty || 0),
+              CollectionReferenceNo: rec?.CollectionReferenceNo || undefined,
+              Bank: rec?.Bank || undefined,
+              Branch: rec?.Branch || undefined,
+              RunningBalance: Number(rec?.RunningBalance || 0),
+            });
+            setDetailsOpen(true);
+          }}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <div className="accounting-center-container">
+      <Title level={2}>Accounting Center</Title>
+      <Text type="secondary">
+        Financial overview and reporting for your loan operations.
+      </Text>
+
+      <Tabs
+        items={tabsItems}
+        activeKey={activeTab}
+        onChange={async (key) => {
+          setActiveTab(key);
+          if (key === "2" && allTransactions.length === 0) {
+            try {
+              setTxLoading(true);
+              const res = await api.get("/loan-collections", {
+                params: { limit: 0, sortBy: "PaymentDate", sortDir: "desc" },
+              });
+              if (res.data?.success) {
+                setAllTransactions(Array.isArray(res.data.data) ? res.data.data : []);
+              } else {
+                message.error(res.data?.message || "Failed to load all transactions");
+              }
+            } catch (e) {
+              console.error("All transactions fetch failed:", e);
+              message.error(
+                e?.response?.data?.message || e?.message || "Failed to load all transactions"
+              );
+            } finally {
+              setTxLoading(false);
+            }
           }
-          key="2"
-        >
-          <RecentTransactions transactions={allCollections} loading={loading} />
-        </TabPane>
-      </Tabs>
+        }}
+        style={{ marginTop: 20 }}
+      />
+
+      {/* Transaction Details Modal */}
+      <Modal
+        title={selectedTx ? `Transaction Details – ${selectedTx?.LoanCycleNo || ''}` : "Transaction Details"}
+        open={detailsOpen}
+        onCancel={() => setDetailsOpen(false)}
+        footer={null}
+      >
+        {selectedTx && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: "#666" }}>
+            <div>Date: {selectedTx.PaymentDate ? dayjs(selectedTx.PaymentDate).format("YYYY-MM-DD HH:mm") : "—"}</div>
+            <div>Account: {selectedTx.AccountId || "—"}</div>
+            <div>Client: {selectedTx.ClientNo || "—"}</div>
+            <div>Collector: {selectedTx.CollectorName || "—"}</div>
+            <div>Payment Mode: {selectedTx.PaymentMode || "—"}</div>
+            <div>Total Paid: {formatCurrency(selectedTx.CollectionPayment)}</div>
+          </div>
+        )}
+        <Form form={detailsForm} layout="vertical" onFinish={async (vals) => {
+          if (!selectedTx?._id) return;
+          try {
+            setDetailsSaving(true);
+            const payload = {
+              PaymentDate: vals.PaymentDate ? vals.PaymentDate.toDate().toISOString() : selectedTx.PaymentDate,
+              PaymentMode: vals.PaymentMode ?? selectedTx.PaymentMode,
+              CollectorName: vals.CollectorName ?? selectedTx.CollectorName,
+              CollectionPayment: Number((vals.CollectionPayment ?? selectedTx.CollectionPayment) || 0),
+              PrincipalPaid: Number(vals.PrincipalPaid || 0),
+              CollectedInterest: Number(vals.CollectedInterest || 0),
+              Penalty: Number(vals.Penalty || 0),
+              CollectionReferenceNo: vals.CollectionReferenceNo ?? selectedTx.CollectionReferenceNo,
+              Bank: vals.Bank ?? selectedTx.Bank,
+              Branch: vals.Branch ?? selectedTx.Branch,
+              RunningBalance: Number((vals.RunningBalance ?? selectedTx.RunningBalance) || 0),
+            };
+            const res = await api.put(`/loan-collections/${selectedTx._id}`, payload);
+            if (res.data?.success) {
+              message.success("Transaction updated");
+              const updated = { ...selectedTx, ...payload };
+              setSelectedTx(updated);
+              // Update in-memory arrays
+              const applyUpdate = (arr) => arr.map((r) => (r._id === selectedTx._id ? { ...r, ...payload } : r));
+              setAllTransactions((arr) => (arr && arr.length ? applyUpdate(arr) : arr));
+              setAllCollections((arr) => applyUpdate(arr));
+              setFilteredCollections((arr) => applyUpdate(arr));
+              // Recompute stats based on filteredCollections
+              const rows = applyUpdate(filteredCollections);
+              const sum = (a, k) => a.reduce((acc, c) => acc + Number(c?.[k] || 0), 0);
+              setStats((prev) => ({
+                ...prev,
+                totalCollected: sum(rows, "CollectionPayment"),
+                totalPrincipal: sum(rows, "PrincipalPaid"),
+                totalInterest: sum(rows, "CollectedInterest"),
+              }));
+              setDetailsOpen(false);
+            } else {
+              message.error(res.data?.message || "Update failed");
+            }
+          } catch (e) {
+            console.error("Update failed", e);
+            message.error(e?.response?.data?.message || e?.message || "Update failed");
+          } finally {
+            setDetailsSaving(false);
+          }
+        }}>
+          <Row gutter={[12, 0]}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="PaymentDate" label="Payment Date">
+                <DatePicker showTime style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="PaymentMode" label="Payment Mode">
+                <Select allowClear placeholder="Select mode">
+                  {pmodeOptions.map((m) => (
+                    <Select.Option key={m} value={m}>{m}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={[12, 0]}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="CollectorName" label="Collector">
+                <Select allowClear showSearch placeholder="Select collector">
+                  {collectorOptions.map((c) => (
+                    <Select.Option key={c} value={c}>{c}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="CollectionPayment" label="Amount Paid">
+                <InputNumber style={{ width: "100%" }} min={0} step={0.01} precision={2} addonBefore="₱" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="PrincipalPaid" label="Principal (Paid)">
+            <InputNumber style={{ width: "100%" }} min={0} step={0.01} precision={2} addonBefore="₱" />
+          </Form.Item>
+          <Form.Item name="CollectedInterest" label="Interest (Paid)">
+            <InputNumber style={{ width: "100%" }} min={0} step={0.01} precision={2} addonBefore="₱" />
+          </Form.Item>
+          <Form.Item name="Penalty" label="Penalty">
+            <InputNumber style={{ width: "100%" }} min={0} step={0.01} precision={2} addonBefore="₱" />
+          </Form.Item>
+          <Row gutter={[12, 0]}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="CollectionReferenceNo" label="Reference No.">
+                <Input placeholder="e.g., OR# or Bank Ref" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="RunningBalance" label="Running Balance">
+                <InputNumber style={{ width: "100%" }} min={0} step={0.01} precision={2} addonBefore="₱" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={[12, 0]}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="Bank" label="Bank">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="Branch" label="Branch">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={detailsSaving}>
+              {detailsSaving ? "Updating..." : "Update"}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

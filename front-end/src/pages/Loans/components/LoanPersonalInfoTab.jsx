@@ -88,12 +88,12 @@ export default function LoanPersonalInfoTab({
         person.lastName,
       ].join("|");
       if (window.__lastPersonChecksum !== checksum) {
-        // eslint-disable-next-line no-console
-        console.log("[LoanPersonalInfoTab] editedLoan raw:", editedLoan);
-        // eslint-disable-next-line no-console
-        console.log("[LoanPersonalInfoTab] rawPerson:", rawPerson);
-        // eslint-disable-next-line no-console
-        console.log("[LoanPersonalInfoTab] derived person:", person);
+        // // eslint-disable-next-line no-console
+        // console.log("[LoanPersonalInfoTab] editedLoan raw:", editedLoan);
+        // // eslint-disable-next-line no-console
+        // console.log("[LoanPersonalInfoTab] rawPerson:", rawPerson);
+        // // eslint-disable-next-line no-console
+        // console.log("[LoanPersonalInfoTab] derived person:", person);
         window.__lastPersonChecksum = checksum;
       }
     } catch (e) {

@@ -44,6 +44,11 @@ export function lsSet(name, value) {
 export function lsGet(name) {
   try {
     const k = hashKey(name);
+    // Prefer sessionStorage (tab/window scoped) first
+    const vSession = typeof window !== "undefined" ? window.sessionStorage?.getItem(k) : null;
+    const decSession = decryptData(vSession);
+    if (decSession !== null) return decSession;
+
     const v = localStorage.getItem(k);
     const dec = decryptData(v);
     if (dec !== null) return dec;
@@ -64,10 +69,36 @@ export function lsGet(name) {
 
 export function lsRemove(name) {
   try {
-    localStorage.removeItem(hashKey(name));
+    const k = hashKey(name);
+    localStorage.removeItem(k);
+    try { window.sessionStorage?.removeItem(k); } catch {}
     // Also remove legacy
     localStorage.removeItem(name);
   } catch {}
+}
+
+// Session-scoped helpers (per tab/window)
+export function lsSetSession(name, value) {
+  try {
+    const k = hashKey(name);
+    const enc = encryptData(value);
+    if (enc === null) {
+      window.sessionStorage?.removeItem(k);
+    } else {
+      window.sessionStorage?.setItem(k, enc);
+    }
+  } catch {}
+}
+
+export function lsGetSession(name) {
+  try {
+    const k = hashKey(name);
+    const v = typeof window !== "undefined" ? window.sessionStorage?.getItem(k) : null;
+    const dec = decryptData(v);
+    return dec;
+  } catch {
+    return null;
+  }
 }
 
 // One-time migration helper to move known legacy keys to secure keys
@@ -102,7 +133,7 @@ migrateStorageKeys();
 // Clear all app keys: hashed with prefix + known legacy keys
 export function lsClearAllApp() {
   try {
-    const legacy = ["user", "onlineUser", "devSettings", "token"];
+    const legacy = ["user", "onlineUser", "devSettings", "token", "rct-lmis:user", "__session_token"]; // include legacy/plain
     // Remove hashed keys with our prefix
     const toRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -110,7 +141,19 @@ export function lsClearAllApp() {
       if (key && key.startsWith(KEY_PREFIX)) toRemove.push(key);
     }
     toRemove.forEach((k) => localStorage.removeItem(k));
+    // Also clear from sessionStorage
+    try {
+      const toRemoveSession = [];
+      for (let i = 0; i < window.sessionStorage.length; i++) {
+        const key = window.sessionStorage.key(i);
+        if (key && key.startsWith(KEY_PREFIX)) toRemoveSession.push(key);
+      }
+      toRemoveSession.forEach((k) => window.sessionStorage.removeItem(k));
+    } catch {}
     // Remove legacy
-    legacy.forEach((k) => localStorage.removeItem(k));
+    legacy.forEach((k) => {
+      try { localStorage.removeItem(k); } catch {}
+      try { window.sessionStorage?.removeItem(k); } catch {}
+    });
   } catch {}
 }

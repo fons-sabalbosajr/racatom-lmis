@@ -13,7 +13,7 @@ import {
   Col,
   Card,
 } from "antd";
-import axios from "axios";
+import api, { API_BASE_URL } from "../../../utils/axios";
 import "./loanrateconfig.css";
 
 const { Option } = Select;
@@ -59,7 +59,7 @@ const LoanRateConfig = ({ isModal = false }) => {
     search: "",
   });
 
-  const API_BASE = import.meta.env.VITE_API_URL + "/loan_rates";
+  const API_BASE = `${API_BASE_URL}/loan_rates`;
 
   useEffect(() => {
     fetchLoanRates();
@@ -68,7 +68,7 @@ const LoanRateConfig = ({ isModal = false }) => {
   const fetchLoanRates = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(API_BASE);
+  const res = await api.get(API_BASE.replace(API_BASE_URL, ""));
       setLoanRates(res.data.data || []);
     } catch (err) {
       console.error(err);
@@ -88,8 +88,8 @@ const LoanRateConfig = ({ isModal = false }) => {
     try {
       const values = await form.validateFields();
       if (editingRate)
-        await axios.put(`${API_BASE}/${editingRate._id}`, values);
-      else await axios.post(API_BASE, values);
+        await api.put(`${API_BASE.replace(API_BASE_URL, "")}/${editingRate._id}`, values);
+      else await api.post(API_BASE.replace(API_BASE_URL, ""), values);
       message.success(
         editingRate ? "Updated successfully" : "Added successfully"
       );
@@ -103,7 +103,7 @@ const LoanRateConfig = ({ isModal = false }) => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`${API_BASE}/${id}`);
+  await api.delete(`${API_BASE.replace(API_BASE_URL, "")}/${id}`);
       message.success("Deleted successfully");
       fetchLoanRates();
     } catch (err) {

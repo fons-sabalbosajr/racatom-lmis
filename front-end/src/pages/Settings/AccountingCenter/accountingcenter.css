@@ -1,4 +1,42 @@
 .accounting-center-container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Accounting look-and-feel */
+.stat-card .ant-statistic-title {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.stat-card .ant-statistic-content {
+  font-variant-numeric: tabular-nums; /* monospaced digits for amounts */
+}
+
+/* Table: numeric alignment and compact look */
+.accounting-center-container .ant-table {
+  border-radius: 8px;
+}
+.accounting-center-container .ant-table-thead > tr > th {
+  background: #fafafa !important;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.accounting-center-container .ant-table-tbody > tr > td:nth-child(6) {
+  text-align: right; /* Amount column */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Charts spacing */
+.accounting-center-container .ant-card + .ant-card {
+  margin-top: 12px;
+}
+
+.full-page-spin {
+  width: 100%;
+  margin: 48px 0;
+}
+.accounting-center-container {
   padding: 10px;
   background-color: #f0f2f5;
   border-radius: 8px;

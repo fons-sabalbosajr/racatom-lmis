@@ -58,16 +58,35 @@ function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Ensure user info (name/photo) reflects the active session
+  useEffect(() => {
+    const syncUser = async () => {
+      try {
+        const res = await api.get(`/auth/me`);
+        const fetched = res?.data?.data?.user;
+        if (fetched) {
+          setUser(fetched);
+          // keep local storage in sync for other consumers
+          try {
+            // keep storage in sync using encrypted helper
+            const { lsSet } = await import("../../utils/storage");
+            lsSet("user", fetched);
+          } catch {}
+        }
+      } catch (e) {
+        // handled globally (401 redirects); swallow here
+      }
+    };
+
+    // Always attempt to sync on mount; cheap and keeps UI accurate on refresh
+    syncUser();
+  }, []);
+
   // Fetch announcements (Simplified logic)
   useEffect(() => {
     const fetchAnnouncements = async () => {
       try {
-        const res = await api.get(
-          `${import.meta.env.VITE_API_URL}/announcements`,
-          {
-            withCredentials: true,
-          }
-        );
+        const res = await api.get(`/announcements`);
         // Directly set the state with the data from the API
         setNotifications(res.data.announcements || []);
       } catch (err) {
@@ -87,16 +106,22 @@ function Home() {
       setNotifications((prev) =>
         prev.map((n) => (n._id === announcementId ? { ...n, isRead: true } : n))
       );
-      navigate(link);
+
+      // Determine if current user is a developer (only devs navigate)
+      const perms = user?.permissions?.menus || {};
+      const isDev = (() => {
+        const pos = String(user?.Position || "").toLowerCase();
+        if (pos === "developer") return true;
+        return !!(perms.developerSettings || perms.settingsDatabase || perms.admin);
+      })();
+
+      // Only developers navigate to the announcement details (and only if visible in UI settings)
+      if (isDev && settings.accessAnnouncements !== false && link) {
+        navigate(link);
+      }
 
       // Send request to the backend
-      await api.post(
-        `${
-          import.meta.env.VITE_API_URL
-        }/announcements/${announcementId}/mark-as-read`,
-        {},
-        { withCredentials: true }
-      );
+      await api.post(`/announcements/${announcementId}/mark-as-read`, {});
     } catch (err) {
       console.error("Failed to mark announcement as read:", err);
     }
@@ -109,11 +134,7 @@ function Home() {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
 
       // Send request to the backend
-      await api.post(
-        `${import.meta.env.VITE_API_URL}/announcements/mark-all-as-read`,
-        {},
-        { withCredentials: true }
-      );
+      await api.post(`/announcements/mark-all-as-read`, {});
     } catch (err) {
       console.error("Failed to mark all announcements as read:", err);
     }
@@ -124,14 +145,22 @@ function Home() {
   const handleLogout = async () => {
     try {
       // Call backend to invalidate session/cookie
-      await api.post(
-        `${import.meta.env.VITE_API_URL}/auth/logout`,
-        {},
-        { withCredentials: true }
-      );
+      await api.post(`/auth/logout`, {});
 
   // Clear all relevant localStorage keys
   lsClearAllApp();
+      // Also clear the encrypted session-scoped token for this tab/window
+      try {
+        const { lsRemove } = await import("../../utils/storage");
+        lsRemove("token");
+        // remove any legacy keys that might have been set by older code
+        try {
+          sessionStorage.removeItem("__session_token");
+        } catch {}
+        try {
+          localStorage.removeItem("rct-lmis:user");
+        } catch {}
+      } catch {}
       setUser(null); // clear user state in frontend
       setNotifications([]); // clear notifications state
 
@@ -162,13 +191,22 @@ function Home() {
     return null;
   })();
 
+  // Initials fallback for avatar
+  const avatarInitials = (() => {
+    const src = (user?.FullName || user?.Username || "").trim();
+    if (!src) return "";
+    const parts = src.split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return src.slice(0, 2).toUpperCase();
+  })();
+
   const userMenuItems = [
     {
       key: "profile",
       icon: <UserOutlined />,
       label: (
         <div>
-          <Text strong>{user?.FullName || "User"}</Text>
+          <Text strong>{user?.FullName || user?.Username || "User"}</Text>
           <br />
           <Text type="secondary">{user?.Position || ""}</Text>
         </div>
@@ -264,15 +302,22 @@ function Home() {
           {!collapsed && <span style={{ fontSize: "13px" }}>RACATOM-LMIS</span>}
         </div>
         {(() => {
+          const perms = user?.permissions?.menus || {};
+          // Robust developer detection: normalize case and allow permission flags
+          const isDev = (() => {
+            const pos = String(user?.Position || "").toLowerCase();
+            if (pos === "developer") return true;
+            return !!(perms.developerSettings || perms.settingsDatabase || perms.admin);
+          })();
           const settingsChildren = [
+            ...((perms.settingsEmployees === false && !isDev) || settings.accessEmployees === false ? [] : [{ key: "/settings/employees", label: "Employee Accounts" }]),
+            ...(perms.settingsCollectors === false && !isDev ? [] : [{ key: "/settings/collectors", label: "Collector Accounts" }]),
+            ...(perms.settingsDatabase === false && !isDev ? [] : [{ key: "/settings/database", label: "Database" }]),
+            ...((perms.settingsAnnouncements === false && !isDev) || settings.accessAnnouncements === false ? [] : [{ key: "/settings/announcements", label: "Announcements" }]),
+            ...(perms.settingsAccounting === false && !isDev ? [] : [{ key: "/settings/accounting", label: "Accounting Center" }]),
             { key: "/settings/loan-rates", label: "Loan Rates Config" },
-            { key: "/settings/employees", label: "Employee Accounts" },
-            { key: "/settings/collectors", label: "Collector Accounts" },
-            { key: "/settings/database", label: "Database" },
-            { key: "/settings/announcements", label: "Announcements" },
-            { key: "/settings/accounting", label: "Accounting Center" },
           ];
-          if (user?.Position === "Developer") {
+          if (isDev || perms.developerSettings) {
             settingsChildren.push({
               key: "/settings/developer",
               label: "Developer Settings",
@@ -281,31 +326,19 @@ function Home() {
           }
 
           const menuItems = [
-            {
-              key: "/dashboard",
-              label: "Dashboard",
-              icon: <DashboardOutlined />,
-            },
-            { key: "/loans", label: "Loans", icon: <FundViewOutlined /> },
-            {
+            ...(perms.dashboard === false && !isDev ? [] : [{ key: "/dashboard", label: "Dashboard", icon: <DashboardOutlined /> }]),
+            ...(perms.loans === false && !isDev ? [] : [{ key: "/loans", label: "Loans", icon: <FundViewOutlined /> }]),
+            ...(perms.reports === false && !isDev ? [] : [{
               key: "/reports",
               label: "Reports",
               icon: <FileTextOutlined />,
               children: [
-                {
-                  key: "/reports/statement-of-accounts",
-                  label: "Statement of Accounts",
-                },
+                { key: "/reports/statement-of-accounts", label: "Statement of Accounts" },
                 { key: "/reports/collections-list", label: "Collections List" },
                 { key: "/reports/account-vouchers", label: "Account Vouchers" },
               ],
-            },
-            {
-              key: "/settings",
-              label: "Settings",
-              icon: <SettingOutlined />,
-              children: settingsChildren,
-            },
+            }]),
+            ...(perms.settings === false && !isDev ? [] : [{ key: "/settings", label: "Settings", icon: <SettingOutlined />, children: settingsChildren }]),
           ];
 
           return (
@@ -531,10 +564,15 @@ function Home() {
               trigger={["click"]}
             >
               <Avatar
-                src={avatarSrc}
-                icon={!avatarSrc && <UserOutlined />}
-                style={{ cursor: "pointer" }}
-              />
+                src={avatarSrc || undefined}
+                style={{
+                  cursor: "pointer",
+                  backgroundColor: avatarSrc ? undefined : "#1677ff",
+                  color: avatarSrc ? undefined : "#fff",
+                }}
+              >
+                {!avatarSrc ? avatarInitials : null}
+              </Avatar>
             </Dropdown>
           </div>
         </Header>

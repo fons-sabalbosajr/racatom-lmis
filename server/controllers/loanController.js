@@ -1,12 +1,27 @@
 import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
+import { uploadToDrive } from "../utils/googleDrive.js";
+import { moveToTrash } from "../utils/googleDrive.js";
 import LoanClient from "../models/LoanClient.js";
 import LoanCycle from "../models/LoanCycle.js";
 import LoanCollection from "../models/LoanCollection.js"; // New import
 import LoanDocument from "../models/LoanDocument.js";
 import ExcelJS from "exceljs";
 import LoanClientApplication from "../models/LoanClientApplication.js";
+// Helper: normalize a value that may be an array (from formidable)
+const lastVal = (v) => (Array.isArray(v) ? v[v.length - 1] : v);
+
+// Helper: find current loan cycle for a client or account
+async function findCurrentLoanCycle({ clientNo, accountId }) {
+  if (accountId) {
+    return await LoanCycle.findOne({ AccountId: accountId }).sort({ updatedAt: -1, createdAt: -1 });
+  }
+  if (clientNo) {
+    return await LoanCycle.findOne({ ClientNo: clientNo }).sort({ updatedAt: -1, createdAt: -1 });
+  }
+  return null;
+}
 
 // Merge / reshape function
 const transformLoan = (doc) => {
@@ -1021,14 +1036,22 @@ export const getDocumentsByAccountAndCycle = async (req, res) => {
 export const createDocumentLink = async (req, res) => {
   try {
     const { clientNo } = req.params;
-    const { accountId } = req.body;
-    const { name, link, type, source } = req.body;
+    const accountIdRaw = lastVal(req.body?.accountId);
+    const name = lastVal(req.body?.name);
+    const link = lastVal(req.body?.link);
+    const type = lastVal(req.body?.type);
+    const source = lastVal(req.body?.source);
     if (!name || !link) {
       return res.status(400).json({ success: false, message: "Name and link are required" });
     }
+    const loanCycle = await findCurrentLoanCycle({ clientNo, accountId: accountIdRaw });
+    if (!loanCycle) {
+      return res.status(404).json({ success: false, message: "Loan account not found" });
+    }
     const doc = await LoanDocument.create({
-      ClientNo: clientNo,
-      AccountId: accountId,
+      ClientNo: loanCycle.ClientNo,
+      AccountId: loanCycle.AccountId,
+      LoanCycleNo: loanCycle.LoanCycleNo,
       name,
       link,
       type: type || inferTypeFromName(name || link),
@@ -1052,31 +1075,66 @@ export const createDocumentLink = async (req, res) => {
 export const uploadDocumentFile = async (req, res) => {
   try {
     const { clientNo } = req.params;
-    const { accountId } = req.body || {};
-    const file = req.fileMeta; // set by middleware
-    if (!file) {
+    const accountIdRaw = lastVal(req.body?.accountId);
+    const files = req.filesMeta && Array.isArray(req.filesMeta) ? req.filesMeta : (req.fileMeta ? [req.fileMeta] : []);
+    if (!files.length) {
       return res.status(400).json({ success: false, message: "No file uploaded" });
     }
-    const doc = await LoanDocument.create({
-      ClientNo: clientNo,
-      AccountId: accountId,
-      name: req.body?.name || file.originalFilename || file.newFilename,
-      storagePath: file.relativePath,
-      url: `/uploads/loan-documents/${file.newFilename}`,
-      mimeType: file.mimetype,
-      size: file.size,
-      ext: path.extname(file.originalFilename).toLowerCase(),
-      type: inferTypeFromName(file.originalFilename),
-      source: "upload",
-      uploadedBy: req.user
-        ? {
-            _id: req.user._id,
-            username: req.user.Username,
-            position: req.user.Position,
-          }
-        : undefined,
-    });
-    res.status(201).json({ success: true, data: doc });
+    const loanCycle = await findCurrentLoanCycle({ clientNo, accountId: accountIdRaw });
+    if (!loanCycle) {
+      return res.status(404).json({ success: false, message: "Loan account not found" });
+    }
+    // Decide storage: Google Drive if configured; else local file server
+  const useDrive = !!(process.env.DRIVE_FOLDER_ID || process.env.DRIVE_FOLDER_IMAGES_ID || process.env.DRIVE_FOLDER_DOCS_ID);
+    const chooseParents = (file) => {
+      const isImage = (file.mimetype || "").startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalFilename || "");
+      const imgId = (process.env.DRIVE_FOLDER_IMAGES_ID || "").trim();
+      const docId = (process.env.DRIVE_FOLDER_DOCS_ID || "").trim();
+      const generic = (process.env.DRIVE_FOLDER_ID || "").trim();
+      const target = isImage ? (imgId || generic) : (docId || generic);
+      const arr = target ? target.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      return arr;
+    };
+
+    const results = [];
+    for (const file of files) {
+      let payload = {
+        ClientNo: loanCycle.ClientNo,
+        AccountId: loanCycle.AccountId,
+        LoanCycleNo: loanCycle.LoanCycleNo,
+        name: req.body?.name || file.originalFilename || file.newFilename,
+        mimeType: file.mimetype,
+        size: file.size,
+        ext: path.extname(file.originalFilename).toLowerCase(),
+        type: inferTypeFromName(file.originalFilename),
+        uploadedBy: req.user
+          ? {
+              _id: req.user._id,
+              username: req.user.Username,
+              position: req.user.Position,
+            }
+          : undefined,
+      };
+      if (useDrive) {
+        const parents = chooseParents(file);
+        const driveRes = await uploadToDrive({
+          filepath: file.filepath,
+          name: payload.name,
+          mimeType: file.mimetype,
+          parents,
+        });
+        payload.link = driveRes.webViewLink || `https://drive.google.com/file/d/${driveRes.id}/view`;
+        payload.source = "Google Drive";
+        payload.driveFileId = driveRes.id;
+      } else {
+        payload.storagePath = file.relativePath;
+        payload.url = `/uploads/loan-documents/${file.newFilename}`;
+        payload.source = "upload";
+      }
+      const doc = await LoanDocument.create(payload);
+      results.push(doc);
+    }
+    res.status(201).json({ success: true, data: results.length === 1 ? results[0] : results });
   } catch (err) {
     console.error("Error in uploadDocumentFile:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -1130,8 +1188,8 @@ export const uploadDocumentFileByAccountId = async (req, res) => {
     if (!loanCycle) {
       return res.status(404).json({ success: false, message: "Account not found" });
     }
-    const file = req.fileMeta;
-    if (!file) {
+    const files = req.filesMeta && Array.isArray(req.filesMeta) ? req.filesMeta : (req.fileMeta ? [req.fileMeta] : []);
+    if (!files.length) {
       return res.status(400).json({ success: false, message: "No file uploaded" });
     }
     // Normalize body fields (can arrive as single-value arrays from FormData parsing)
@@ -1141,27 +1199,54 @@ export const uploadDocumentFileByAccountId = async (req, res) => {
     const safeName = Array.isArray(rawName) ? rawName[rawName.length - 1] : rawName;
     const safeType = Array.isArray(rawType) ? rawType[rawType.length - 1] : rawType;
     const safeSource = Array.isArray(rawSource) ? rawSource[rawSource.length - 1] : rawSource;
-    const doc = await LoanDocument.create({
-      ClientNo: loanCycle.ClientNo,
-      AccountId: accountId,
-      LoanCycleNo: loanCycle.LoanCycleNo,
-      name: safeName || file.originalFilename || file.newFilename,
-      storagePath: file.relativePath,
-      url: `/uploads/loan-documents/${file.newFilename}`,
-      mimeType: file.mimetype,
-      size: file.size,
-      ext: path.extname(file.originalFilename).toLowerCase(),
-      type: safeType || inferTypeFromName(file.originalFilename),
-      source: safeSource || "upload",
-      uploadedBy: req.user
-        ? {
-            _id: req.user._id,
-            username: req.user.Username,
-            position: req.user.Position,
-          }
-        : undefined,
-    });
-    res.status(201).json({ success: true, data: doc });
+  const useDrive = !!(process.env.DRIVE_FOLDER_ID || process.env.DRIVE_FOLDER_IMAGES_ID || process.env.DRIVE_FOLDER_DOCS_ID);
+    const chooseParents2 = (file) => {
+      const isImage = (file.mimetype || "").startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalFilename || "");
+      const imgId = (process.env.DRIVE_FOLDER_IMAGES_ID || "").trim();
+      const docId = (process.env.DRIVE_FOLDER_DOCS_ID || "").trim();
+      const generic = (process.env.DRIVE_FOLDER_ID || "").trim();
+      const target = isImage ? (imgId || generic) : (docId || generic);
+      const arr = target ? target.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      return arr;
+    };
+    const created = [];
+    for (const file of files) {
+      let payload = {
+        ClientNo: loanCycle.ClientNo,
+        AccountId: accountId,
+        LoanCycleNo: loanCycle.LoanCycleNo,
+        name: safeName || file.originalFilename || file.newFilename,
+        mimeType: file.mimetype,
+        size: file.size,
+        ext: path.extname(file.originalFilename).toLowerCase(),
+        type: safeType || inferTypeFromName(file.originalFilename),
+        source: safeSource || (useDrive ? "Google Drive" : "upload"),
+        uploadedBy: req.user
+          ? {
+              _id: req.user._id,
+              username: req.user.Username,
+              position: req.user.Position,
+            }
+          : undefined,
+      };
+      if (useDrive) {
+        const parents = chooseParents2(file);
+        const driveRes = await uploadToDrive({
+          filepath: file.filepath,
+          name: payload.name,
+          mimeType: file.mimetype,
+          parents,
+        });
+        payload.link = driveRes.webViewLink || `https://drive.google.com/file/d/${driveRes.id}/view`;
+        payload.driveFileId = driveRes.id;
+      } else {
+        payload.storagePath = file.relativePath;
+        payload.url = `/uploads/loan-documents/${file.newFilename}`;
+      }
+      const doc = await LoanDocument.create(payload);
+      created.push(doc);
+    }
+    res.status(201).json({ success: true, data: created.length === 1 ? created[0] : created });
   } catch (err) {
     console.error("Error in uploadDocumentFileByAccountId:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -1177,6 +1262,28 @@ export const deleteDocument = async (req, res) => {
     // Remove file from disk if stored locally
     if (doc.storagePath && fs.existsSync(doc.storagePath)) {
       try { fs.unlinkSync(doc.storagePath); } catch {}
+    }
+    // If it's a Google Drive file, move it to Drive trash
+    try {
+      const isDrive = doc.source === "Google Drive" || (doc.link && doc.link.includes("drive.google.com"));
+      if (isDrive) {
+        let fileId = doc.driveFileId;
+        if (!fileId && doc.link) {
+          // try to extract id from link patterns
+          const m = doc.link.match(/\/file\/d\/([^/]+)/);
+          if (m && m[1]) fileId = m[1];
+          if (!fileId) {
+            const url = new URL(doc.link);
+            fileId = url.searchParams.get("id") || undefined;
+          }
+        }
+        if (fileId) {
+          await moveToTrash(fileId);
+        }
+      }
+    } catch (e) {
+      // Log but don't block deletion if Drive trash fails
+      console.warn("Drive trash failed for document", String(id), e.message);
     }
     await doc.deleteOne();
     res.json({ success: true, message: "Document deleted" });

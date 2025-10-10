@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Form, Input, Button, Typography, message, Card, Divider } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
-import axios from "axios";
-import { encryptData, lsSet } from "../../utils/storage";
+import api from "../../utils/axios";
+import { lsSet } from "../../utils/storage";
 import "./login.css";
 
 import lmisLogo from "../../assets/lmis.svg";
@@ -14,8 +14,6 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-
-  
 
   // ✅ Handle email verification result
   useEffect(() => {
@@ -35,24 +33,31 @@ function Login() {
     setLoading(true);
 
     try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/auth/login`,
-        {
-          Username: values.Username?.trim(),
-          Password: values.Password?.trim(),
-        },
-        { withCredentials: true } // important for cookie
-      );
+      const res = await api.post(`/auth/login`, {
+  identifier: values.Username?.trim(),
+        Password: values.Password?.trim(),
+      });
 
       const user = res.data?.data?.user;
+      const token = res.data?.data?.token;
       if (!user) throw new Error("Invalid server response.");
 
-  lsSet("user", user);
-  // mark user as online
-  lsSet("onlineUser", user.Username);
+      // Store user and token in sessionStorage via our storage utils by scoping to this window
+      // We temporarily override localStorage with sessionStorage wrapper for these keys
+      if (token) {
+        // Persist token encrypted for this tab/window only
+        // use our session-scoped helper so key + value are obfuscated
+        try {
+          const { lsSetSession } = await import("../../utils/storage");
+          lsSetSession("token", token);
+        } catch {}
+      }
+      lsSet("user", user);
+      // mark user as online
+      lsSet("onlineUser", user.Username);
       //message.success(`Welcome, ${user.FullName || values.Username}`);
 
-      navigate("/"); // redirect to Home
+  navigate("/dashboard"); // land on protected dashboard
     } catch (err) {
       const status = err?.response?.status;
       const serverMsg = err?.response?.data?.message || "Login failed.";
@@ -88,13 +93,13 @@ function Login() {
 
         <Form name="login" layout="vertical" onFinish={onFinish}>
           <Form.Item
-            label="Username"
+            label="Username or Email"
             name="Username"
             rules={[{ required: true, message: "Please enter your username" }]}
           >
             <Input
               prefix={<UserOutlined />}
-              placeholder="Username"
+              placeholder="Username or Email"
               size="large"
             />
           </Form.Item>

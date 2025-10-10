@@ -657,6 +657,50 @@ export default function LoanDetailsModal({
     })}`;
   };
 
+  // Track a map of document counts per LoanNo and the currently focused LoanNo for the Documents tab
+  const [docCounts, setDocCounts] = useState({});
+  const [focusedLoanNo, setFocusedLoanNo] = useState(null);
+
+  // Helper to refresh count for a specific loan no after upload/delete if needed
+  const refreshDocCounts = async () => {
+    try {
+      const accountId = loan?.accountId || loan?.AccountId;
+      const loanNos = (mergedLoans || [])
+        .map((m) => m?.LoanNo)
+        .filter(Boolean);
+      if (!accountId || loanNos.length === 0) {
+        setDocCounts({});
+        return;
+      }
+      const results = await Promise.allSettled(
+        loanNos.map((ln) =>
+          api
+            .get(`/loans/account/${accountId}/cycle/${ln}/documents`)
+            .then((res) => ({ ln, count: Array.isArray(res?.data?.data) ? res.data.data.length : 0 }))
+        )
+      );
+      const map = {};
+      results.forEach((r, idx) => {
+        if (r.status === "fulfilled") {
+          map[r.value.ln] = r.value.count;
+        } else {
+          const ln = loanNos[idx];
+          map[ln] = 0;
+        }
+      });
+      setDocCounts(map);
+    } catch (e) {
+      // ignore errors; keep previous counts
+    }
+  };
+
+  useEffect(() => {
+    if (visible) {
+      refreshDocCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, mergedLoans, loan?.accountId, loan?.AccountId]);
+
   const loanInfoColumns = [
     {
       title: "Loan No. & Status",
@@ -801,6 +845,31 @@ export default function LoanDetailsModal({
       className: "col-remarks",
       width: 150,
       render: (text) => text || "N/A",
+    },
+    {
+      title: "Files",
+      key: "files",
+      align: "center",
+      width: 90,
+      render: (record) => {
+        const count = docCounts[record.LoanNo] ?? 0;
+        return (
+          <Space size={4}>
+            <Tag color={count > 0 ? "blue" : "default"}>{count}</Tag>
+            <Tooltip title="View documents for this Loan No">
+              <Button
+                size="small"
+                onClick={() => {
+                  setActiveTabKey("3");
+                  setFocusedLoanNo(record.LoanNo);
+                }}
+              >
+                View
+              </Button>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
     {
       title: "Action",
@@ -1043,6 +1112,10 @@ export default function LoanDetailsModal({
                   loan={loan}
                   accountId={loan?.accountId || loan?.AccountId}
                   cycles={mergedLoans}
+                  selectedLoanNo={focusedLoanNo}
+                  onDocumentsChanged={() => {
+                    refreshDocCounts();
+                  }}
                 />
               ),
             },

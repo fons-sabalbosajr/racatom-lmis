@@ -1,32 +1,38 @@
 import formidable from "formidable";
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 // Middleware to parse a single file upload for loan documents
 export default function uploadLoanDocument(req, res, next) {
-  const uploadDir = path.join(process.cwd(), "uploads", "loan-documents");
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  // Use OS temp directory to avoid persisting files locally
+  const uploadDir = os.tmpdir();
 
   const form = formidable({
-    multiples: false,
-    maxFileSize: 15 * 1024 * 1024, // 15MB
+    multiples: true,
+    maxFileSize: 15 * 1024 * 1024, // 15MB each
     uploadDir,
     keepExtensions: true,
   });
 
   form.parse(req, (err, fields, files) => {
     if (err) return res.status(400).json({ success: false, message: "Upload failed" });
-    const file = files.file?.[0];
-    if (!file) return res.status(400).json({ success: false, message: "No file provided" });
-    // Attach metadata for controller
-    req.fileMeta = {
-      newFilename: file.newFilename,
-      originalFilename: file.originalFilename,
-      mimetype: file.mimetype,
-      size: file.size,
-      filepath: file.filepath,
-      relativePath: path.join(uploadDir, file.newFilename),
-    };
+
+    const arr = Array.isArray(files.file) ? files.file : files.file ? [files.file] : [];
+    if (!arr.length) return res.status(400).json({ success: false, message: "No file provided" });
+
+    const toMeta = (f) => ({
+      newFilename: f.newFilename,
+      originalFilename: f.originalFilename,
+      mimetype: f.mimetype,
+      size: f.size,
+      filepath: f.filepath,
+      // relativePath retained for backward compatibility but points to temp
+      relativePath: path.join(uploadDir, f.newFilename),
+    });
+    req.filesMeta = arr.map(toMeta);
+    // Backward compatibility: first file as single meta
+    req.fileMeta = req.filesMeta[0];
     req.body = fields; // pass through any fields
     next();
   });

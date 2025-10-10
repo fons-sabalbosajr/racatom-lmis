@@ -19,6 +19,9 @@ const defaultSettings = {
   collectionsShowImportActions: true,
   // Users
   allowUserDelete: true,
+  // Access toggles (developer-managed; optional override UI gating)
+  accessEmployees: true,
+  accessAnnouncements: true,
 };
 
 const DevSettingsContext = createContext({

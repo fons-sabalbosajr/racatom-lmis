@@ -6,6 +6,13 @@ import mongoose from "mongoose";
 import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
+import LoanClient from "../models/LoanClient.js";
+import LoanCycle from "../models/LoanCycle.js";
+import LoanCollection from "../models/LoanCollection.js";
+import LoanDocument from "../models/LoanDocument.js";
+import LoanDisbursed from "../models/LoanDisbursed.js";
+import LoanClientApplication from "../models/LoanClientApplication.js";
+import runtimeFlags from "../utils/runtimeFlags.js";
 
 const router = express.Router();
 
@@ -31,6 +38,40 @@ router.get("/health", async (req, res) => {
   } catch (err) {
     console.error("db health error:", err);
     return res.status(500).json({ success: false, message: "DB health check failed" });
+  }
+});
+
+// GET /api/database/connection/state
+router.get("/connection/state", async (req, res) => {
+  try {
+    const state = mongoose.connection.readyState;
+    return res.json({ success: true, state });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to get state" });
+  }
+});
+
+// POST /api/database/connection/disconnect
+router.post("/connection/disconnect", async (req, res) => {
+  try {
+    await mongoose.disconnect();
+    return res.json({ success: true, message: "Disconnected" });
+  } catch (err) {
+    console.error("disconnect error:", err);
+    return res.status(500).json({ success: false, message: "Failed to disconnect" });
+  }
+});
+
+// POST /api/database/connection/connect
+router.post("/connection/connect", async (req, res) => {
+  try {
+    const uri = process.env.MONGO_URI;
+    const dbName = process.env.MONGO_DB_NAME;
+    await mongoose.connect(uri, { dbName });
+    return res.json({ success: true, message: "Connected" });
+  } catch (err) {
+    console.error("connect error:", err);
+    return res.status(500).json({ success: false, message: "Failed to connect" });
   }
 });
 
@@ -192,4 +233,225 @@ router.get("/export", async (req, res) => {
   }
 });
 
+// ===== Accounts management =====
+// GET /api/database/accounts — list core loan accounts (LoanClient), optional search
+router.get("/accounts", async (req, res) => {
+  try {
+    const { q } = req.query;
+    const filter = {};
+    if (q) {
+      const regex = new RegExp(String(q).trim(), "i");
+      filter.$or = [
+        { AccountId: regex },
+        { ClientNo: regex },
+        { FirstName: regex },
+        { MiddleName: regex },
+        { LastName: regex },
+      ];
+    }
+
+    // Paging & limits
+    const rawLimit = parseInt(req.query.limit, 10);
+    const rawPage = parseInt(req.query.page, 10);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 5000 : rawLimit, 1), 10000); // default 5000, max 10000
+    const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
+    const skip = (page - 1) * limit;
+
+    // Query
+    const [total, docs] = await Promise.all([
+      LoanClient.countDocuments(filter),
+      LoanClient.find(filter)
+        .select("AccountId ClientNo FirstName MiddleName LastName City Province Barangay createdAt updatedAt")
+        .sort({ ClientNo: 1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const pages = Math.max(Math.ceil(total / limit), 1);
+    return res.json({ success: true, accounts: docs, total, page, pages, limit });
+  } catch (err) {
+    console.error("accounts list error:", err);
+    return res.status(500).json({ success: false, message: "Failed to list accounts" });
+  }
+});
+
+// DELETE /api/database/account/:accountId — cascade delete across related collections
+router.delete("/account/:accountId", async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    if (!accountId) return res.status(400).json({ success: false, message: "accountId required" });
+
+    // collect delete results
+    const results = {};
+    const lc = await LoanClient.deleteOne({ AccountId: accountId });
+    results.LoanClient = lc.deletedCount || 0;
+    const cycles = await LoanCycle.deleteMany({ AccountId: accountId });
+    results.LoanCycle = cycles.deletedCount || 0;
+    const col = await LoanCollection.deleteMany({ AccountId: accountId });
+    results.LoanCollection = col.deletedCount || 0;
+    const docs = await LoanDocument.deleteMany({ AccountId: accountId });
+    results.LoanDocument = docs.deletedCount || 0;
+    const disb = await LoanDisbursed.deleteMany({ AccountId: accountId });
+    results.LoanDisbursed = disb.deletedCount || 0;
+    const apps = await LoanClientApplication.deleteMany({ AccountId: accountId });
+    results.LoanClientApplication = apps.deletedCount || 0;
+
+    const totalDeleted = Object.values(results).reduce((a, b) => a + b, 0);
+    return res.json({ success: true, totalDeleted, results });
+  } catch (err) {
+    console.error("cascade delete error:", err);
+    return res.status(500).json({ success: false, message: "Failed to delete account" });
+  }
+});
+
+// ===== Maintenance mode =====
+// GET current maintenance flag
+router.get("/maintenance", (req, res) => {
+  return res.json({ success: true, maintenance: runtimeFlags.maintenance });
+});
+
+// POST set maintenance flag { maintenance: boolean }
+router.post("/maintenance", (req, res) => {
+  const { maintenance } = req.body || {};
+  if (typeof maintenance !== "boolean") {
+    return res.status(400).json({ success: false, message: "maintenance boolean required" });
+  }
+  runtimeFlags.maintenance = maintenance;
+  return res.json({ success: true, maintenance });
+});
+
 export default router;
+ 
+// ==============================================
+// Resequence AccountId and ClientNo for a year
+// POST /api/database/resequence-accounts
+// Body: { year: number|string, dryRun?: boolean }
+// - Rebuilds ClientNo as RCT-<year>-CL0001..N
+// - Rebuilds AccountId as RCT-<year>DB-0001..N
+// - Propagates changes to LoanCycle, LoanCollection, LoanDocument, LoanDisbursed, LoanClientApplication
+// - Uses a two-phase update to avoid unique collisions on LoanClient
+router.post("/resequence-accounts", async (req, res) => {
+  const { year, dryRun: dryRunInput } = req.body || {};
+  const dryRun = dryRunInput !== false; // default true
+
+  try {
+    const yearStr = String(year || "").trim();
+    if (!/^\d{4}$/.test(yearStr)) {
+      return res.status(400).json({ success: false, message: "year (YYYY) is required" });
+    }
+
+    const clientPrefix = `RCT-${yearStr}-CL`;
+    const acctPrefix = `RCT-${yearStr}DB-`;
+
+    // Fetch all clients for the given year, order by ClientNo ascending (string sort ok within same prefix)
+    const clients = await LoanClient.find({ ClientNo: { $regex: `^${clientPrefix}` } })
+      .select("_id AccountId ClientNo FirstName LastName")
+      .sort({ ClientNo: 1 })
+      .lean();
+
+    if (!clients.length) {
+      return res.json({ success: true, message: `No clients found for year ${yearStr}`, changes: [] });
+    }
+
+    // Build mapping old -> new
+    const changes = [];
+    let counter = 1;
+    for (const c of clients) {
+      const newClientNo = `${clientPrefix}${String(counter).padStart(4, "0")}`;
+      const newAccountId = `${acctPrefix}${String(counter).padStart(4, "0")}`;
+
+      const needsChange = c.ClientNo !== newClientNo || c.AccountId !== newAccountId;
+      if (needsChange) {
+        changes.push({
+          _id: c._id,
+          old: { AccountId: c.AccountId, ClientNo: c.ClientNo },
+          next: { AccountId: newAccountId, ClientNo: newClientNo },
+        });
+      }
+      counter += 1;
+    }
+
+    if (!changes.length) {
+      return res.json({ success: true, message: "Already sequential; no changes needed", changes: [] });
+    }
+
+    // If dry-run, just return the plan
+    if (dryRun) {
+      return res.json({ success: true, dryRun: true, count: changes.length, sample: changes.slice(0, 10) });
+    }
+
+    // Phase A: Update LoanClient to temporary unique values to avoid unique collisions
+    for (const ch of changes) {
+      const tmpAcct = `${ch.next.AccountId}__TMP`;
+      const tmpClient = `${ch.next.ClientNo}__TMP`;
+      await LoanClient.updateOne({ _id: ch._id }, { $set: { AccountId: tmpAcct, ClientNo: tmpClient } });
+    }
+
+    // Phase B: For each mapping, set LoanClient to final values and propagate to related collections
+    let updatedClients = 0;
+    let updatedCycles = 0;
+    let updatedCollections = 0;
+    let updatedDocs = 0;
+    let updatedDisbursed = 0;
+    let updatedApps = 0;
+
+    for (const ch of changes) {
+      // Update main client to final values (from TMP)
+      await LoanClient.updateOne(
+        { _id: ch._id },
+        { $set: { AccountId: ch.next.AccountId, ClientNo: ch.next.ClientNo } }
+      );
+      updatedClients += 1;
+
+      // Propagate across related collections based on OLD values
+      const { AccountId: oldAcct, ClientNo: oldClient } = ch.old;
+      const { AccountId: newAcct, ClientNo: newClient } = ch.next;
+
+      const cycleRes = await LoanCycle.updateMany(
+        { $or: [{ AccountId: oldAcct }, { ClientNo: oldClient }] },
+        { $set: { AccountId: newAcct, ClientNo: newClient } }
+      );
+      updatedCycles += cycleRes.modifiedCount || 0;
+
+      const colRes = await LoanCollection.updateMany(
+        { $or: [{ AccountId: oldAcct }, { ClientNo: oldClient }] },
+        { $set: { AccountId: newAcct, ClientNo: newClient } }
+      );
+      updatedCollections += colRes.modifiedCount || 0;
+
+      const docRes = await LoanDocument.updateMany(
+        { $or: [{ AccountId: oldAcct }, { ClientNo: oldClient }] },
+        { $set: { AccountId: newAcct, ClientNo: newClient } }
+      );
+      updatedDocs += docRes.modifiedCount || 0;
+
+      const disbRes = await LoanDisbursed.updateMany(
+        { $or: [{ AccountId: oldAcct }, { ClientNo: oldClient }] },
+        { $set: { AccountId: newAcct, ClientNo: newClient } }
+      );
+      updatedDisbursed += disbRes.modifiedCount || 0;
+
+      const appRes = await LoanClientApplication.updateMany(
+        { AccountId: oldAcct },
+        { $set: { AccountId: newAcct } }
+      );
+      updatedApps += appRes.modifiedCount || 0;
+    }
+
+    return res.json({
+      success: true,
+      message: `Resequenced ${updatedClients} clients for ${yearStr}`,
+      updated: {
+        clients: updatedClients,
+        cycles: updatedCycles,
+        collections: updatedCollections,
+        documents: updatedDocs,
+        disbursed: updatedDisbursed,
+        applications: updatedApps,
+      },
+    });
+  } catch (err) {
+    console.error("resequence-accounts error:", err);
+    return res.status(500).json({ success: false, message: "Resequence failed" });
+  }
+});

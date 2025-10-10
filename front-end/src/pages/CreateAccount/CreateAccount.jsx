@@ -1,7 +1,7 @@
 // src/pages/CreateAccount/CreateAccount.jsx
 import React, { useState } from "react";
 import { Form, Input, Button, Card, Typography, message, Select } from "antd";
-import axios from "axios";
+import api from "../../utils/axios";
 import { useNavigate } from "react-router-dom";
 import "./createAccount.css";
 
@@ -24,7 +24,7 @@ function CreateAccount() {
     };
 
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/auth/register`, payload);
+  await api.post(`/auth/register`, payload);
       message.success("Account created! Check your email to verify your account.");
       navigate("/login");
     } catch (err) {

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Spin, message } from "antd";
-import axios from "axios";
+import api from "../utils/axios";
 import { lsSet, lsClearAllApp } from "../utils/storage";
 
 function ProtectedRoute({ children }) {
@@ -11,9 +11,7 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/auth/me`, {
-          withCredentials: true, // important for cookie
-        });
+        const res = await api.get(`/auth/me`);
 
         const user = res.data?.data?.user;
 

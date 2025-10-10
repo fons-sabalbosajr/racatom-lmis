@@ -73,7 +73,13 @@ export const developerOnly = async (req, res, next) => {
     if (!loggedInUser) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
-    if (String(loggedInUser.Position).toLowerCase() === "developer") {
+    const role = String(loggedInUser.Position || "").trim().toLowerCase();
+    // Primary: Developer role
+    if (role === "developer") {
+      return next();
+    }
+    // Secondary: explicit permission to access database tools
+    if (loggedInUser?.permissions?.menus?.settingsDatabase === true || loggedInUser?.permissions?.menus?.developerSettings === true) {
       return next();
     }
     return res.status(403).json({ success: false, message: "Developer access required." });

@@ -88,7 +88,9 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto; /* only this scrolls */
-  padding: 12px 16px 8px; /* tighter bottom padding */
+  /* leave space for fixed footer */
+  --footer-h: 44px;
+  padding: 12px 16px calc(12px + var(--footer-h));
   background: #f5f7fa;
 }
 
@@ -97,7 +99,6 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding-bottom: 32px; /* space so content not tight against footer */
 }
 
 .home-content {
@@ -115,12 +116,27 @@
   flex-direction: column;
 }
 
+/* Fixed footer pinned to bottom, offset by sider width */
 .home-footer {
-  text-align: center;
-  margin-top: auto; /* push to bottom of inner wrapper */
-  padding: 12px 0 6px; /* slight breathing room */
+  position: fixed;
+  left: 200px; /* match sider width */
+  right: 0;
+  bottom: 0;
+  height: var(--footer-h, 44px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  background: #fff;
+  border-top: 1px solid #f0f0f0;
   color: rgba(0,0,0,0.45);
   font-size: 12px;
+  z-index: 90;
+}
+
+/* When sider collapsed, align footer with collapsed sider width */
+.home-layout.collapsed .home-footer {
+  left: 80px;
 }
 
 /* Provide bottom padding so last card isn't obscured by footer when short viewport */

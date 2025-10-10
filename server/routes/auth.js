@@ -139,10 +139,30 @@ router.get("/verify-token/:token", async (req, res) => {
 
 // ---------- Login ----------
 router.post("/login", async (req, res) => {
-  const { Username, Password } = req.body;
+  const { Username, Email, Password, identifier } = req.body || {};
+
+  // Normalize inputs
+  const loginId = (Username || Email || identifier || "").trim();
+
+  if (!loginId || !Password) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Username/Email and password are required." });
+  }
+
+  // Escape user-provided string for use in a RegExp
+  const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   try {
-    const user = await User.findOne({ Username });
+    // Allow login by Username OR Email (case-insensitive)
+    const query = {
+      $or: [
+        { Username: new RegExp(`^${escapeRegExp(loginId)}$`, "i") },
+        { Email: new RegExp(`^${escapeRegExp(loginId)}$`, "i") },
+      ],
+    };
+
+    const user = await User.findOne(query);
     if (!user)
       return res
         .status(401)
@@ -150,10 +170,10 @@ router.post("/login", async (req, res) => {
 
     let isMatch = false;
 
-    if (user.Password.startsWith("$2a$") || user.Password.startsWith("$2b$")) {
+    if (user.Password?.startsWith("$2a$") || user.Password?.startsWith("$2b$")) {
       isMatch = await bcrypt.compare(Password, user.Password);
     } else {
-      // Plaintext fallback
+      // Plaintext fallback for legacy records
       isMatch = Password === user.Password;
       if (isMatch) {
         user.Password = await bcrypt.hash(Password, 10);
@@ -175,7 +195,7 @@ router.post("/login", async (req, res) => {
       expiresIn: "1d",
     });
 
-    // --- FIX: cookie settings for dev ---
+    // Cookie settings
     const isProd = process.env.NODE_ENV === "production";
 
     res.cookie("token", token, {
@@ -187,11 +207,11 @@ router.post("/login", async (req, res) => {
 
     const { Password: _, verificationToken, ...userData } = user.toObject();
 
-    // Return user data; token is in HTTP-only cookie
+    // Return user data and token; token is also in HTTP-only cookie for backward compatibility
     res.json({
       success: true,
       message: "Login successful.",
-      data: { user: userData },
+      data: { user: userData, token },
     });
   } catch (err) {
     console.error("Login error:", err.message);

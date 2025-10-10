@@ -11,6 +11,8 @@ const LoanDocumentSchema = new mongoose.Schema(
     url: { type: String }, // public URL (/uploads/...)
     // If it's an external / Google Drive link
     link: { type: String },
+    // Google Drive specific id (for server-side operations like trashing)
+    driveFileId: { type: String },
     type: { type: String, enum: ["pdf", "image", "doc", "sheet", "other"], default: "other" },
     source: { type: String, default: "upload" }, // upload | Google Drive | External
     mimeType: { type: String },
