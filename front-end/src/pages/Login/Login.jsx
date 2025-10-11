@@ -3,7 +3,7 @@ import { Form, Input, Button, Typography, message, Card, Divider } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import api from "../../utils/axios";
-import { lsSet } from "../../utils/storage";
+import { lsSet, lsSetSession } from "../../utils/storage";
 import "./login.css";
 
 import lmisLogo from "../../assets/lmis.svg";
@@ -52,7 +52,8 @@ function Login() {
           lsSetSession("token", token);
         } catch {}
       }
-      lsSet("user", user);
+  // Store per tab/window to isolate multiple users on same machine/browser
+  lsSetSession("user", user);
       // mark user as online
       lsSet("onlineUser", user.Username);
       //message.success(`Welcome, ${user.FullName || values.Username}`);

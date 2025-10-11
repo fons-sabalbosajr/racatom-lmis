@@ -88,16 +88,19 @@ app.use(async (req, res, next) => {
 
     // Allow auth routes to let developers log in
     if (req.path.startsWith("/api/auth")) return next();
-    // Allow developers to access database and any route if they are dev
-  const token = req.headers?.authorization?.split?.(" ")[1] || req.cookies?.token;
+    // Allow developers or users with DB-tools permissions to access while in maintenance
+    const token = req.headers?.authorization?.split?.(" ")[1] || req.cookies?.token;
     if (!token) return res.status(503).json({ success: false, message: "Maintenance mode active" });
     try {
       // reuse requireAuth logic minimally (avoid circular import): verify via User lookup on decoded token id
       const jwt = (await import("jsonwebtoken")).default;
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       if (decoded?.id) {
-        const u = await User.findById(decoded.id).select("Position");
-        if (u && String(u.Position).toLowerCase() === "developer") return next();
+        // Fetch role and permissions to decide bypass
+        const u = await User.findById(decoded.id).select("Position permissions");
+        const role = String(u?.Position || "").trim().toLowerCase();
+        const hasDbPerm = !!(u?.permissions?.menus?.settingsDatabase === true || u?.permissions?.menus?.developerSettings === true);
+        if (role === "developer" || hasDbPerm) return next();
       }
     } catch (e) {
       // ignore and block below

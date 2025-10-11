@@ -195,15 +195,18 @@ router.post("/login", async (req, res) => {
       expiresIn: "1d",
     });
 
-    // Cookie settings
+    // Optional cookie for legacy flows. Prefer header token used by frontend session storage.
+    // Use a more restrictive cookie scope to reduce cross-tab side effects.
     const isProd = process.env.NODE_ENV === "production";
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: isProd, // true only for HTTPS production
-      sameSite: isProd ? "Strict" : "lax", // 'lax' for dev on HTTP
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+    try {
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: isProd, // true only for HTTPS production
+        sameSite: isProd ? "Strict" : "Lax", // Lax in dev to allow localhost
+        maxAge: 24 * 60 * 60 * 1000,
+        path: "/", // default scope
+      });
+    } catch {}
 
     const { Password: _, verificationToken, ...userData } = user.toObject();
 
@@ -410,3 +413,20 @@ router.get("/me", requireAuth, async (req, res) => {
 });
 
 export default router;
+
+// ===== Maintenance status (for UI) =====
+// Allows authenticated users to know if maintenance is active and whether they are allowed to bypass it.
+// This lives under /api/auth so it's reachable even when the maintenance gate is active.
+import runtimeFlags from "../utils/runtimeFlags.js";
+
+router.get("/maintenance-status", requireAuth, async (req, res) => {
+  try {
+    const role = String(req.user?.Position || "").trim().toLowerCase();
+    const hasDbPerm = !!(req.user?.permissions?.menus?.settingsDatabase === true || req.user?.permissions?.menus?.developerSettings === true);
+    const allowed = role === "developer" || hasDbPerm;
+    return res.json({ success: true, maintenance: !!runtimeFlags.maintenance, allowed });
+  } catch (err) {
+    console.error("maintenance-status error:", err?.message || err);
+    return res.status(500).json({ success: false, message: "Failed to read maintenance status" });
+  }
+});

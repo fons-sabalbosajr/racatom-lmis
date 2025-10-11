@@ -20,7 +20,7 @@ import {
 } from "antd";
 import { UserOutlined, UploadOutlined, DeleteOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
-import { lsGet, lsSet } from "../../../utils/storage";
+import { lsGet, lsGetSession, lsSet, lsSetSession } from "../../../utils/storage";
 import "./accounts.css";
 import { useDevSettings } from "../../../context/DevSettingsContext";
 
@@ -32,7 +32,7 @@ const Accounts = () => {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentUser, setCurrentUser] = useState(() => lsGet("user"));
+  const [currentUser, setCurrentUser] = useState(() => lsGetSession("user") || lsGet("user"));
   const [form] = Form.useForm();
   const [photoFile, setPhotoFile] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
@@ -103,7 +103,7 @@ const Accounts = () => {
   };
 
   useEffect(() => {
-    const userObj = lsGet("user");
+    const userObj = lsGetSession("user") || lsGet("user");
     if (userObj) setCurrentUser(userObj);
   }, []);
 
@@ -143,7 +143,7 @@ const Accounts = () => {
       // If editing your own profile, update the user data in localStorage
       if (editingUser?._id === currentUser?._id) {
         const updatedUser = res.data;
-        lsSet("user", updatedUser);
+  lsSetSession("user", updatedUser);
         setCurrentUser(updatedUser);
       }
 

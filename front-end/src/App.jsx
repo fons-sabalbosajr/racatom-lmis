@@ -9,6 +9,7 @@ import ForgotPassword from "./pages/Login/ForgotPassword";
 import ResetPassword from "./pages/Login/ResetPassword";
 import Verify from "./pages/Home/Verify";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Maintenance from "./pages/Maintenance/Maintenance";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Loans from "./pages/Loans/Loans";
 import Reports from "./pages/Reports/Reports";
@@ -33,6 +34,7 @@ function App() {
 
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
+  <Route path="/maintenance" element={<Maintenance />} />
       <Route path="/create-account" element={<CreateAccount />} />
       <Route path="/verify/:token" element={<Verify />} />
       <Route path="/verify-email" element={<VerifyEmail />} />

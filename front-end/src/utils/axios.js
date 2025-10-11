@@ -1,6 +1,6 @@
 // src/utils/axios.js
 import axios from "axios";
-import { lsGet, lsGetSession, lsClearAllApp, lsRemove } from "./storage";
+import { lsGet, lsGetSession, lsRemove } from "./storage";
 
 // Determine a robust API base URL
 const envBase = typeof import.meta !== "undefined" && import.meta.env
@@ -29,7 +29,7 @@ const api = axios.create({
   timeout: 15000, // avoid hanging requests (15s default)
 });
 
-// Small helper to clear the session-scoped token
+// Small helper to clear the session-scoped token (per tab/window)
 function clearSessionToken() {
   try { lsRemove("token"); } catch {}
 }
@@ -73,11 +73,12 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      // clear any stored user info
-      lsClearAllApp();
+      // Only clear the auth token for this tab; avoid nuking other tabs' state
       clearSessionToken();
-
-      // ✅ Always send to the correct login route
+      try {
+        // Best-effort minimal clean: remove user for this tab only
+        lsRemove("user");
+      } catch {}
       window.location.replace("/login");
     }
     return Promise.reject(error);

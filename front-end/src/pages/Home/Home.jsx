@@ -26,7 +26,7 @@ import {
   MessageOutlined, // ✅ Message icon
   CodeOutlined,
 } from "@ant-design/icons";
-import { lsGet, lsClearAllApp } from "../../utils/storage";
+import { lsGet, lsGetSession, lsClearAllApp } from "../../utils/storage";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import "./home.css";
 import logo from "../../assets/lmis.svg"; // your logo
@@ -45,7 +45,7 @@ const { Panel } = Collapse;
 function Home() {
   const { settings, setSetting } = useDevSettings();
   const [collapsed, setCollapsed] = useState(false);
-  const [user, setUser] = useState(() => lsGet("user"));
+  const [user, setUser] = useState(() => lsGetSession("user") || lsGet("user"));
 
   const [notifications, setNotifications] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -66,11 +66,10 @@ function Home() {
         const fetched = res?.data?.data?.user;
         if (fetched) {
           setUser(fetched);
-          // keep local storage in sync for other consumers
+          // keep storage in sync scoped to this tab/window
           try {
-            // keep storage in sync using encrypted helper
-            const { lsSet } = await import("../../utils/storage");
-            lsSet("user", fetched);
+            const { lsSetSession } = await import("../../utils/storage");
+            lsSetSession("user", fetched);
           } catch {}
         }
       } catch (e) {
@@ -147,7 +146,7 @@ function Home() {
       // Call backend to invalidate session/cookie
       await api.post(`/auth/logout`, {});
 
-  // Clear all relevant localStorage keys
+  // Clear all relevant local/session storage keys
   lsClearAllApp();
       // Also clear the encrypted session-scoped token for this tab/window
       try {
@@ -399,7 +398,7 @@ function Home() {
             </div>
 
             {/* ✅ Messages Popover */}
-            <Popover
+            {/* <Popover
               placement="bottomRight"
               title="Messages"
               trigger="click"
@@ -435,7 +434,7 @@ function Home() {
                   }}
                 />
               </Badge>
-            </Popover>
+            </Popover> */}
 
             {/* ✅ Notifications Popover */}
             <Popover
