@@ -1,0 +1,270 @@
+/* Styles specific to LoanCollectorChart (tablet compact rules)
+   Keep safe selectors; do not force internal Recharts heights.
+*/
+
+.chart-card.chart-collector {
+  box-sizing: border-box;
+}
+
+/* Ensure card body uses a column layout so chart area and legend stack predictably
+   and we can nudge the legend upward to match other chart cards' visual height. */
+.chart-card.chart-collector .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  /* allow ResponsiveContainer / chart surface to grow while keeping legend visible */
+  padding: 10px !important;
+}
+
+/* Fixed/min heights to stabilize card size across breakpoints */
+/* Desktop */
+@media (min-width: 1081px) {
+  .chart-card.chart-collector {
+    min-height: 360px; /* equals other charts */
+  }
+  .chart-card.chart-collector .ant-card-body {
+    min-height: 320px; /* equals other charts */
+  }
+}
+
+/* Tablet */
+@media (max-width: 1080px) and (min-width: 835px) {
+  .chart-card.chart-collector {
+    min-height: 260px;
+  }
+  .chart-card.chart-collector .ant-card-body {
+    min-height: 220px;
+  }
+}
+@media (max-width: 1080px) {
+  .chart-card.chart-collector .ant-card-body {
+    min-height: 220px;
+  }
+}
+
+/* Small tablet / large phone */
+@media (max-width: 834px) and (min-width: 769px) {
+  .chart-card.chart-collector {
+    min-height: 220px;
+  }
+  .chart-card.chart-collector .ant-card-body {
+    min-height: 190px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .chart-card.chart-collector {
+    min-height: 200px;
+  }
+  .chart-card.chart-collector .ant-card-body {
+    min-height: 160px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .chart-card.chart-collector .ant-card-body {
+    padding: 8px 10px !important;
+    height: 295px !important; /* enforce equal card body height on tablets */
+  }
+
+  .chart-card.chart-collector .ant-card-head {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* Reduce legend font size */
+  .chart-card.chart-collector .recharts-legend-item text {
+    font-size: 10px !important;
+  }
+
+  /* Reduce pie label text size inside this card */
+  .chart-card.chart-collector svg text {
+    font-size: 10px !important;
+  }
+
+  /* Tighten legend spacing */
+  .chart-card.chart-collector .recharts-legend-wrapper {
+    margin-top: 8px !important; /* nudge legend downward on tablets */
+  }
+
+  .chart-card.chart-collector .recharts-legend-item {
+    margin-right: 6px !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* Compact legend: smaller tags and value text */
+  .chart-collector-legend .legend-tag {
+    padding: 2px 6px;
+    font-size: 10px;
+    line-height: 1.1;
+  }
+  .chart-collector-legend .legend-value {
+    font-size: 9px;
+    line-height: 1.1;
+    font-weight: 500;
+  }
+  .legend-popover-item .legend-value {
+    font-size: 9px;
+    font-weight: 500;
+  }
+  
+  /* Smaller "+N more" tag on tablets */
+  .chart-collector-legend .legend-more-tag {
+    padding: 2px 6px !important;
+    font-size: 10px !important;
+    line-height: 1;
+  }
+}
+
+/* Default tag size reduced to keep legend compact */
+.chart-collector-legend .legend-tag {
+  margin: 2px 4px 2px 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1.15; /* slightly tighter tag height */
+}
+
+/* Legend visuals for custom legend */
+.chart-collector-legend {
+  padding: 4px 8px 8px 8px;
+}
+.chart-collector-legend .legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.chart-collector-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+.chart-collector-legend .legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  display: inline-block;
+}
+.chart-collector-legend .legend-label {
+  color: #333;
+}
+.chart-collector-legend .legend-value {
+  color: inherit;
+  margin-left: 6px;
+  font-size: 10px;
+}
+.chart-collector-legend .legend-more {
+  padding: 0;
+  font-size: 9px;
+}
+.legend-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.legend-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+.legend-popover-item .legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Single-row compact legend (for <=5 items) */
+.chart-collector-legend .legend-single-row {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: 8px;
+}
+
+/* Tag styles for legend */
+.chart-collector-legend .legend-tag {
+  margin: 2px 4px 2px 0; /* reduced margins */
+  padding: 2px 6px; /* reduced padding to shrink tag height */
+  border-radius: 6px;
+  line-height: 1.15;
+}
+.chart-collector-legend .legend-more-tag {
+  margin: 4px 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: #1677ff;
+  cursor: pointer;
+  border: 1px dashed rgba(22, 119, 255, 0.15);
+}
+
+/* Desktop: use slightly smaller legend values for compactness */
+@media (min-width: 1081px) {
+  .chart-collector-legend .legend-value {
+    font-size: 11px !important;
+    font-weight: 600;
+    color: #333;
+  }
+  /* also make legend labels a touch smaller to match */
+  .chart-collector-legend .legend-label {
+    font-size: 12px !important;
+  }
+  /* make Tag-based legend slightly smaller */
+  .chart-collector-legend .legend-tag {
+    padding: 2px 6px;
+    font-size: 11px;
+    line-height: 1.1;
+  }
+}
+
+@media (min-width: 1081px) {
+  .legend-popover-item {
+    font-size: 10px !important;
+  }
+  .legend-popover-item .legend-value {
+    font-size: 10px !important;
+    font-weight: 500;
+  }
+}
+
+@media (min-width: 1081px) {
+  .chart-collector-legend .legend-label {
+    font-size: 14px !important;
+    color: #222;
+  }
+
+  .chart-card.chart-collector svg text {
+    font-size: 13px !important;
+  }
+
+  .chart-card.chart-collector .recharts-legend-item text {
+    font-size: 13px !important;
+  }
+}
+
+/* Align chart surface to take available space and pull legend upward slightly so
+   cards appear equal height across the dashboard. This nudges the legend closer
+   to the chart on desktop where there is extra vertical space. */
+@media (min-width: 1081px) {
+  .chart-card.chart-collector .recharts-wrapper,
+  .chart-card.chart-collector .recharts-surface,
+  .chart-card.chart-collector svg {
+    /* allow the chart to use available vertical space */
+    flex: 1 1 auto;
+  }
+
+  /* Reduce the extra bottom padding and move legend upward */
+  .chart-collector-legend {
+    padding-bottom: 2px;
+    margin-top: -10px;
+  }
+
+  /* Slight negative offset to visually raise the tags/values closer to the chart */
+  .chart-collector-legend .legend-items {
+    transform: translateY(-20px);
+  }
+
+  /* Remove custom deviation to keep equal height with others */
+}

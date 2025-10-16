@@ -44,7 +44,7 @@ const { Dragger } = Upload;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-const Collections = ({ loan }) => {
+const Collections = ({ loan, onAfterChange }) => {
   const { settings } = useDevSettings();
   const [form] = Form.useForm();
   const [collections, setCollections] = useState([]);
@@ -138,27 +138,37 @@ const Collections = ({ loan }) => {
   };
 
   const fetchCollections = useCallback(() => {
-    if (!loan?.loanInfo?.loanNo) {
+    const accountId = loan?.accountId || loan?.AccountId;
+    if (!accountId) {
       setAllCollections([]);
       return;
     }
 
     setLoading(true);
     api
-      .get(`/loan-collections/${loan.loanInfo.loanNo}`, {
-        params: { limit: 0 },
+      .get(`/loan-collections`, {
+        params: { accountId, limit: 0 },
       })
-      .then((response) => {
+      .then(async (response) => {
         if (response.data.success) {
-          // Optionally dedupe on fetch for consistent order
           const raw = response.data.data || [];
-          const processed = settings.collectionsDedupeOnFetch
-            ? dedupeCollections(raw)
-            : sortCollections(raw);
+          // Always de-duplicate automatically for a cleaner UI
+          const deduped = dedupeCollections(raw);
+          const processed = deduped;
+          // If duplicates were found and we know the cycle, request backend cleanup silently
+          try {
+            const lc = loan?.loanInfo?.loanNo;
+            if (lc && deduped.length < raw.length) {
+              await api.post("/loan-collections/dedupe", {
+                loanCycleNo: lc,
+                dryRun: false,
+              });
+            }
+          } catch (e) {
+            // Silent fail; UI already deduped
+          }
           setAllCollections(processed);
-          const hasImported = response.data.data.some(
-            (c) => c.Source === "imported"
-          );
+          const hasImported = raw.some((c) => c.Source === "imported");
           setHasImportedCollections(hasImported);
         } else {
           message.error("Failed to fetch collections.");
@@ -171,7 +181,7 @@ const Collections = ({ loan }) => {
       .finally(() => {
         setLoading(false);
       });
-  }, [loan?.loanInfo?.loanNo]);
+  }, [loan?.accountId, loan?.AccountId]);
 
   useEffect(() => {
     fetchCollections();
@@ -183,6 +193,25 @@ const Collections = ({ loan }) => {
       }
     });
   }, [fetchCollections]);
+
+  // Build a synthetic initial loan row for display only
+  const buildInitialRow = useCallback(() => {
+    if (!loan) return null;
+    const amount = Number(loan?.loanInfo?.balance ?? loan?.loanInfo?.amount ?? 0) || 0;
+    const collectorName = loan?.loanInfo?.collectorName || "";
+    // Per requirement: do not display a date for the initial loan row
+    return {
+      _id: "initial-row",
+      PaymentDate: null,
+      CollectionReferenceNo: "Initial Loan",
+      CollectionPayment: 0,
+      RunningBalance: amount,
+      Penalty: 0,
+      CollectorName: collectorName,
+      PaymentType: "Initial",
+      __synthetic: true,
+    };
+  }, [loan, allCollections]);
 
   useEffect(() => {
     let filteredData = allCollections;
@@ -200,12 +229,18 @@ const Collections = ({ loan }) => {
       );
     }
 
+    // For display, include a synthetic initial row to precede the first payment
+    const initialRow = buildInitialRow();
+    // Keep user data sorted, then prefix the initial row so it stays on top
+    const sortedData = sortCollections(filteredData);
+    const displayData = initialRow ? [initialRow, ...sortedData] : sortedData;
+
     setPagination((prev) => ({
       ...prev,
-      total: filteredData.length,
+      total: displayData.length,
     }));
 
-    const paginatedData = filteredData.slice(
+    const paginatedData = displayData.slice(
       (pagination.current - 1) * pagination.pageSize,
       pagination.current * pagination.pageSize
     );
@@ -233,8 +268,20 @@ const Collections = ({ loan }) => {
       await api.post(`/loan-collections/import/${loan.loanInfo.loanNo}`, {
         data: selected,
       });
-      message.success("Collections saved to metadata!");
-      setIsPreviewModalVisible(false);
+      // Auto-commit after save
+      const commit = await api.post(`/loan-collections/commit/${loan.loanInfo.loanNo}`);
+      if (commit.data?.success) {
+        message.success("Collections imported successfully!");
+        setIsPreviewModalVisible(false);
+        try {
+          await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } });
+        } catch {}
+        fetchCollections();
+        if (onAfterChange) onAfterChange();
+      } else {
+        message.success("Saved to metadata. Nothing to commit.");
+        setIsPreviewModalVisible(false);
+      }
     } catch (err) {
       console.error(err);
       message.error("Failed to save collections.");
@@ -248,7 +295,11 @@ const Collections = ({ loan }) => {
       );
       if (res.data.success) {
         message.success("Collections imported successfully!");
+        try {
+          await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } });
+        } catch {}
         fetchCollections();
+        if (onAfterChange) onAfterChange();
       } else {
         message.warning(res.data.message || "Nothing to import.");
       }
@@ -258,11 +309,41 @@ const Collections = ({ loan }) => {
     }
   };
 
+  // Import from existing collection database by LoanCycleNo + ClientNo
+  const handleImportFromDatabase = async () => {
+    try {
+      const payload = {
+        loanCycleNo: loan?.loanInfo?.loanNo,
+        clientNo: loan?.clientNo,
+      };
+      const res = await api.post(`/loan-collections/import-from-database`, payload);
+      if (res.data?.success) {
+        const ins = res.data?.data?.inserted || 0;
+        const skipped = res.data?.data?.skipped || 0;
+        message.success(`Imported ${ins} from database${skipped ? `, skipped ${skipped}` : ""}.`);
+        try {
+          await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
+        } catch {}
+        fetchCollections();
+        if (onAfterChange) onAfterChange();
+      } else {
+        message.warning(res.data?.message || "No collections imported from database.");
+      }
+    } catch (e) {
+      console.error(e);
+      message.error("Failed to import from collection database.");
+    }
+  };
+
   const handleDeleteCollection = async (record) => {
     try {
       await api.delete(`/loan-collections/${record._id}`);
       message.success("Collection deleted successfully.");
+      try {
+        await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
+      } catch {}
       fetchCollections(); // Refresh data
+      if (onAfterChange) onAfterChange();
     } catch (error) {
       console.error("Error deleting collection:", error);
       message.error("Failed to delete collection.");
@@ -353,27 +434,60 @@ const Collections = ({ loan }) => {
   };
 
   const collectionSummary = useMemo(() => {
-    const totalCollections = allCollections.filter(
-      (c) => !c.isDisbursement
-    ).length;
-    const totalAmountCollected = allCollections.reduce(
-      (acc, curr) => acc + parseFloat(curr.CollectionPayment || 0),
-      0
-    );
-    const totalPenalty = allCollections.reduce(
-      (acc, curr) => acc + parseFloat(curr.Penalty || 0),
-      0
-    );
-    const lastCollection = allCollections[allCollections.length - 1];
-    const remainingBalance =
-      lastCollection && lastCollection.RunningBalance !== undefined
-        ? Number(lastCollection.RunningBalance)
-        : Number(loan?.loanInfo?.balance ?? 0);
+    const toNum = (v) => {
+      if (v == null) return 0;
+      if (typeof v === "number") return v;
+      if (typeof v === "string") return parseFloat(v.replace(/,/g, "")) || 0;
+      if (v && v.constructor && v.constructor.name === "Decimal128") {
+        try { return Number(v.toString()) || 0; } catch { return 0; }
+      }
+      return 0;
+    };
+
+    const lc = loan?.loanInfo?.loanNo;
+    const rows = (allCollections || []).filter((c) => !lc || c.LoanCycleNo === lc);
+
+    // counts
+    const totalCollections = rows.length;
+
+    // amounts
+    let totalAmountCollected = 0;
+    let totalPenalty = 0;
+    let totalPrincipalPaid = 0;
+    let totalInterestPaid = 0;
+
+    rows.forEach((r) => {
+      totalAmountCollected += toNum(r.CollectionPayment ?? r.TotalCollected);
+      totalPenalty += toNum(r.Penalty);
+      totalPrincipalPaid += toNum(r.PrincipalPaid);
+      totalInterestPaid += toNum(r.InterestPaid ?? r.CollectedInterest);
+    });
+
+    // remaining balance = last row's RunningBalance (by date then created time)
+    const sorted = [...rows].sort((a, b) => {
+      const da = a.PaymentDate ? dayjs(a.PaymentDate) : null;
+      const db = b.PaymentDate ? dayjs(b.PaymentDate) : null;
+      if (da && db) {
+        if (da.isBefore(db)) return -1;
+        if (da.isAfter(db)) return 1;
+      } else if (da && !db) return 1; else if (!da && db) return -1;
+      const ca = a.createdAt ? dayjs(a.createdAt) : null;
+      const cb = b.createdAt ? dayjs(b.createdAt) : null;
+      if (ca && cb) {
+        if (ca.isBefore(cb)) return -1;
+        if (ca.isAfter(cb)) return 1;
+      }
+      return 0;
+    });
+    const last = sorted[sorted.length - 1];
+    const remainingBalance = last ? toNum(last.RunningBalance) : toNum(loan?.loanInfo?.balance ?? 0);
 
     return {
       totalCollections,
       totalAmountCollected,
       totalPenalty,
+      totalPrincipalPaid,
+      totalInterestPaid,
       remainingBalance,
     };
   }, [allCollections, loan]);
@@ -386,13 +500,14 @@ const Collections = ({ loan }) => {
   const mainTableRowSelection = {
     selectedRowKeys: selectedMainTableRowKeys,
     onChange: (keys) => setSelectedMainTableRowKeys(keys),
+    getCheckboxProps: (record) => ({ disabled: !!record.__synthetic }),
   };
 
   const columns = [
     {
       title: "Date",
       dataIndex: "PaymentDate",
-      render: (d) => (d ? dayjs(d).format("MM/DD/YYYY") : ""),
+      render: (d, record) => (record?.__synthetic ? "" : (d ? dayjs(d).format("MM/DD/YYYY") : "")),
     },
     { title: "Ref No", dataIndex: "CollectionReferenceNo" },
     {
@@ -415,24 +530,26 @@ const Collections = ({ loan }) => {
       title: "Action",
       key: "action",
       render: (_, record) => (
-        <Space size="small">
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => {
-              setEditingCollection(record);
-              setIsEditModalVisible(true);
-            }}
-            size="small"
-          />
-          <Popconfirm
-            title="Are you sure you want to delete this collection?"
-            onConfirm={() => handleDeleteCollection(record)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button danger icon={<DeleteOutlined />} size="small" />
-          </Popconfirm>
-        </Space>
+        record.__synthetic ? null : (
+          <Space size="small">
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => {
+                setEditingCollection(record);
+                setIsEditModalVisible(true);
+              }}
+              size="small"
+            />
+            <Popconfirm
+              title="Are you sure you want to delete this collection?"
+              onConfirm={() => handleDeleteCollection(record)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button danger icon={<DeleteOutlined />} size="small" />
+            </Popconfirm>
+          </Space>
+        )
       ),
     },
   ];
@@ -539,11 +656,6 @@ const Collections = ({ loan }) => {
 
   return (
     <div className="collections-container">
-      <h2>
-        Collections for {loan?.person?.firstName} {loan?.person?.middleName}{" "}
-        {loan?.person?.lastName} (Loan No: {loan?.loanInfo?.loanNo || "N/A"})
-      </h2>
-
       <div className="collections-filters" style={{ marginBottom: 12 }}>
         <Input
           placeholder="Search..."
@@ -565,43 +677,41 @@ const Collections = ({ loan }) => {
           <Button
             style={{ marginRight: 8 }}
             onClick={() => setIsUpdateCollectorModalVisible(true)}
+            size="small"
           >
             Update Collector ({selectedMainTableRowKeys.length})
           </Button>
         )}
-        <Button
-          style={{ marginRight: 8 }}
-          onClick={handleDedupeCollections}
-        >
-          Clean Duplicates
-        </Button>
         {settings.collectionsShowImportActions && (
           <>
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setIsAddModalVisible(true)}
+              size="small"
             >
               Add Collection
             </Button>
-            <Button
-              style={{ background: "green", color: "white", marginLeft: 8 }}
-              icon={<UploadOutlined />}
-              onClick={() => setIsUploadModalVisible(true)}
+            <Dropdown
+              menu={{
+                onClick: ({ key }) => {
+                  if (key === "upload") setIsUploadModalVisible(true);
+                  if (key === "db") handleImportFromDatabase();
+                },
+                items: [
+                  { key: "upload", label: "Add from uploaded file", icon: <UploadOutlined /> },
+                  { key: "db", label: "Add from Collection Database", icon: <ImportOutlined /> },
+                ],
+              }}
             >
-              Upload File
-            </Button>
-            <Button
-              style={{ background: "blue", color: "white", marginLeft: 8 }}
-              icon={<ImportOutlined />}
-              onClick={handleImportCollections}
-            >
-              {hasImportedCollections ? "Reimport Data" : "Import Collections"}
-            </Button>
+              <Button style={{ marginLeft: 8 }} size="small">
+                Import Collections <DownOutlined />
+              </Button>
+            </Dropdown>
           </>
         )}
         <Dropdown menu={exportMenu}>
-          <Button style={{ marginLeft: 8 }}>
+          <Button style={{ marginLeft: 8 }} size="small">
             Export <DownOutlined />
           </Button>
         </Dropdown>
@@ -613,7 +723,7 @@ const Collections = ({ loan }) => {
       <Table
         columns={columns}
         dataSource={collections}
-        rowKey={(r) => r._id || r.CollectionReferenceNo}
+        rowKey={(r) => r._id || r.CollectionReferenceNo || `${r.PaymentDate}-${r.RunningBalance}`}
         loading={loading}
         pagination={{
           ...pagination,
@@ -622,24 +732,43 @@ const Collections = ({ loan }) => {
         }}
         onChange={handleTableChange}
         rowSelection={mainTableRowSelection}
+        rowClassName={(record) =>
+          record?.__synthetic
+            ? "initial-loan-row"
+            : record?.PaymentType === "Advance Payment"
+            ? "advanced-payment-row"
+            : ""
+        }
       />
 
       {/* Upload Modal */}
       <Modal
-        title="Upload Collection File"
+        title="Upload Collections (.docx or .csv)"
         open={isUploadModalVisible}
         onCancel={() => setIsUploadModalVisible(false)}
         footer={null}
+        className="compact-modal"
       >
         <Dragger
           multiple={false}
           showUploadList={false}
+          accept=".docx,.csv"
           beforeUpload={async (file) => {
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            if (ext === 'doc') {
+              message.error('Old .doc files are not supported. Please upload a .docx or .csv file.');
+              return Upload.LIST_IGNORE;
+            }
+            if (!['docx','csv'].includes(ext)) {
+              message.error('Unsupported file type. Please upload a .docx or .csv file.');
+              return Upload.LIST_IGNORE;
+            }
             const formData = new FormData();
             formData.append("file", file);
 
             try {
-              const res = await api.post("/parse/word", formData, {
+              const endpoint = ext === 'csv' ? '/parse/csv' : '/parse/word';
+              const res = await api.post(endpoint, formData, {
                 headers: { "Content-Type": "multipart/form-data" },
               });
 
@@ -675,7 +804,10 @@ const Collections = ({ loan }) => {
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">
-            Click or drag Word (.doc / .docx) file here
+            Click or drag a .docx or .csv file here
+          </p>
+          <p className="ant-upload-hint" style={{ marginTop: 4 }}>
+            Only .docx and .csv are accepted. Legacy .doc files are not supported.
           </p>
         </Dragger>
       </Modal>
@@ -688,6 +820,7 @@ const Collections = ({ loan }) => {
         width={900}
         okText="Save Selected"
         onOk={handleSaveParsedCollections}
+        className="compact-modal"
       >
         {/* Header Info Summary */}
         {headerInfo && Object.keys(headerInfo).length > 0 && (
@@ -797,7 +930,13 @@ const Collections = ({ loan }) => {
         onCancel={() => setIsAddModalVisible(false)}
         onSuccess={() => {
           setIsAddModalVisible(false);
-          fetchCollections();
+          (async () => {
+            try {
+              await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
+            } catch {}
+            fetchCollections();
+            if (onAfterChange) onAfterChange();
+          })();
         }}
         loan={loan}
       />
@@ -813,7 +952,13 @@ const Collections = ({ loan }) => {
           onSuccess={() => {
             setIsEditModalVisible(false);
             setEditingCollection(null);
-            fetchCollections();
+            (async () => {
+              try {
+                await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
+              } catch {}
+              fetchCollections();
+              if (onAfterChange) onAfterChange();
+            })();
           }}
           collectionData={editingCollection}
           loan={loan}

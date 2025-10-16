@@ -6,6 +6,7 @@ import LoanCycle from '../models/LoanCycle.js';
 export const getUsers = async (req, res) => {
   try {
   const users = await User.find({}, "-verificationToken -resetPasswordToken -resetPasswordExpires");
+    const meId = String(req.user?._id || "");
 
     const usersWithPhoto = users.map(user => {
       const obj = user.toObject();
@@ -14,9 +15,19 @@ export const getUsers = async (req, res) => {
       if (obj.Photo && obj.Photo.length) obj.Photo = obj.Photo.toString("base64");
       else obj.Photo = null;
 
-      // Do NOT override isVerified here; respect the DB value.
-      // Instead, optionally expose a diagnostic flag the UI can use if needed.
-      obj.passwordHashed = !!(obj.Password && obj.Password.startsWith("$2b$"));
+      // Presence helper: user is online if lastSeen within last 5 minutes
+      const now = Date.now();
+      const last = obj.lastSeen ? new Date(obj.lastSeen).getTime() : 0;
+      let isOnline = last && (now - last) <= 5 * 60 * 1000;
+      // Ensure current requester shows as online immediately
+      if (String(obj._id) === meId) {
+        isOnline = true;
+        obj.lastSeen = new Date();
+      }
+      obj.isOnline = isOnline;
+
+  // Do NOT override isVerified; respect the DB value. Provide diagnostics only.
+  obj.passwordHashed = !!(obj.Password && obj.Password.startsWith("$2b$"));
 
       return obj;
     });

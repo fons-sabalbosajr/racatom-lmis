@@ -1,0 +1,118 @@
+.create-card {
+  width: 100%;
+  max-width: var(--card-max-width, 450px);
+  padding: var(--card-padding, 0px 15px);
+  border-radius: var(--card-border-radius, 12px);
+  box-sizing: border-box;
+  margin: 0 12px; /* breathing room on very small screens */
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  animation: fadeInUp 0.6s ease-out;
+  z-index: 2;
+  position: relative;
+  /* Local field sizing tokens */
+  --field-height: 36px;
+  --field-font-size: 14px;
+}
+
+/* Uniform field heights scoped to Create Account card */
+.create-card .ant-input,
+.create-card .ant-input-affix-wrapper,
+.create-card .ant-select-selector,
+.create-card .ant-picker {
+  height: var(--field-height) !important;
+  font-size: var(--field-font-size) !important;
+}
+
+/* Padding and alignment for common controls */
+.create-card .ant-input,
+.create-card .ant-input-affix-wrapper,
+.create-card .ant-picker {
+  padding: 0 8px !important;
+}
+
+/* Password input specific alignment */
+.create-card .ant-input-affix-wrapper {
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.create-card .ant-input-affix-wrapper .ant-input {
+  height: calc(var(--field-height) - 2px) !important;
+  line-height: calc(var(--field-height) - 2px) !important;
+  padding: 0 !important; /* avoid extra inner padding; outer wrapper provides it */
+}
+
+.create-card .ant-input-affix-wrapper .ant-input-prefix,
+.create-card .ant-input-affix-wrapper .ant-input-suffix {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.create-card .ant-select-selector,
+.create-card .ant-picker {
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Inner content alignment for Select and Picker */
+.create-card .ant-select-selection-item,
+.create-card .ant-select-selection-placeholder {
+  line-height: var(--field-height) !important;
+}
+
+.create-card .ant-picker-input > input {
+  /* Keep inner input visually centered */
+  height: calc(var(--field-height) - 2px) !important;
+}
+
+@media (min-width: 481px) and (max-width: 1080px) {
+  .login-container {
+    padding: 24px; /* slightly reduced breathing room on tablets */
+    background-position: center center;
+    background-size: cover;
+  }
+
+  .create-card {
+    width: 100%;
+    max-width: var(--card-max-width, 450px);
+    padding: var(--card-padding, 0px 15px);
+    border-radius: var(--card-border-radius, 12px);
+    box-sizing: border-box;
+    margin: 0 12px; /* breathing room on very small screens */
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    background: rgba(255, 255, 255, 0.9);
+    animation: fadeInUp 0.6s ease-out;
+    z-index: 2;
+    position: relative;
+  }
+
+  .create-title {
+    font-size: 18px !important;
+    margin-bottom: 5px !important;
+  }
+
+  /* Tablet field sizing */
+  .create-card {
+    --field-height: 34px;
+    --field-font-size: 13px;
+  }
+
+  .ant-btn-primary {
+    font-size: 14px !important;
+    padding: 0 12px !important;
+  }
+
+  /* Make sure animated gradient doesn't overpower the small card on tablets */
+  .login-container::before {
+    opacity: 0.8;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .create-card {
+    --field-height: 32px;
+    --field-font-size: 13px;
+  }
+}

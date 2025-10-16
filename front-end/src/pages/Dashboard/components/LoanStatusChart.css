@@ -1,0 +1,200 @@
+/* Styles specific to LoanStatusChart component
+   Keep rules safe: do NOT force internal Recharts container heights.
+   Provide compact paddings and smaller tick/font sizes for tablet widths.
+*/
+
+.chart-card.chart-status {
+  /* base spacing for the chart card */
+  box-sizing: border-box;
+}
+
+/* Ensure consistent card heights to match other dashboard charts */
+@media (min-width: 1081px) {
+  .chart-card.chart-status {
+    min-height: 360px;
+  }
+  .chart-card.chart-status .ant-card-body {
+    min-height: 320px;
+  }
+}
+@media (max-width: 1080px) {
+  .chart-card.chart-status .ant-card-body {
+    min-height: 220px; /* unify body height for tablet */
+  }
+}
+@media (max-width: 1080px) and (min-width: 835px) {
+  .chart-card.chart-status {
+    min-height: 260px;
+  }
+  .chart-card.chart-status .ant-card-body {
+    min-height: 220px;
+  }
+}
+@media (max-width: 834px) and (min-width: 769px) {
+  .chart-card.chart-status {
+    min-height: 220px;
+  }
+  .chart-card.chart-status .ant-card-body {
+    min-height: 190px;
+  }
+}
+@media (max-width: 768px) {
+  .chart-card.chart-status {
+    min-height: 200px;
+  }
+  .chart-card.chart-status .ant-card-body {
+    min-height: 160px;
+  }
+}
+
+/* Compact for tablet widths up to 1080px */
+@media (max-width: 1080px) {
+  .chart-card.chart-status .ant-card-body {
+    padding: 8px 10px !important;
+  }
+
+  .chart-card.chart-status .ant-card-head {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  .chart-card.chart-status svg text {
+    font-size: 11px !important;
+  }
+
+  /* Reduce legend and tooltip font sizes inside the chart card */
+  .chart-card.chart-status .recharts-legend-item text,
+  .chart-card.chart-status .recharts-tooltip-wrapper {
+    font-size: 12px !important;
+  }
+
+  /* Reduce legend value font and tag padding for compactness */
+  .chart-status-legend .legend-tag {
+    padding: 2px 6px;
+    font-size: 10px;
+    line-height: 1.1;
+  }
+  .chart-status-legend .legend-value {
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+ .chart-status-legend .legend-more-tag {
+ padding: 2px 6px !important;
+    font-size: 10px !important;
+    line-height: 1.1;
+}
+}
+
+/* Custom legend visuals for LoanStatusChart */
+.chart-status-legend {
+  padding: 4px 8px 8px 8px;
+}
+.chart-status-legend .legend-items {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chart-status-legend .legend-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+}
+.chart-status-legend .legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.chart-status-legend .legend-value {
+  color: inherit;
+  margin-left: 6px;
+  font-size: 10px;
+}
+.chart-status-legend .legend-more {
+  font-size: 9px;
+}
+
+/* Single-row compact legend (for <=5 items) */
+.chart-status-legend .legend-single-row {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: 8px;
+}
+
+/* Popover list styling for hidden legend items */
+.legend-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.legend-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+.legend-popover-item .legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Tag styles for legend */
+.chart-status-legend .legend-tag {
+  margin: 2px 4px 2px 0; /* tighter spacing */
+  padding: 2px 6px; /* reduced height */
+  border-radius: 6px;
+  line-height: 1.15;
+}
+.chart-status-legend .legend-more-tag {
+  margin: 4px 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: #1677ff;
+  cursor: pointer;
+  border: 1px dashed rgba(22, 119, 255, 0.15);
+}
+
+/* Desktop: increase legend value prominence */
+@media (min-width: 1081px) {
+  .chart-status-legend .legend-value {
+    font-size: 14px !important;
+    font-weight: 600;
+    color: #333;
+  }
+  /* Make tag a bit more compact on desktop as well */
+  .chart-status-legend .legend-tag {
+    padding: 2px 6px;
+    font-size: 12px;
+    line-height: 1.1;
+  }
+}
+
+@media (min-width: 1081px) {
+  .legend-popover-item {
+    font-size: 13px !important;
+  }
+  .legend-popover-item .legend-value {
+    font-size: 13px !important;
+    font-weight: 500;
+  }
+}
+
+@media (min-width: 1081px) {
+  .chart-status-legend .legend-label {
+    font-size: 14px !important;
+    color: #222;
+  }
+
+  .chart-card.chart-status svg text {
+    font-size: 13px !important;
+  }
+
+  .chart-card.chart-status .recharts-legend-item text {
+    font-size: 13px !important;
+  }
+}

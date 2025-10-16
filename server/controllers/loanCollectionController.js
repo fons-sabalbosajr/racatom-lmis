@@ -10,22 +10,37 @@ export const getAllCollections = async (req, res) => {
       paymentDate,
       startDate,
       endDate,
-      loanCycleNo,
+  loanCycleNo,
       accountId,
+  clientNo,
       collectorName,
       paymentMode,
       sortBy = "PaymentDate",
       sortDir = "asc",
+      minimal = "0",
+      summary = "0",
     } = req.query;
 
+    const minimalMode = String(minimal).toLowerCase() === "1" || String(minimal).toLowerCase() === "true";
+    const summaryMode = String(summary).toLowerCase() === "1" || String(summary).toLowerCase() === "true";
     const query = {};
 
     // Optional simple equality filters
+    const useRegex = (val) => typeof val === "string" && /[.*+?^${}()|[\]\\]/.test(val);
     if (loanCycleNo) {
-      query.LoanCycleNo = { $regex: loanCycleNo, $options: "i" };
+      query.LoanCycleNo = useRegex(loanCycleNo)
+        ? { $regex: loanCycleNo, $options: "i" }
+        : loanCycleNo;
     }
     if (accountId) {
-      query.AccountId = { $regex: accountId, $options: "i" };
+      query.AccountId = useRegex(accountId)
+        ? { $regex: accountId, $options: "i" }
+        : accountId;
+    }
+    if (clientNo) {
+      query.ClientNo = useRegex(clientNo)
+        ? { $regex: clientNo, $options: "i" }
+        : clientNo;
     }
     if (collectorName) {
       query.CollectorName = { $regex: collectorName, $options: "i" };
@@ -71,55 +86,140 @@ export const getAllCollections = async (req, res) => {
     const pageValue = parseInt(page);
     const skip = (pageValue - 1) * limitValue;
 
-    // Build aggregation pipeline to include client name
+    // If requesting summary only, run a lean aggregation and return early
+    if (summaryMode) {
+      try {
+        const matchStage = { ...query };
+        const pipeline = [
+          { $match: matchStage },
+          { $sort: { PaymentDate: 1, _id: 1 } },
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              firstDate: { $first: "$PaymentDate" },
+              lastDate: { $last: "$PaymentDate" },
+              totalCollected: {
+                $sum: {
+                  $cond: [
+                    { $ifNull: ["$CollectionPayment", false] },
+                    { $toDouble: { $ifNull: ["$CollectionPayment", 0] } },
+                    { $toDouble: { $ifNull: ["$TotalCollected", 0] } },
+                  ],
+                },
+              },
+              lastRunningBalance: { $last: "$RunningBalance" },
+            },
+          },
+        ];
+
+        const result = await LoanCollection.aggregate(pipeline);
+        const s = Array.isArray(result) && result.length > 0 ? result[0] : {};
+        const toNum = (v) => {
+          if (v == null) return 0;
+          if (typeof v === "number") return v;
+          if (typeof v === "string") return Number(v.replace(/,/g, "")) || 0;
+          if (v && v.constructor && v.constructor.name === "Decimal128") {
+            try { return Number(v.toString()); } catch { return 0; }
+          }
+          return 0;
+        };
+
+        const summaryPayload = {
+          count: s.count || 0,
+          firstDate: s.firstDate || null,
+          lastDate: s.lastDate || null,
+          totalCollection: toNum(s.totalCollected || 0),
+          lastRunningBalance: toNum(s.lastRunningBalance || 0),
+        };
+
+        return res.status(200).json({
+          success: true,
+          data: [],
+          meta: { total: summaryPayload.count, page: 1, limit: 0 },
+          summary: summaryPayload,
+        });
+      } catch (e) {
+        console.error("Error summarizing collections:", e);
+        return res
+          .status(500)
+          .json({ success: false, message: e.message || "Summary error" });
+      }
+    }
+
+    // Build aggregation pipeline; optionally include client name when not in minimal mode
     const matchStage = { ...query };
     const pipeline = [
       { $match: matchStage },
-      {
-        $lookup: {
-          from: "loan_clients",
-          localField: "ClientNo",
-          foreignField: "ClientNo",
-          as: "clientInfo",
-        },
-      },
-      { $unwind: { path: "$clientInfo", preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          "client.ClientName": {
-            $trim: {
-              input: {
-                $concat: [
-                  { $ifNull: ["$clientInfo.FirstName", ""] },
-                  " ",
-                  { $ifNull: ["$clientInfo.MiddleName", ""] },
-                  " ",
-                  { $ifNull: ["$clientInfo.LastName", ""] },
-                ],
-              },
-            },
-          },
-          clientName: {
-            $trim: {
-              input: {
-                $concat: [
-                  { $ifNull: ["$clientInfo.FirstName", ""] },
-                  " ",
-                  { $ifNull: ["$clientInfo.MiddleName", ""] },
-                  " ",
-                  { $ifNull: ["$clientInfo.LastName", ""] },
-                ],
-              },
-            },
-          },
-        },
-      },
     ];
+
+    if (!minimalMode) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "loan_clients",
+            localField: "ClientNo",
+            foreignField: "ClientNo",
+            as: "clientInfo",
+          },
+        },
+        { $unwind: { path: "$clientInfo", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            "client.ClientName": {
+              $trim: {
+                input: {
+                  $concat: [
+                    { $ifNull: ["$clientInfo.FirstName", ""] },
+                    " ",
+                    { $ifNull: ["$clientInfo.MiddleName", ""] },
+                    " ",
+                    { $ifNull: ["$clientInfo.LastName", ""] },
+                  ],
+                },
+              },
+            },
+            clientName: {
+              $trim: {
+                input: {
+                  $concat: [
+                    { $ifNull: ["$clientInfo.FirstName", ""] },
+                    " ",
+                    { $ifNull: ["$clientInfo.MiddleName", ""] },
+                    " ",
+                    { $ifNull: ["$clientInfo.LastName", ""] },
+                  ],
+                },
+              },
+            },
+          },
+        }
+      );
+    } else {
+      // In minimal mode, project to essential fields only to reduce payload
+      pipeline.push({
+        $project: {
+          _id: 1,
+          LoanCycleNo: 1,
+          AccountId: 1,
+          ClientNo: 1,
+          PaymentDate: 1,
+          CollectionPayment: 1,
+          TotalCollected: 1,
+          RunningBalance: 1,
+          CollectionReferenceNo: 1,
+          PaymentMode: 1,
+          CollectorName: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      });
+  }
 
     // Sorting
     const sortField = typeof sortBy === "string" && sortBy.length > 0 ? sortBy : "PaymentDate";
     const sortOrder = sortDir === "desc" ? -1 : 1;
-    pipeline.push({ $sort: { [sortField]: sortOrder, _id: 1 } });
+  pipeline.push({ $sort: { [sortField]: sortOrder, _id: 1 } });
 
     // Pagination
     if (limitValue !== 0) {

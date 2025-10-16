@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Form, Input, Button, Card, Typography, message, Select } from "antd";
 import api from "../../utils/axios";
 import { useNavigate } from "react-router-dom";
-import "./createAccount.css";
+import "./createaccount.css";
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -24,11 +24,14 @@ function CreateAccount() {
     };
 
     try {
-  await api.post(`/auth/register`, payload);
-      message.success("Account created! Check your email to verify your account.");
+      await api.post(`/auth/register`, payload);
+      message.success(
+        "Account created! Check your email to verify your account."
+      );
       navigate("/login");
     } catch (err) {
-      const serverMsg = err.response?.data?.message || "Account creation failed. Try again.";
+      const serverMsg =
+        err.response?.data?.message || "Account creation failed. Try again.";
       message.error(serverMsg);
     } finally {
       setLoading(false);
@@ -37,27 +40,56 @@ function CreateAccount() {
 
   return (
     <div className="login-container">
-      <Card className="login-card">
-        <Title level={3} style={{ textAlign: "center" }}>Create Account</Title>
+      <Card className="create-card">
+        <Title
+          level={3}
+          style={{ textAlign: "center" }}
+          className="create-title"
+        >
+          Create Account
+        </Title>
 
         <Form layout="vertical" onFinish={onFinish}>
-          <Form.Item label="Full Name" name="FullName" rules={[{ required: true, message: "Enter full name" }]}>
+          <Form.Item
+            label="Full Name"
+            name="FullName"
+            rules={[{ required: true, message: "Enter full name" }]}
+          >
             <Input placeholder="Full Name" />
           </Form.Item>
 
-          <Form.Item label="Email" name="Email" rules={[{ required: true, message: "Enter email" }, { type: "email", message: "Invalid email" }]}>
+          <Form.Item
+            label="Email"
+            name="Email"
+            rules={[
+              { required: true, message: "Enter email" },
+              { type: "email", message: "Invalid email" },
+            ]}
+          >
             <Input placeholder="Email Address" />
           </Form.Item>
 
-          <Form.Item label="Username" name="Username" rules={[{ required: true, message: "Enter username" }]}>
+          <Form.Item
+            label="Username"
+            name="Username"
+            rules={[{ required: true, message: "Enter username" }]}
+          >
             <Input placeholder="Username" />
           </Form.Item>
 
-          <Form.Item label="Password" name="Password" rules={[{ required: true, message: "Enter password" }]}>
-            <Input.Password placeholder="Password" />
+          <Form.Item
+            label="Password"
+            name="Password"
+            rules={[{ required: true, message: "Enter password" }]}
+          >
+            <Input.Password placeholder="Password" className="input-password" />
           </Form.Item>
 
-          <Form.Item label="Designation" name="Designation" rules={[{ required: true, message: "Select designation" }]}>
+          <Form.Item
+            label="Designation"
+            name="Designation"
+            rules={[{ required: true, message: "Select designation" }]}
+          >
             <Select placeholder="Select designation">
               <Option value="Administrator">Administrator</Option>
               <Option value="Staff">Staff</Option>
@@ -78,7 +110,9 @@ function CreateAccount() {
         </Form>
 
         <div style={{ textAlign: "center", marginTop: "1rem" }}>
-          <Button type="link" onClick={() => navigate("/login")}>Back to Login</Button>
+          <Button type="link" onClick={() => navigate("/login")}>
+            Back to Login
+          </Button>
         </div>
       </Card>
     </div>

@@ -10,6 +10,7 @@ export default function DeveloperSettings() {
   const { settings, setSetting, resetSettings } = useDevSettings();
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [applyingAutomation, setApplyingAutomation] = useState(false);
   const [tempPwdModal, setTempPwdModal] = useState({ open: false, user: null });
   const [tempPwdValue, setTempPwdValue] = useState("");
   const [sendingReset, setSendingReset] = useState({}); // { [userId]: boolean }
@@ -356,6 +357,47 @@ export default function DeveloperSettings() {
           />
           <Divider style={{ margin: "8px 0" }} />
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+            {/* Quick presets affecting both Header and Sider */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ minWidth: 120 }}>Theme Presets</span>
+              <Space size={6} wrap>
+                <Button size="small" onClick={async () => {
+                  const preset = { headerBg: "#ffffff", siderBg: "#001529" };
+                  setSetting("headerBg", preset.headerBg);
+                  setSetting("siderBg", preset.siderBg);
+                  try {
+                    await api.put("/theme/me", preset);
+                    message.success("Preset applied and saved (Light)");
+                  } catch { message.error("Failed to save preset"); }
+                }}>Light</Button>
+                <Button size="small" onClick={async () => {
+                  const preset = { headerBg: "#141414", siderBg: "#141414" };
+                  setSetting("headerBg", preset.headerBg);
+                  setSetting("siderBg", preset.siderBg);
+                  try {
+                    await api.put("/theme/me", preset);
+                    message.success("Preset applied and saved (Dark)");
+                  } catch { message.error("Failed to save preset"); }
+                }}>Dark</Button>
+                <Button size="small" onClick={async () => {
+                  const preset = { headerBg: "#1677ff", siderBg: "#001529" };
+                  setSetting("headerBg", preset.headerBg);
+                  setSetting("siderBg", preset.siderBg);
+                  try {
+                    await api.put("/theme/me", preset);
+                    message.success("Preset applied and saved (Brand)");
+                  } catch { message.error("Failed to save preset"); }
+                }}>Brand</Button>
+              </Space>
+              <Button size="small" type="primary" onClick={async () => {
+                try {
+                  await api.put("/theme/me", { headerBg: settings.headerBg, siderBg: settings.siderBg });
+                  message.success("Theme saved (Header + Sider)");
+                } catch {
+                  message.error("Failed to save theme");
+                }
+              }}>Save Theme</Button>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ minWidth: 120 }}>Sider Background</span>
               <ColorPicker
@@ -381,6 +423,14 @@ export default function DeveloperSettings() {
                   </Button>
                 ))}
               </Space>
+              <Button size="small" onClick={async () => {
+                try {
+                  await api.put("/theme/me", { siderBg: settings.siderBg });
+                  message.success("Sider theme saved");
+                } catch (e) {
+                  message.error("Failed to save theme");
+                }
+              }}>Save</Button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ minWidth: 120 }}>Header Background</span>
@@ -397,6 +447,14 @@ export default function DeveloperSettings() {
                   { label: 'Brand', colors: ['#1677ff', '#fa8c16', '#eb2f96'] },
                 ]}
               />
+              <Button size="small" onClick={async () => {
+                try {
+                  await api.put("/theme/me", { headerBg: settings.headerBg });
+                  message.success("Header theme saved");
+                } catch (e) {
+                  message.error("Failed to save theme");
+                }
+              }}>Save</Button>
               <Space size={4} wrap>
                 {[
                   '#ffffff', '#141414', '#1677ff', '#fa8c16', '#eb2f96', '#262626'
@@ -488,6 +546,142 @@ export default function DeveloperSettings() {
             checked={settings.enableCollectionStatusCheck}
             onChange={(v) => setSetting("enableCollectionStatusCheck", v)}
           />
+          <SettingRow
+            label="Enable automated Loan Status (Status Summary)"
+            checked={settings.autoLoanStatus}
+            onChange={(v) => setSetting("autoLoanStatus", v)}
+          />
+          {settings.autoLoanStatus && (
+            <Alert
+              type="info"
+              showIcon
+              message="Automated Loan Status is activated"
+              description="Configured grace periods below will take effect in the Status Summary column."
+            />
+          )}
+          <Card size="small" title="Automated Status Grace Periods (days)">
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <Alert
+                type="info"
+                showIcon
+                message="Editing grace periods"
+                description="Updating these values changes how automated statuses are computed. Values save immediately. To write the resulting statuses to the backend (so filters use them), click Apply Now."
+                style={{ marginBottom: 8 }}
+              />
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Dormant (no collection for)</span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={settings.autoLoanStatusGrace?.dormantDays ?? 365}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, dormantDays: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Litigation after maturity</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={settings.autoLoanStatusGrace?.litigationDaysAfterMaturity ?? 180}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, litigationDaysAfterMaturity: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Past Due after maturity</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={settings.autoLoanStatusGrace?.pastDueDaysAfterMaturity ?? 7}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, pastDueDaysAfterMaturity: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <Divider style={{ margin: "8px 0" }} />
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Arrears — Daily after</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={settings.autoLoanStatusGrace?.arrearsDailyDays ?? 3}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, arrearsDailyDays: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Arrears — Weekly after</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={settings.autoLoanStatusGrace?.arrearsWeeklyDays ?? 7}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, arrearsWeeklyDays: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Arrears — Semi-monthly after</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={settings.autoLoanStatusGrace?.arrearsSemiMonthlyDays ?? 15}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, arrearsSemiMonthlyDays: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ minWidth: 220 }}>Arrears — Monthly after</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={settings.autoLoanStatusGrace?.arrearsMonthlyDays ?? 30}
+                  onChange={(e) => setSetting("autoLoanStatusGrace", { ...settings.autoLoanStatusGrace, arrearsMonthlyDays: Number(e.target.value) })}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                <Text type="secondary">Prompt: After changing grace periods, apply changes to backend to update Loan Status values for filtering.</Text>
+                <Button
+                  type="primary"
+                  onClick={() => {
+                    if (!settings.autoLoanStatus) {
+                      message.info("Enable automated Loan Status first.");
+                      return;
+                    }
+                    Modal.confirm({
+                      title: "Apply automated statuses to backend?",
+                      content:
+                        "This will compute automated statuses using the configured grace periods and update Loan Status in the database (non-CLOSED only). Continue?",
+                      okText: "Apply Now",
+                      cancelText: "Cancel",
+                      onOk: async () => {
+                        try {
+                          setApplyingAutomation(true);
+                          const res = await api.post("/loans/apply-automated-statuses", {
+                            thresholds: settings.autoLoanStatusGrace || {},
+                          });
+                          const info = res?.data?.data;
+                          message.success(
+                            info
+                              ? `Applied automated statuses (computed: ${info.computed}, changed: ${info.changed}).`
+                              : "Applied automated statuses."
+                          );
+                        } catch (err) {
+                          const msg = err?.response?.data?.message || err?.message || "Failed to apply automated statuses";
+                          message.error(msg);
+                        } finally {
+                          setApplyingAutomation(false);
+                        }
+                      },
+                    });
+                  }}
+                  loading={applyingAutomation}
+                >
+                  Apply Now
+                </Button>
+              </div>
+            </Space>
+          </Card>
         </Space>
       ),
     },
@@ -569,7 +763,8 @@ export default function DeveloperSettings() {
       <Divider />
       <Collapse
         items={items}
-        defaultActiveKey={["ui", "user-hierarchy", "change-password", "loans"]}
+        // collapse all panels by default
+        defaultActiveKey={[]}
         accordion={false}
         size="small"
         style={{ background: "transparent" }}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Table,
   Button,
@@ -46,7 +46,7 @@ const fields = [
   { name: "Misc. Rate", label: "Misc. Rate", type: "number" },
 ];
 
-const LoanRateConfig = ({ isModal = false }) => {
+const LoanRateConfig = ({ isModal = false, onSelect }) => {
   const [loanRates, setLoanRates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -129,6 +129,10 @@ const LoanRateConfig = ({ isModal = false }) => {
     minimumFractionDigits: 2,
   });
 
+  const isBrowser = typeof window !== "undefined";
+  const vw = isBrowser ? window.innerWidth : 1440;
+  const isTablet = vw <= 1080;
+
   const columns = [
     {
       title: "Type",
@@ -178,29 +182,57 @@ const LoanRateConfig = ({ isModal = false }) => {
       title: "Actions",
       key: "actions",
       fixed: "right",
-      width: 140,
-      render: (_, record) => (
-        <>
-          <Button
-            size="small"
-            type="primary"
-            onClick={() => openModal(record)}
-            style={{ marginRight: 8 }}
-          >
-            Edit
-          </Button>
-          <Popconfirm
-            title="Are you sure?"
-            onConfirm={() => handleDelete(record._id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button size="small" danger>
-              Delete
+      width: isTablet ? 90 : 180,
+      render: (_, record) => {
+        if (isTablet) {
+          // Tablet: keep a single concise action for selection
+          return (
+            <>
+              {isModal && typeof onSelect === "function" ? (
+                <Button size="small" type="primary" onClick={() => onSelect(record)}>
+                  Use
+                </Button>
+              ) : (
+                <Button size="small" onClick={() => openModal(record)}>
+                  Edit
+                </Button>
+              )}
+            </>
+          );
+        }
+        // Desktop: show full actions
+        return (
+          <>
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => openModal(record)}
+              style={{ marginRight: 8 }}
+            >
+              Edit
             </Button>
-          </Popconfirm>
-        </>
-      ),
+            <Popconfirm
+              title="Are you sure?"
+              onConfirm={() => handleDelete(record._id)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button size="small" danger>
+                Delete
+              </Button>
+            </Popconfirm>
+            {isModal && typeof onSelect === "function" && (
+              <Button
+                size="small"
+                style={{ marginLeft: 8 }}
+                onClick={() => onSelect(record)}
+              >
+                Use This Rate
+              </Button>
+            )}
+          </>
+        );
+      },
     },
   ];
 

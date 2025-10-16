@@ -107,7 +107,12 @@ const Accounts = () => {
     if (userObj) setCurrentUser(userObj);
   }, []);
 
-  const isOnline = (username) => currentUsername === username;
+  // Prefer server-computed presence; fallback: current tab user is online
+  const isOnline = (user) => {
+    if (typeof user?.isOnline === "boolean") return user.isOnline;
+    const uname = typeof user === "string" ? user : user?.Username;
+    return uname && uname === currentUsername;
+  };
 
   const openEditModal = (user) => {
     setEditingUser(user);
@@ -240,7 +245,7 @@ const Accounts = () => {
       title: "Status",
       key: "status",
       render: (_, record) => {
-        const online = isOnline(record.Username);
+  const online = isOnline(record);
         return (
           <span className={online ? "status-online" : "status-offline"}>
             {online ? "Online" : "Offline"}
@@ -307,7 +312,7 @@ const Accounts = () => {
             children: (
               <Row gutter={[16, 16]} className="accounts-row">
                 {groupedByPosition[position].map((user) => {
-                  const online = isOnline(user.Username);
+                  const online = isOnline(user);
                   return (
                     <Col
                       key={user._id}

@@ -13,12 +13,14 @@
 }
 
 .loan-search {
-  width: 320px !important;
+  width: 100%;
+  max-width: 320px !important;
   height: 32px !important;
 }
 
 .loan-select {
-  width: 180px !important;
+  width: 100%;
+  max-width: 180px !important;
 }
 
 .loan-table .ant-table {
@@ -31,6 +33,18 @@
 
 .loan-col-sub {
   font-size: 12px;
+}
+
+/* Location cell: allow wrapping on desktop to avoid ellipsis */
+.loan-location-cell {
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.loan-location-cell .ant-typography {
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .loan-modal .ant-modal-body {
@@ -113,7 +127,6 @@
   text-align: center;
 }
 
-
 @media (max-width: 768px) {
   .loan-filters {
     flex-direction: column;
@@ -129,6 +142,222 @@
   }
 }
 
+/* iPad specific: slightly reduce fixed widths to fit tablet */
+@media (min-width: 768px) and (max-width: 834px) {
+  .loan-search {
+    max-width: 280px !important;
+  }
+  .loan-select {
+    max-width: 160px !important;
+  }
+}
+
+/* Tablet screens up to 1080px: tighten layout and ensure table fits */
+@media (max-width: 1080px) {
+  .loan-card .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .loan-filters {
+    gap: 8px;
+    font-size: 10px;
+  }
+
+  .loan-search {
+    max-width: 200px !important;
+    font-size: 11px;
+  }
+  .loan-select {
+    max-width: 120px !important;
+    font-size: 11px;
+  }
+  .loan-select .ant-select-selection-item {
+    font-size: 11px;
+  }
+  .loan-select .ant-select-selection-placeholder {
+    font-size: 11px;
+  }
+
+  /* Compact table header and body for tablets */
+  .loan-table .ant-table-thead > tr > th {
+    padding: 6px 6px !important;
+    font-size: 12px;
+  }
+  .loan-table .ant-table-tbody > tr > td {
+    padding: 6px 6px !important;
+    font-size: 10px;
+  }
+
+  /* On tablet, keep location compact too */
+  .loan-location-cell .ant-typography {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  /* Status summary labels shorter at tablet */
+  .loan-status-card .status-label {
+    width: 96px;
+    font-size: 10px;
+  }
+  /* Also target nested strong inside Ant Typography to ensure size sticks */
+  .loan-status-card .status-label strong {
+    font-size: 10px !important;
+    line-height: 1.1;
+  }
+  .loan-status-card .status-tag {
+    height: 16px;
+    line-height: 14px;
+    font-size: 9px;
+    padding: 0 4px;
+  }
+
+  /* Actions column buttons a bit smaller */
+  .loan-table .ant-btn {
+    height: 24px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  /* Table title smaller */
+  .loan-card .ant-typography {
+    font-size: 16px;
+  }
+  /* Ensure status labels remain compact on tablet (override generic typography size) */
+  .loan-status-card .status-label.ant-typography {
+    font-size: 10px !important;
+  }
+
+  /* Tablet: smaller fonts for key cells */
+  .loan-loanno-cell .ant-typography {
+    font-size: 12px;
+  }
+  .loan-clientname-cell .ant-typography {
+    font-size: 12px;
+  }
+  .loan-loandetails-cell .loan-amount-text {
+    font-size: 12px;
+  }
+  .loan-loandetails-cell .loan-balance-text {
+    font-size: 11px !important;
+  }
+  .loan-location-cell .ant-typography {
+    font-size: 11px;
+  }
+
+  /* Loan Details: shrink payment mode tag on tablet */
+  .loan-loandetails-cell .ant-tag {
+    height: 18px;
+    line-height: 16px;
+    font-size: 10px;
+    padding: 0 6px;
+  }
+
+  /* Actions column alignment and compact width */
+  .loan-actions-cell {
+    display: flex;
+    justify-content: center;
+  }
+  .loan-actions-cell .ant-space {
+    gap: 6px !important;
+  }
+    .loan-table .loan-actions-col { 
+      width: 110px; 
+      min-width: 110px; 
+  }
+
+  /* Footer: compact fonts for total count, pagination, and page sizer */
+  .loan-table .ant-table-footer .ant-typography {
+    font-size: 11px !important;
+  }
+  .loan-table .ant-table-footer .ant-pagination,
+  .loan-table .ant-table-footer .ant-pagination .ant-pagination-item,
+  .loan-table .ant-table-footer .ant-pagination .ant-pagination-item a,
+  .loan-table .ant-table-footer .ant-pagination .ant-pagination-item-link,
+  .loan-table
+    .ant-table-footer
+    .ant-pagination
+    .ant-pagination-prev
+    .ant-pagination-item-link,
+  .loan-table
+    .ant-table-footer
+    .ant-pagination
+    .ant-pagination-next
+    .ant-pagination-item-link {
+    font-size: 11px;
+  }
+  .loan-table .ant-table-footer .ant-select,
+  .loan-table .ant-table-footer .ant-select .ant-select-selector,
+  .loan-table .ant-table-footer .ant-select .ant-select-selection-item,
+  .loan-table .ant-table-footer .ant-select .ant-select-selection-placeholder,
+  .loan-table .ant-table-footer .ant-select .ant-select-arrow {
+    font-size: 11px;
+  }
+
+  /* Force narrower column widths via colgroup on tablets */
+  .loan-table .ant-table colgroup col:nth-child(1) {
+     width: 150px !important;
+     min-width: 150px !important;
+  }
+  .loan-table .ant-table colgroup col:nth-child(2) {
+     width: 200px !important;
+     min-width: 200px !important;
+  }
+  .loan-table .ant-table colgroup col:nth-child(3) {
+     width: 120px !important; 
+     min-width: 120px !important; 
+  }
+  .loan-table .ant-table colgroup col:nth-child(4) {
+     width: 180px !important;
+     min-width: 180px !important; 
+  }
+  .loan-table .ant-table colgroup col:nth-child(5) {
+     width: 230px !important; 
+     min-width: 230px !important; 
+  }
+  .loan-table .ant-table colgroup col:nth-child(6) {
+     width: 110px !important; 
+     min-width: 110px !important; 
+  }
+
+  /* Mirror widths on header and body cells for robustness */
+  .loan-table .ant-table-thead > tr > th:nth-child(1),
+  .loan-table .ant-table-tbody > tr > td:nth-child(1) {
+     width: 150px !important; 
+     max-width: 150px; 
+  }
+  .loan-table .ant-table-thead > tr > th:nth-child(2),
+  .loan-table .ant-table-tbody > tr > td:nth-child(2) {
+     width: 200px !important; 
+     max-width: 200px; 
+  }
+  .loan-table .ant-table-thead > tr > th:nth-child(3),
+  .loan-table .ant-table-tbody > tr > td:nth-child(3) {
+     width: 120px !important; 
+     max-width: 120px; 
+  }
+  .loan-table .ant-table-thead > tr > th:nth-child(4),
+  .loan-table .ant-table-tbody > tr > td:nth-child(4) {
+     width: 180px !important; 
+     max-width: 180px; 
+  }
+  .loan-table .ant-table-thead > tr > th:nth-child(5),
+  .loan-table .ant-table-tbody > tr > td:nth-child(5) {
+     width: 230px !important; 
+     max-width: 230px; 
+  }
+  .loan-table .ant-table-thead > tr > th:nth-child(6),
+  .loan-table .ant-table-tbody > tr > td:nth-child(6) {
+     width: 110px !important; 
+     max-width: 110px; 
+  }
+}
+
+/* Wider tablets (e.g., iPad Pro landscape ~1194px): keep labels compact */
+@media (max-width: 1280px) {
+  .loan-status-card .status-label {
+    font-size: 10px !important;
+  }
+}
 
 /* Loans page: reduce primary button border radius */
 .loan-card .ant-btn-primary:not(.ant-btn-circle):not(.ant-btn-round) {

@@ -1,3 +1,10 @@
+.root,
+:root {
+  /* Shared height for the sider expand/collapse trigger and the footer */
+  --sider-trigger-h: 48px;
+  /* Footer height (shrunk) */
+  --footer-h: 36px;
+}
 .home-layout {
   min-height: 100vh;
   height: 100vh;
@@ -14,13 +21,13 @@
   align-items: center;
   justify-content: flex-end;
   height: 56px;
-  padding-left: 216px; /* sider width + spacing when expanded */
+  padding-left: var(--home-header-padding-left);
   transition: padding-left 0.2s;
 }
 
 /* When sider collapsed adjust header padding (collapsed width ~80px) */
 .home-layout.collapsed .home-header {
-  padding-left: 96px;
+  padding-left: var(--home-header-padding-left-collapsed);
 }
 
 /* Make header buttons inherit header foreground color by default */
@@ -38,30 +45,52 @@
   color: inherit;
 }
 .ant-layout-sider .ant-menu-submenu .ant-menu {
-  background: var(--sider-sub-bg, rgba(0,0,0,0.06)) !important;
+  background: var(--sider-sub-bg, rgba(0, 0, 0, 0.06)) !important;
 }
 .ant-layout-sider .ant-menu-item-selected,
 .ant-layout-sider .ant-menu-submenu-selected > .ant-menu-submenu-title {
-  background-color: var(--sider-selected-bg, rgba(255,255,255,0.12)) !important;
+  background-color: var(
+    --sider-selected-bg,
+    rgba(255, 255, 255, 0.12)
+  ) !important;
 }
 
 /* Collapsible trigger at the bottom should be slightly lighter */
 .ant-layout-sider-trigger {
-  background: var(--sider-toggle-bg, rgba(255,255,255,0.08)) !important;
+  background: var(--sider-toggle-bg, rgba(255, 255, 255, 0.08)) !important;
   color: var(--sider-text, #fff) !important;
+  height: var(--sider-trigger-h, 48px) !important;
+  line-height: var(--sider-trigger-h, 48px) !important;
 }
 
-.home-logo {
-  color: white;
-  font-size: 1.2rem;
-  font-weight: bold;
-}
-
-.home-menu {
+/* Fixed footer anchored to the bottom of the viewport. Left offset aligns with the sider. */
+.home-footer {
+  position: fixed;
+  bottom: 0;
+  left: var(--sider-width, 200px);
+  right: 0;
+  height: var(--footer-h, 36px);
+  padding: 0 16px;
+  /* transparent background and no border per request */
   background: transparent;
-  border-bottom: none;
+  border-top: none;
+  margin-top: 0;
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 12px;
+  z-index: 102;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: left 200ms ease, width 200ms ease;
 }
 
+/* When the layout has collapsed sider, shift footer to match collapsed width */
+.home-layout.collapsed .home-footer {
+  left: var(--sider-collapsed-width, 80px);
+}
+
+/* Main scroll/content wrapper - ensures content sits below the fixed header and beside the sider */
 .home-content-wrapper {
   position: absolute;
   top: 56px; /* below fixed header */
@@ -70,16 +99,23 @@
   bottom: 0;
   display: flex;
   overflow: hidden;
+  /* offset content so it never sits under a fixed sider */
+  margin-left: var(--sider-width);
+  transition: margin-left 200ms ease;
 }
 
 .home-sider-spacer {
-  width: 200px; /* match sider width */
+  width: var(--sider-width); /* match sider width */
   flex-shrink: 0;
   transition: width 0.2s;
 }
 
 .home-layout.collapsed .home-sider-spacer {
-  width: 80px; /* collapsed width (Ant default ~80) */
+  width: var(--sider-collapsed-width); /* collapsed width */
+}
+
+.home-layout.collapsed .home-content-wrapper {
+  margin-left: var(--sider-collapsed-width);
 }
 
 .home-scroll-area {
@@ -88,10 +124,8 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto; /* only this scrolls */
-  /* leave space for fixed footer */
-  --footer-h: 44px;
-  padding: 12px 16px calc(12px + var(--footer-h));
-  background: #f5f7fa;
+  /* Reserve space for fixed footer so content isn't overlapped */
+  padding: 16px 16px calc(16px + var(--footer-h, 36px));
 }
 
 /* Inner wrapper to manage footer push and allow scrolling all the way */
@@ -116,31 +150,48 @@
   flex-direction: column;
 }
 
-/* Fixed footer pinned to bottom, offset by sider width */
-.home-footer {
-  position: fixed;
-  left: 200px; /* match sider width */
-  right: 0;
-  bottom: 0;
-  height: var(--footer-h, 44px);
+/* Footer subregions */
+.home-footer-left,
+.home-footer-center,
+.home-footer-right {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+.home-footer-center {
+  flex: 1;
   justify-content: center;
-  padding: 0 16px;
-  background: #fff;
-  border-top: 1px solid #f0f0f0;
-  color: rgba(0,0,0,0.45);
-  font-size: 12px;
-  z-index: 90;
+}
+.home-footer-left {
+  flex: 0 0 auto;
+}
+.home-footer-right {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
 }
 
-/* When sider collapsed, align footer with collapsed sider width */
-.home-layout.collapsed .home-footer {
-  left: 80px;
+/* Small screens: center the footer content and stack where necessary */
+@media (max-width: 480px) {
+  /* footer remains fixed; alignment handled by left var */
+  .home-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 32px;
+    padding: 0 12px;
+  }
+  /* Add spacing at bottom for fixed footer */
+  .home-scroll-area {
+    padding: 16px 16px calc(16px + var(--footer-h, 36px));
+  }
+  .home-footer-center { order: 2; }
+  .home-footer-left { order: 1; }
+  .home-footer-right { order: 3; }
 }
 
-/* Provide bottom padding so last card isn't obscured by footer when short viewport */
-.home-content > *:last-child { margin-bottom: 16px; }
+/* ✅ REMOVED: This rule is no longer needed as padding is handled by the scroll container */
+/* .home-content > *:last-child { margin-bottom: 16px; } */
 
 /* Submenu items: smaller font + lighter color */
 .ant-menu-sub .ant-menu-item {
@@ -196,4 +247,47 @@
   .home-card {
     margin-top: 20px;
   }
+}
+
+/* Tablet adjustments: keep sider width; reduce fonts and gaps for compactness */
+@media (min-width: 481px) and (max-width: 1080px) {
+  .home-layout { height: auto; min-height: 100vh; overflow: auto; }
+  .home-header { padding-left: var(--home-header-padding-left); }
+  .home-layout.collapsed .home-header { padding-left: var(--home-header-padding-left-collapsed); }
+  .home-scroll-area { padding: 10px 14px calc(10px + var(--footer-h, 36px)); }
+
+  /* compact typography and spacing */
+  .home-header { gap: 12px; }
+  .home-header .ant-btn:not(.ant-btn-primary):not(.ant-btn-link) { font-size: 12px; }
+  .notif-popover { width: 300px; }
+  .notif-list .ant-list-item { padding: 8px 10px; }
+
+  /* Compact sider menu items without changing width */
+  .ant-layout-sider .ant-menu-item,
+  .ant-layout-sider .ant-menu-submenu-title {
+    font-size: 12px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  .ant-layout-sider .ant-menu-sub .ant-menu-item {
+    font-size: 10px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+    border-radius: 4px !important;
+  }
+}
+
+/* iPad 9th gen specific adjustments (≈768–834px): keep sider width; compact typography */
+@media (min-width: 768px) and (max-width: 834px) {
+  .home-header {
+    padding-left: var(
+      --home-header-padding-left
+    ); /* slightly smaller header offset */
+    height: 56px;
+  }
+
+  .home-scroll-area { padding: 8px 12px calc(8px + var(--footer-h, 36px)); }
+  .home-header { gap: 10px; }
 }

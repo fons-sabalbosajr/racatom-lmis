@@ -1,0 +1,91 @@
+/* Styles for DashboardStats component
+   Compact typography and paddings for tablet / iPad breakpoints
+*/
+
+.dashboard-card {
+  /* ensure card uses slightly tighter font-family fallback and spacing base */
+  font-family: inherit;
+  color: inherit;
+}
+
+.dashboard-card .ant-card-body {
+  transition: padding 150ms ease, font-size 150ms ease;
+}
+
+/* Tablet screens (general tablets) */
+@media (min-width: 481px) and (max-width: 1080px) {
+  .dashboard-card .ant-card-body {
+    padding: 13px !important;
+  }
+
+
+  /* Statistic title and value — make selectors specific to Ant structure */
+  .dashboard-card .ant-statistic .ant-statistic-title,
+  .dashboard-card .ant-statistic-title {
+    font-size: 11px !important;
+  }
+
+  .dashboard-card .ant-statistic .ant-statistic-content-value,
+  .dashboard-card .ant-statistic-content-value {
+    font-size: 16px !important;
+    line-height: 1 !important;
+  }
+
+  .dashboard-card .ant-statistic-content-prefix,
+  .dashboard-card .ant-statistic-content-suffix {
+    font-size: 12px !important;
+  }
+
+  /* Make icon prefixes slightly smaller so totals don't wrap */
+  .dashboard-card .anticon {
+    font-size: 16px !important;
+  }
+
+  /* Compact inline buttons inside cards */
+  .dashboard-card .ant-btn {
+    padding: 2px 6px !important;
+    font-size: 12px !important;
+    height: 28px !important;
+    line-height: 24px !important;
+  }
+
+  /* Ensure card header (if any) uses compact font */
+  .dashboard-card .ant-card-head {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* iPad specific (portrait/landscape narrow range) */
+@media (min-width: 768px) and (max-width: 834px) {
+  .dashboard-card .ant-card-body {
+    padding: 8px !important;
+  }
+
+  .dashboard-card .ant-statistic-title {
+    font-size: 12px !important;
+  }
+
+  .dashboard-card .ant-statistic-content-value {
+    font-size: 15px !important;
+  }
+
+  .dashboard-card .ant-statistic-content-prefix,
+  .dashboard-card .ant-statistic-content-suffix {
+    font-size: 11px !important;
+  }
+
+  .dashboard-card .anticon {
+    font-size: 15px !important;
+  }
+
+  .dashboard-card .ant-card-head {
+    font-size: 12px !important;
+  }
+}
+
+/* Extra: apply a small compact style on all widths if a compact class is present */
+.dashboard-card.compact {
+  font-size: 12px;
+}
+

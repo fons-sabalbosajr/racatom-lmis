@@ -1,0 +1,203 @@
+/* Styles specific to LoanTypeChart component (tablet compact rules)
+   Keep safe selectors — do NOT force internal Recharts heights.
+*/
+
+.chart-card.chart-type {
+  box-sizing: border-box;
+}
+
+/* Ensure consistent internal layout like collector chart */
+.chart-card.chart-type .ant-card-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure consistent card heights to match other dashboard charts */
+@media (min-width: 1081px) {
+  .chart-card.chart-type {
+    min-height: 360px;
+  }
+  .chart-card.chart-type .ant-card-body {
+    min-height: 320px;
+  }
+}
+@media (max-width: 1080px) and (min-width: 835px) {
+  .chart-card.chart-type {
+    min-height: 260px;
+  }
+  .chart-card.chart-type .ant-card-body {
+    min-height: 220px;
+  }
+}
+@media (max-width: 1080px) {
+  .chart-card.chart-type .ant-card-body {
+    min-height: 220px;
+  }
+}
+@media (max-width: 834px) and (min-width: 769px) {
+  .chart-card.chart-type {
+    min-height: 220px;
+  }
+  .chart-card.chart-type .ant-card-body {
+    min-height: 190px;
+  }
+}
+@media (max-width: 768px) {
+  .chart-card.chart-type {
+    min-height: 200px;
+  }
+  .chart-card.chart-type .ant-card-body {
+    min-height: 160px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .chart-card.chart-type .ant-card-body {
+    padding: 8px 10px !important;
+    height: 295px !important; /* enforce equal card body height on tablets */
+  }
+
+  .chart-card.chart-type .ant-card-head {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* Reduce pie label and legend font sizes inside the chart card */
+  .chart-card.chart-type svg text {
+    font-size: 11px !important;
+  }
+
+  .chart-card.chart-type .recharts-legend-item text {
+    font-size: 9px !important;
+  }
+
+  /* Compact legend values and tag padding */
+  .chart-type-legend .legend-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    line-height: 1.1;
+  }
+  .chart-type-legend .legend-value {
+    font-size: 9px;
+    font-weight: 400;
+  }
+  /* Smaller "+N more" tag on tablets */
+  .chart-type-legend .legend-more-tag {
+    margin: 4px 0;
+    padding: 4px 8px;
+    background: transparent;
+    color: #1677ff;
+    cursor: pointer;
+    border: 1px dashed rgba(22, 119, 255, 0.15);
+  }
+}
+
+/* Popover list styling for hidden legend items */
+.legend-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.legend-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+.legend-popover-item .legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+/* Custom legend visuals */
+.chart-type-legend {
+  padding: 4px 8px 8px 8px;
+}
+.chart-type-legend .legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.chart-type-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.chart-type-legend .legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.chart-type-legend .legend-value {
+  color: inherit;
+  margin-left: 6px;
+  font-size: 12px;
+}
+.chart-type-legend .legend-more {
+  font-size: 9px;
+}
+
+/* Single-row compact legend (for <=5 items) */
+.chart-type-legend .legend-single-row {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: 8px;
+}
+
+/* Desktop: make legend values more prominent */
+@media (min-width: 1081px) {
+  .chart-type-legend .legend-value {
+    font-size: 14px !important;
+    font-weight: 600;
+    color: #333;
+  }
+}
+
+/* Tag styles for legend */
+.chart-type-legend .legend-tag {
+  margin: 2px 4px 2px 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1;
+}
+.chart-type-legend .legend-more-tag {
+  margin: 4px 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: #1677ff;
+  cursor: pointer;
+  border: 1px dashed rgba(22, 119, 255, 0.15);
+}
+
+@media (min-width: 1081px) {
+  .legend-popover-item {
+    font-size: 13px !important;
+  }
+  .legend-popover-item .legend-value {
+    font-size: 13px !important;
+    font-weight: 500;
+  }
+}
+
+/* Desktop: increase legend labels and pie label sizes for improved readability */
+@media (min-width: 1081px) {
+  .chart-type-legend .legend-label {
+    font-size: 14px !important;
+    color: #222;
+  }
+
+  /* make pie center labels (percent) larger on desktop */
+  .chart-card.chart-type svg text {
+    font-size: 13px !important;
+  }
+
+  /* legend item text inside recharts (if any) */
+  .chart-card.chart-type .recharts-legend-item text {
+    font-size: 13px !important;
+  }
+}

@@ -14,10 +14,13 @@ import {
   Radio,
   Tooltip,
   Collapse,
+  Tag,
+  Dropdown,
 } from "antd";
-import { InfoCircleOutlined } from "@ant-design/icons";
+import { InfoCircleOutlined, EditOutlined, CopyOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
+import AdvancePaymentModal from "./AdvancePaymentModal";
 
 const { Option } = Select;
 const { Panel } = Collapse;
@@ -29,6 +32,34 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
   const [paymentVia, setPaymentVia] = useState("Cash");
   const [onlinePlatform, setOnlinePlatform] = useState("");
   const [bankName, setBankName] = useState("");
+  const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [collectionRefNo, setCollectionRefNo] = useState("");
+  const [customRefOpen, setCustomRefOpen] = useState(false);
+  const [customRefDraft, setCustomRefDraft] = useState("");
+
+  const computeAmortizationPrincipal = () => {
+    try {
+      const principal = Number(loan?.loanInfo?.principal || 0);
+      const termStr = String(loan?.loanInfo?.term || "");
+      const months = parseInt(termStr, 10) || 0;
+      const pm = String(loan?.loanInfo?.paymentMode || "").toUpperCase();
+      const perMonth =
+        pm === "MONTHLY"
+          ? 1
+          : pm === "SEMI-MONTHLY"
+          ? 2
+          : pm === "WEEKLY"
+          ? 4
+          : pm === "DAILY"
+          ? 26
+          : 1;
+      const installments = months * perMonth || 1;
+      if (!principal || !installments) return 0;
+      return Math.round((principal / installments) * 100) / 100;
+    } catch {
+      return 0;
+    }
+  };
 
   useEffect(() => {
     if (visible && collectionData) {
@@ -38,6 +69,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
       setPaymentVia(paymentMethod);
       setOnlinePlatform(collectionData.OnlinePlatform || "");
       setBankName(collectionData.BankName || "");
+      setCollectionRefNo(collectionData.CollectionReferenceNo || "");
 
       form.setFieldsValue({
         CollectionPayment: collectionData.CollectionPayment,
@@ -59,11 +91,10 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
         LoanAmount: loan?.loanInfo?.amount,
         LoanTerm: loan?.loanInfo?.term,
         PaymentMode: loan?.loanInfo?.paymentMode,
-        AmortizationPrincipal: loan?.loanInfo?.amortizationPrincipal,
-        AmortizationInterest: loan?.loanInfo?.amortizationInterest,
-        LoanToBePaid: loan?.loanInfo?.totalLoanToPay,
-        LoanAmountCollected: loan?.loanInfo?.totalCollected,
-        RemainingBalance: loan?.loanInfo?.runningBalance,
+        AmortizationPrincipal: computeAmortizationPrincipal(),
+        LoanToBePaid: loan?.loanInfo?.amount || 0,
+        LoanAmountCollected: 0,
+        RemainingBalance: loan?.loanInfo?.balance || 0,
       });
 
       // Fetch collectors
@@ -83,7 +114,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
       setLoading(true);
 
       const decimalFields = [
-        'Amortization', 'AmortizationPrincipal', 'AmortizationInterest',
+        'Amortization', 'AmortizationPrincipal',
         'PrincipalDue', 'PrincipalPaid', 'PrincipalBalance',
         'CollectedInterest', 'InterestPaid', 'TotalCollected',
         'ActualCollection', 'CollectionPayment', 'RunningBalance', 'TotalLoanToPay'
@@ -93,6 +124,8 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
       decimalFields.forEach(field => {
         if (payload[field] != null) {
           payload[field] = String(payload[field]);
+        } else {
+          payload[field] = '0.0';
         }
       });
 
@@ -103,6 +136,16 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
       } 
       if (payload.DateProcessed) {
         payload.DateProcessed = payload.DateProcessed.toISOString();
+      }
+
+      // Fallback for reference no like Add modal
+      if (!payload.CollectionReferenceNo) {
+        payload.CollectionReferenceNo = payload.OnlineRefNo || payload.BankRefNo || '';
+      }
+      if (!payload.CollectionReferenceNo || String(payload.CollectionReferenceNo).trim().length === 0) {
+        message.error('Reference No. is required. Click the edit icon near Ref No to set a value.');
+        setLoading(false);
+        return;
       }
 
       const res = await api.put(`/loan-collections/${collectionData._id}`, payload);
@@ -126,8 +169,16 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
   const paymentsTitle = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <span>Edit Payment</span>
-      <span style={{ fontSize: '12px', color: '#888' }}>
-        Ref No: {collectionData?.CollectionReferenceNo}
+      <span style={{ fontSize: '12px', color: '#888', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Tag className="refno-tag" color={collectionRefNo ? 'blue' : 'default'} style={{ margin: 0 }}>
+          {collectionRefNo || '—'}
+        </Tag>
+        <Tooltip title="Edit reference number">
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => { setCustomRefDraft(collectionRefNo); setCustomRefOpen(true); }} />
+        </Tooltip>
+        <Tooltip title="Copy to clipboard">
+          <Button type="link" size="small" icon={<CopyOutlined />} onClick={async () => { try { if (collectionRefNo && navigator?.clipboard?.writeText) await navigator.clipboard.writeText(collectionRefNo); message.success('Reference No. copied'); } catch {} }} disabled={!collectionRefNo} />
+        </Tooltip>
       </span>
     </div>
   );
@@ -139,9 +190,10 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={loading}
-      width={600}
+      width={520}
+      className="compact-modal"
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" size="small">
         <Form.Item name="CollectionReferenceNo" hidden>
             <Input />
         </Form.Item>
@@ -164,7 +216,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
                 />
               </Form.Item>
               <Form.Item name="PaymentType" initialValue="Regular Payment">
-                <Radio.Group size="small">
+                <Radio.Group size="small" onChange={(e) => { if (e.target.value === 'Advance Payment') setAdvanceOpen(true); }}>
                   <Radio value="Regular Payment">Regular Payment</Radio>
                   <Radio value="Advance Payment">Advance Payment</Radio>
                 </Radio.Group>
@@ -284,7 +336,6 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
             </Row>
             <Row gutter={16}>
               <Col span={12}><Form.Item label="Amortization (Principal)" name="AmortizationPrincipal"><InputNumber size="small" style={{ width: "100%" }} disabled /></Form.Item></Col>
-              <Col span={12}><Form.Item label="Amortization (Interest)" name="AmortizationInterest"><InputNumber size="small" style={{ width: "100%" }} disabled /></Form.Item></Col>
             </Row>
           </Panel>
         </Collapse>
@@ -301,6 +352,53 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
           </Panel>
         </Collapse>
       </Form>
+
+      {/* Advance Payment compute modal */}
+      <AdvancePaymentModal
+        visible={advanceOpen}
+        onCancel={() => {
+          setAdvanceOpen(false);
+          const cur = form.getFieldValue('PaymentType');
+          if (cur === 'Advance Payment') {
+            form.setFieldsValue({ PaymentType: 'Regular Payment' });
+          }
+        }}
+        onApply={({ amount, days, startDate, endDate, remarks }) => {
+          setAdvanceOpen(false);
+          form.setFieldsValue({
+            PaymentType: 'Advance Payment',
+            CollectionPayment: amount,
+            DateReceived: startDate,
+            DateProcessed: startDate,
+            Remarks: remarks,
+          });
+          message.success(`Advance payment applied: ₱${amount.toLocaleString()}`);
+        }}
+        paymentMode={loan?.loanInfo?.paymentMode}
+        amortizationPrincipal={computeAmortizationPrincipal()}
+      />
+
+      <Modal
+        title="Enter Custom Reference No"
+        open={customRefOpen}
+        onCancel={() => setCustomRefOpen(false)}
+        onOk={() => {
+          const v = (customRefDraft || '').trim();
+          setCollectionRefNo(v);
+          form.setFieldsValue({ CollectionReferenceNo: v });
+          setCustomRefOpen(false);
+        }}
+        okText="Use This Ref"
+        cancelText="Cancel"
+        width={380}
+      >
+        <Input
+          value={customRefDraft}
+          onChange={(e) => setCustomRefDraft(e.target.value)}
+          placeholder="Type reference number"
+          size="small"
+        />
+      </Modal>
     </Modal>
   );
 };

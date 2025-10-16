@@ -351,5 +351,5 @@ export default function LoanPersonalInfoTab({
       ),
     },
   ];
-  return <Collapse defaultActiveKey={["1", "2", "3", "4"]} items={items} />;
+  return <Collapse defaultActiveKey={["1"]} items={items} />;
 }

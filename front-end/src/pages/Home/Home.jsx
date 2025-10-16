@@ -32,7 +32,7 @@ import "./home.css";
 import logo from "../../assets/lmis.svg"; // your logo
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import api from "../../utils/axios";
+import api, { setRuntimeToken } from "../../utils/axios";
 import { useDevSettings } from "../../context/DevSettingsContext";
 // Tooltip no longer used
 
@@ -58,6 +58,8 @@ function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Sider width remains fixed (non-compact) on tablet screens per request
+
   // Ensure user info (name/photo) reflects the active session
   useEffect(() => {
     const syncUser = async () => {
@@ -71,6 +73,7 @@ function Home() {
             const { lsSetSession } = await import("../../utils/storage");
             lsSetSession("user", fetched);
           } catch {}
+          // dev auth banner removed
         }
       } catch (e) {
         // handled globally (401 redirects); swallow here
@@ -111,7 +114,11 @@ function Home() {
       const isDev = (() => {
         const pos = String(user?.Position || "").toLowerCase();
         if (pos === "developer") return true;
-        return !!(perms.developerSettings || perms.settingsDatabase || perms.admin);
+        return !!(
+          perms.developerSettings ||
+          perms.settingsDatabase ||
+          perms.admin
+        );
       })();
 
       // Only developers navigate to the announcement details (and only if visible in UI settings)
@@ -139,15 +146,14 @@ function Home() {
     }
   };
 
-
   // Logout
   const handleLogout = async () => {
     try {
       // Call backend to invalidate session/cookie
       await api.post(`/auth/logout`, {});
 
-  // Clear all relevant local/session storage keys
-  lsClearAllApp();
+      // Clear all relevant local/session storage keys
+      lsClearAllApp();
       // Also clear the encrypted session-scoped token for this tab/window
       try {
         const { lsRemove } = await import("../../utils/storage");
@@ -160,11 +166,12 @@ function Home() {
           localStorage.removeItem("rct-lmis:user");
         } catch {}
       } catch {}
+      // Clear axios runtime Authorization header
+      try { setRuntimeToken(null); } catch {}
       setUser(null); // clear user state in frontend
       setNotifications([]); // clear notifications state
-
-      // Redirect to login
-      window.location.replace("/login");
+      // Smooth client-side navigation to login (no hard reload needed)
+      navigate("/login", { replace: true });
     } catch (err) {
       console.error("Logout error:", err);
     }
@@ -260,15 +267,26 @@ function Home() {
   // derive variants for submenus and trigger (fixed mix amounts)
   const siderSubBg = darken(siderBg, 0.12);
   const siderSelectedBg = lighten(siderBg, 0.14);
-  const siderToggleBg = lighten(siderBg, 0.10);
+  const siderToggleBg = lighten(siderBg, 0.1);
 
   return (
-    <Layout className={`home-layout ${collapsed ? "collapsed" : ""} ${settings.compactUI ? "compact-ui" : ""}`}>
+    <Layout
+      className={`home-layout ${collapsed ? "collapsed" : ""} ${
+        settings.compactUI ? "compact-ui" : ""
+      }`}
+      style={{
+        // expose the sider width at a parent level so sibling content can offset itself
+        "--sider-width": collapsed ? "80px" : "200px",
+        "--sider-collapsed-width": "80px",
+      }}
+    >
+      {/* dev auth banner removed */}
       <Sider
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        width={200}
+  width={200}
+        collapsedWidth={80}
         theme={menuTheme}
         style={{
           position: "fixed",
@@ -278,6 +296,9 @@ function Home() {
           zIndex: 101,
           overflow: "auto",
           background: siderBg,
+          // expose the actual sider width to CSS so the spacer always matches
+          "--sider-width": collapsed ? "80px" : "200px",
+          "--sider-collapsed-width": "80px",
           "--sider-bg": siderBg,
           "--sider-sub-bg": siderSubBg,
           "--sider-selected-bg": siderSelectedBg,
@@ -306,14 +327,30 @@ function Home() {
           const isDev = (() => {
             const pos = String(user?.Position || "").toLowerCase();
             if (pos === "developer") return true;
-            return !!(perms.developerSettings || perms.settingsDatabase || perms.admin);
+            return !!(
+              perms.developerSettings ||
+              perms.settingsDatabase ||
+              perms.admin
+            );
           })();
           const settingsChildren = [
-            ...((perms.settingsEmployees === false && !isDev) || settings.accessEmployees === false ? [] : [{ key: "/settings/employees", label: "Employee Accounts" }]),
-            ...(perms.settingsCollectors === false && !isDev ? [] : [{ key: "/settings/collectors", label: "Collector Accounts" }]),
-            ...(perms.settingsDatabase === false && !isDev ? [] : [{ key: "/settings/database", label: "Database" }]),
-            ...((perms.settingsAnnouncements === false && !isDev) || settings.accessAnnouncements === false ? [] : [{ key: "/settings/announcements", label: "Announcements" }]),
-            ...(perms.settingsAccounting === false && !isDev ? [] : [{ key: "/settings/accounting", label: "Accounting Center" }]),
+            ...((perms.settingsEmployees === false && !isDev) ||
+            settings.accessEmployees === false
+              ? []
+              : [{ key: "/settings/employees", label: "Employee Accounts" }]),
+            ...(perms.settingsCollectors === false && !isDev
+              ? []
+              : [{ key: "/settings/collectors", label: "Collector Accounts" }]),
+            ...(perms.settingsDatabase === false && !isDev
+              ? []
+              : [{ key: "/settings/database", label: "Database" }]),
+            ...((perms.settingsAnnouncements === false && !isDev) ||
+            settings.accessAnnouncements === false
+              ? []
+              : [{ key: "/settings/announcements", label: "Announcements" }]),
+            ...(perms.settingsAccounting === false && !isDev
+              ? []
+              : [{ key: "/settings/accounting", label: "Accounting Center" }]),
             { key: "/settings/loan-rates", label: "Loan Rates Config" },
           ];
           if (isDev || perms.developerSettings) {
@@ -325,19 +362,53 @@ function Home() {
           }
 
           const menuItems = [
-            ...(perms.dashboard === false && !isDev ? [] : [{ key: "/dashboard", label: "Dashboard", icon: <DashboardOutlined /> }]),
-            ...(perms.loans === false && !isDev ? [] : [{ key: "/loans", label: "Loans", icon: <FundViewOutlined /> }]),
-            ...(perms.reports === false && !isDev ? [] : [{
-              key: "/reports",
-              label: "Reports",
-              icon: <FileTextOutlined />,
-              children: [
-                { key: "/reports/statement-of-accounts", label: "Statement of Accounts" },
-                { key: "/reports/collections-list", label: "Collections List" },
-                { key: "/reports/account-vouchers", label: "Account Vouchers" },
-              ],
-            }]),
-            ...(perms.settings === false && !isDev ? [] : [{ key: "/settings", label: "Settings", icon: <SettingOutlined />, children: settingsChildren }]),
+            ...(perms.dashboard === false && !isDev
+              ? []
+              : [
+                  {
+                    key: "/dashboard",
+                    label: "Dashboard",
+                    icon: <DashboardOutlined />,
+                  },
+                ]),
+            ...(perms.loans === false && !isDev
+              ? []
+              : [
+                  { key: "/loans", label: "Loans", icon: <FundViewOutlined /> },
+                ]),
+            ...(perms.reports === false && !isDev
+              ? []
+              : [
+                  {
+                    key: "/reports",
+                    label: "Reports",
+                    icon: <FileTextOutlined />,
+                    children: [
+                      {
+                        key: "/reports/statement-of-accounts",
+                        label: "Statement of Accounts",
+                      },
+                      {
+                        key: "/reports/collections-list",
+                        label: "Collections List",
+                      },
+                      {
+                        key: "/reports/account-vouchers",
+                        label: "Account Vouchers",
+                      },
+                    ],
+                  },
+                ]),
+            ...(perms.settings === false && !isDev
+              ? []
+              : [
+                  {
+                    key: "/settings",
+                    label: "Settings",
+                    icon: <SettingOutlined />,
+                    children: settingsChildren,
+                  },
+                ]),
           ];
 
           return (
@@ -517,8 +588,8 @@ function Home() {
                                   fontSize: "13px",
                                   color: item.isRead ? "#aaa" : "#444",
                                   marginBottom: "4px",
-                                  whiteSpace: 'pre-wrap',
-                                  wordBreak: 'break-word',
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
                                 }}
                               >
                                 {item.content}
@@ -577,15 +648,19 @@ function Home() {
         </Header>
 
         <div className="home-content-wrapper">
-          <div className="home-sider-spacer" />
           <div className="home-scroll-area">
             <div className="home-scroll-inner">
               <Content className="home-content">
                 <Outlet />
               </Content>
-              <Footer className="home-footer">
-                © {new Date().getFullYear()} RACATOM Corp. Loan Management System
-              </Footer>
+              {/* Footer shown inside the scroll area; fixed on desktop, non-fixed on small screens */}
+              {/* <div className="home-footer" role="contentinfo">
+                <div className="home-footer-left" />
+                <div className="home-footer-center">
+                  <span>© {new Date().getFullYear()} RACATOM-LMIS</span>
+                </div>
+                <div className="home-footer-right" />
+              </div> */}
             </div>
           </div>
         </div>

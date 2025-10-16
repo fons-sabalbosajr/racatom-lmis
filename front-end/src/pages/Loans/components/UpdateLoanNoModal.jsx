@@ -28,10 +28,11 @@ export default function UpdateLoanNoModal({
     try {
       setLoading(true);
       const values = await form.validateFields();
-      const newLoanNo = values[`loanNo_${record._id}`];
+      const newLoanNoRaw = values[`loanNo_${record._id}`];
+      const newLoanNo = (newLoanNoRaw ?? "").toString().trim();
 
-      if (!newLoanNo || newLoanNo.includes("-R")) {
-        message.error("Loan No. cannot be empty or contain '-R'");
+      if (!newLoanNo) {
+        message.error("Loan No. cannot be empty");
         return;
       }
 
@@ -69,7 +70,7 @@ export default function UpdateLoanNoModal({
       title: "Current Loan No.",
       dataIndex: ["loanInfo", "loanNo"],
       key: "currentLoanNo",
-      render: (text) => <Text type="danger">{text}</Text>,
+      render: (text) => <Text>{text || "N/A"}</Text>,
     },
     {
       title: "New Loan No.",

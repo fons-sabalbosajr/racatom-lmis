@@ -1,7 +1,9 @@
 // utils/storage.js
 import CryptoJS from "crypto-js";
 
-const SECRET_KEY = import.meta.env.VITE_ENCRYPT_SECRET;
+// Use a stable fallback key in development if VITE_ENCRYPT_SECRET is not provided to the frontend build.
+// This ensures encrypted values remain readable across reloads and sessions in dev.
+const SECRET_KEY = (import.meta.env && import.meta.env.VITE_ENCRYPT_SECRET) || "LMIS_DEV_ENC_KEY";
 const KEY_PREFIX = "__rct__"; // obscure keys in storage
 
 export function encryptData(data) {
@@ -53,6 +55,16 @@ export function lsGet(name) {
     const dec = decryptData(v);
     if (dec !== null) return dec;
     // Backward compatibility: try plain key (may be encrypted or plain JSON)
+    // First check legacy sessionStorage for this key
+    try {
+      const legacySess = typeof window !== "undefined" ? window.sessionStorage?.getItem(name) : null;
+      if (legacySess != null) {
+        const legacySessDec = decryptData(legacySess);
+        if (legacySessDec !== null) return legacySessDec;
+        try { return JSON.parse(legacySess); } catch { return legacySess; }
+      }
+    } catch {}
+    // Then legacy localStorage
     const legacy = localStorage.getItem(name);
     const legacyDec = decryptData(legacy);
     if (legacyDec !== null) return legacyDec;
@@ -60,7 +72,7 @@ export function lsGet(name) {
     try {
       return legacy ? JSON.parse(legacy) : null;
     } catch {
-      return null;
+      return legacy || null;
     }
   } catch {
     return null;
@@ -95,7 +107,17 @@ export function lsGetSession(name) {
     const k = hashKey(name);
     const v = typeof window !== "undefined" ? window.sessionStorage?.getItem(k) : null;
     const dec = decryptData(v);
-    return dec;
+    if (dec !== null) return dec;
+    // Legacy fallback: plain sessionStorage key
+    try {
+      const legacySess = typeof window !== "undefined" ? window.sessionStorage?.getItem(name) : null;
+      if (legacySess == null) return null;
+      const legacySessDec = decryptData(legacySess);
+      if (legacySessDec !== null) return legacySessDec;
+      try { return JSON.parse(legacySess); } catch { return legacySess; }
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }
@@ -155,5 +177,12 @@ export function lsClearAllApp() {
       try { localStorage.removeItem(k); } catch {}
       try { window.sessionStorage?.removeItem(k); } catch {}
     });
+    // Ensure known hashed keys are also removed explicitly (paranoia)
+    try { localStorage.removeItem(hashKey("devSettings")); } catch {}
+    try { window.sessionStorage?.removeItem(hashKey("devSettings")); } catch {}
+    try { localStorage.removeItem(hashKey("user")); } catch {}
+    try { window.sessionStorage?.removeItem(hashKey("user")); } catch {}
+    try { localStorage.removeItem(hashKey("token")); } catch {}
+    try { window.sessionStorage?.removeItem(hashKey("token")); } catch {}
   } catch {}
 }

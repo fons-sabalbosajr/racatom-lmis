@@ -16,7 +16,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start; /* default for full rows */
-  gap: 16px; /* same as gutter, ensures equal spacing */
+  gap: var(--grid-gutter); /* same as gutter, ensures equal spacing */
 }
 
 /* Special case: if last row has fewer than 4 cards, center them */
@@ -29,22 +29,22 @@
 /* Col setup: force equal height children */
 .account-col {
   display: flex;
-  flex: 1 1 calc(25% - 16px); /* 4 per row with gutter */
-  max-width: calc(25% - 16px);
+  flex: 1 1 calc(25% - var(--grid-gutter)); /* 4 per row with gutter */
+  max-width: calc(25% - var(--grid-gutter));
   box-sizing: border-box;
 }
 
 /* Responsive fallbacks */
 @media (max-width: 992px) {
-  .account-col {
-    flex: 1 1 calc(33.333% - 16px); /* 3 per row */
-    max-width: calc(33.333% - 16px);
+.account-col {
+    flex: 1 1 calc(33.333% - var(--grid-gutter)); /* 3 per row */
+    max-width: calc(33.333% - var(--grid-gutter));
   }
 }
 @media (max-width: 768px) {
-  .account-col {
-    flex: 1 1 calc(50% - 16px); /* 2 per row */
-    max-width: calc(50% - 16px);
+.account-col {
+    flex: 1 1 calc(50% - var(--grid-gutter)); /* 2 per row */
+    max-width: calc(50% - var(--grid-gutter));
   }
 }
 @media (max-width: 576px) {

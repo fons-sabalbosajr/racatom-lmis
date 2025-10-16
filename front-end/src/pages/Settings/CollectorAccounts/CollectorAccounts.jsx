@@ -15,16 +15,20 @@ import {
   Row,
   Col,
   Progress,
+  DatePicker,
 } from "antd";
-import { UploadOutlined, LinkOutlined, DeleteOutlined } from "@ant-design/icons";
+import { UploadOutlined, LinkOutlined, DeleteOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
 import "./collectoraccounts.css";
 
 const { Option } = Select;
 const { Search } = Input;
 
+import dayjs from "dayjs";
+
 const CollectorAccounts = () => {
   const [collectors, setCollectors] = useState([]);
+  const [isTablet, setIsTablet] = useState(typeof window !== "undefined" ? window.innerWidth <= 1080 : false);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCollector, setEditingCollector] = useState(null);
@@ -153,9 +157,27 @@ const CollectorAccounts = () => {
       const { data } = await api.get("/collectors", {
         params: { search: searchText },
       });
-      const sortedCollectors = data.data.sort((a, b) =>
-        a.Name.localeCompare(b.Name)
-      );
+      // Sort by GeneratedIDNumber ascending using numeric-aware comparator
+      const parseId = (id) => {
+        if (!id) return { prefix: "", num: null, raw: "" };
+        const s = String(id).trim();
+        const m = s.match(/^(.+?)(\d+)$/);
+        if (m) return { prefix: m[1], num: parseInt(m[2], 10), width: m[2].length, raw: s };
+        return { prefix: s, num: null, raw: s };
+      };
+
+      const compareGeneratedID = (a, b) => {
+        const pa = parseId(a?.GeneratedIDNumber);
+        const pb = parseId(b?.GeneratedIDNumber);
+        // If both have numeric suffix and same prefix, compare numerically
+        if (pa.num !== null && pb.num !== null && pa.prefix === pb.prefix) {
+          return pa.num - pb.num;
+        }
+        // Otherwise fallback to lexicographic on raw string
+        return (pa.raw || "").localeCompare(pb.raw || "");
+      };
+
+      const sortedCollectors = (data.data || []).slice().sort(compareGeneratedID);
       setCollectors(sortedCollectors);
     } catch (err) {
       console.error(err);
@@ -167,6 +189,21 @@ const CollectorAccounts = () => {
   useEffect(() => {
     fetchCollectors();
   }, [searchText]);
+
+  // Responsive detection for tablet screens (<= 1080px)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1080px)");
+    const handle = (e) => setIsTablet(e.matches);
+    // set initial
+    setIsTablet(mq.matches);
+    if (mq.addEventListener) mq.addEventListener("change", handle);
+    else mq.addListener(handle);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", handle);
+      else mq.removeListener(handle);
+    };
+  }, []);
 
   const filteredCollectors = collectors.filter((c) => {
     const searchMatch =
@@ -194,11 +231,85 @@ const CollectorAccounts = () => {
         Email: collector.Email,
         AreaRoutes: collector.AreaRoutes,
         EmploymentStatus: collector.EmploymentStatus,
+        GeneratedIDNumber: collector.GeneratedIDNumber,
+        EmploymentDate: collector.EmploymentDate ? dayjs(collector.EmploymentDate) : undefined,
       });
     } else {
       form.resetFields();
+      // When creating a new collector, prefill the next GeneratedIDNumber based on existing collectors
+      try {
+        const nextId = getNextGeneratedID();
+        if (nextId) form.setFieldsValue({ GeneratedIDNumber: nextId });
+      } catch (e) {
+        // ignore and leave blank if computation fails
+      }
     }
     setIsModalOpen(true);
+  };
+
+  // Compute next GeneratedIDNumber by scanning existing collectors.
+  // Strategy:
+  // - Parse existing GeneratedIDNumber values for a trailing numeric suffix (e.g. "C-000123").
+  // - Pick the most common prefix (text before the number), take the highest numeric value and increment it, preserving width (leading zeros).
+  // - If no numeric IDs found, fallback to a timestamp-based id `C-<last6>`.
+  const getNextGeneratedID = () => {
+    if (!collectors || collectors.length === 0) return `C-${String(Date.now()).slice(-6)}`;
+
+    const parsed = collectors
+      .map((c) => (c && c.GeneratedIDNumber ? String(c.GeneratedIDNumber).trim() : ""))
+      .filter(Boolean)
+      .map((id) => {
+        const m = id.match(/^(.+?)(\d+)$/);
+        if (m) return { id, prefix: m[1], num: parseInt(m[2], 10), width: m[2].length };
+        return null;
+      })
+      .filter(Boolean);
+
+    if (parsed.length === 0) {
+      return `C-${String(Date.now()).slice(-6)}`;
+    }
+
+    // Choose the most common prefix among parsed ids
+    const counts = parsed.reduce((acc, p) => {
+      acc[p.prefix] = (acc[p.prefix] || 0) + 1;
+      return acc;
+    }, {});
+    const prefixes = Object.keys(counts);
+    const commonPrefix = prefixes.reduce((a, b) => (counts[a] >= counts[b] ? a : b));
+
+    const withPrefix = parsed.filter((p) => p.prefix === commonPrefix);
+    const maxNum = Math.max(...withPrefix.map((p) => p.num));
+    const maxWidth = Math.max(...withPrefix.map((p) => p.width));
+    const nextNum = String(maxNum + 1).padStart(maxWidth, "0");
+
+    return `${commonPrefix}${nextNum}`;
+  };
+
+  // Generate a candidate ID from a base id, offset by attempt number.
+  // If base has a trailing number, increment it; otherwise append an attempt suffix.
+  const generateCandidateID = (base, attempt = 1) => {
+    const b = String(base || "C-").trim();
+    const m = b.match(/^(.+?)(\d+)$/);
+    if (m) {
+      const prefix = m[1];
+      const num = parseInt(m[2], 10) || 0;
+      const width = m[2].length;
+      const next = String(num + attempt).padStart(width, "0");
+      return `${prefix}${next}`;
+    }
+    // no trailing number: add a dash and attempt
+    return `${b}-${attempt}`;
+  };
+
+  // Detect whether an error from the server corresponds to a duplicate/unique constraint on GeneratedIDNumber
+  const isDuplicateError = (err) => {
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    const msg = (data?.message || err?.message || "").toString().toLowerCase();
+    if (status === 409) return true;
+    if (data && (data.code === 11000 || data.code === "11000")) return true;
+    if (msg.includes("duplicate") || msg.includes("unique") || msg.includes("generatedidnumber")) return true;
+    return false;
   };
 
   const handleModalOk = async () => {
@@ -208,13 +319,52 @@ const CollectorAccounts = () => {
       if (typeof values.AreaRoutes === "string") {
         values.AreaRoutes = values.AreaRoutes.split(",").map((r) => r.trim());
       }
+      // Normalize EmploymentDate to ISO (model requires EmploymentDate)
+      if (values.EmploymentDate && values.EmploymentDate.toISOString) {
+        values.EmploymentDate = values.EmploymentDate.toISOString();
+      } else if (!values.EmploymentDate) {
+        // default to today if not provided to satisfy model requirement
+        values.EmploymentDate = new Date().toISOString();
+      }
+      // Ensure GeneratedIDNumber exists (model requires unique GeneratedIDNumber)
+      if (!values.GeneratedIDNumber || String(values.GeneratedIDNumber).trim() === "") {
+        // create a simple unique id: C- + last 6 of timestamp
+        values.GeneratedIDNumber = `C-${String(Date.now()).slice(-6)}`;
+      }
 
       if (editingCollector) {
         await api.put(`/collectors/${editingCollector._id}`, values);
         message.success("Collector updated");
       } else {
-        await api.post("/collectors", values);
-        message.success("Collector added");
+        // Try creating with retry on duplicate GeneratedIDNumber (up to 5 attempts)
+        const maxAttempts = 5;
+        let attempt = 0;
+        let lastErr = null;
+        let baseId = values.GeneratedIDNumber || getNextGeneratedID();
+        while (attempt < maxAttempts) {
+          attempt += 1;
+          const candidate = generateCandidateID(baseId, attempt === 1 ? 0 : attempt);
+          const payload = { ...values, GeneratedIDNumber: candidate };
+          try {
+            await api.post("/collectors", payload);
+            message.success("Collector added");
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            if (isDuplicateError(e)) {
+              // try again with next candidate
+              continue;
+            }
+            // non-duplicate error: stop retrying
+            break;
+          }
+        }
+
+        if (lastErr) {
+          // If lastErr exists, it means all attempts failed or a non-duplicate error occurred
+          throw lastErr;
+        }
       }
       setIsModalOpen(false);
       setEditingCollector(null);
@@ -240,7 +390,7 @@ const CollectorAccounts = () => {
     {
       title: "Collector's Information",
       key: "info",
-      width: "60%",
+      width: isTablet ? "40%" : "40%",
       render: (_, record) => {
         const stringToDarkColor = (str) => {
           let hash = 0;
@@ -291,6 +441,7 @@ const CollectorAccounts = () => {
       title: "Employment Status",
       dataIndex: "EmploymentStatus",
       key: "status",
+      width: isTablet ? "30%" : "25%",
       filters: [
         { text: "Active", value: "Active" },
         { text: "Inactive", value: "Inactive" },
@@ -301,30 +452,50 @@ const CollectorAccounts = () => {
     {
       title: "Actions",
       key: "actions",
+      width: isTablet ? "20%" : "15%",
       render: (_, record) => (
         <>
-          <Button
-            size="small"
-            style={{ marginRight: "8px" }}
-            onClick={() => openModal(record)}
-          >
-            Edit
-          </Button>
-          <Button
-            size="small"
-            style={{ marginRight: 8 }}
-            onClick={() => openDocsModal(record)}
-          >
-            Documents
-          </Button>
-          <Popconfirm
-            title="Are you sure?"
-            onConfirm={() => handleDelete(record._id)}
-          >
-            <Button size="small" danger>
-              Delete
-            </Button>
-          </Popconfirm>
+          {isTablet ? (
+            <>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                style={{ marginRight: 8 }}
+                onClick={() => openModal(record)}
+              />
+              <Button
+                size="small"
+                icon={<FileTextOutlined />}
+                style={{ marginRight: 8 }}
+                onClick={() => openDocsModal(record)}
+              />
+              <Popconfirm title="Are you sure?" onConfirm={() => handleDelete(record._id)}>
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </>
+          ) : (
+            <>
+              <Button
+                size="small"
+                style={{ marginRight: "8px" }}
+                onClick={() => openModal(record)}
+              >
+                Edit
+              </Button>
+              <Button
+                size="small"
+                style={{ marginRight: 8 }}
+                onClick={() => openDocsModal(record)}
+              >
+                Documents
+              </Button>
+              <Popconfirm title="Are you sure?" onConfirm={() => handleDelete(record._id)}>
+                <Button size="small" danger>
+                  Delete
+                </Button>
+              </Popconfirm>
+            </>
+          )}
         </>
       ),
     },
@@ -387,7 +558,8 @@ const CollectorAccounts = () => {
         rowKey="_id"
         loading={loading}
         pagination={false}
-        scroll={{ x: 'max-content' }}
+        size={isTablet ? "small" : "middle"}
+        scroll={isTablet ? undefined : { x: 'max-content' }}
       />
 
       <Modal
@@ -398,18 +570,25 @@ const CollectorAccounts = () => {
         okText="Save"
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="Name" label="Name" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item className="collector-input" name="GeneratedIDNumber" label="Generated ID" rules={[{ required: true }]}>
+            <Input size="small" />
           </Form.Item>
-          <Form.Item name="ContactNumber" label="Contact">
-            <Input />
+          <Form.Item className="collector-input" name="Name" label="Name" rules={[{ required: true }] }>
+            <Input size="small" />
           </Form.Item>
-          <Form.Item name="Email" label="Email">
-            <Input />
+          <Form.Item className="collector-input" name="ContactNumber" label="Contact">
+            <Input size="small" />
+          </Form.Item>
+          <Form.Item className="collector-input" name="Email" label="Email">
+            <Input size="small" />
+          </Form.Item>
+          <Form.Item name="EmploymentDate" label="Employment Date">
+            <DatePicker style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="AreaRoutes" label="Area Routes">
             <Select
               mode="tags"
+              size="medium"
               style={{ width: "100%" }}
               placeholder="Add routes"
             >
@@ -421,8 +600,8 @@ const CollectorAccounts = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item name="EmploymentStatus" label="Employment Status">
-            <Select>
+          <Form.Item className="collector-input" name="EmploymentStatus" label="Employment Status">
+            <Select size="small">
               <Option value="Active">Active</Option>
               <Option value="Inactive">Inactive</Option>
               <Option value="Suspended">Suspended</Option>

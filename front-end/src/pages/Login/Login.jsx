@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Form, Input, Button, Typography, message, Card, Divider } from "antd";
+import { Form, Input, Button, Typography, message, Card, Divider, Spin } from "antd";
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
-import api from "../../utils/axios";
+import api, { setRuntimeToken } from "../../utils/axios";
+import { useDevSettings } from "../../context/DevSettingsContext";
 import { lsSet, lsSetSession } from "../../utils/storage";
 import "./login.css";
 
@@ -12,8 +13,10 @@ const { Title, Text } = Typography;
 
 function Login() {
   const [loading, setLoading] = useState(false);
+  const [postAuthLoading, setPostAuthLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { refreshTheme } = useDevSettings();
 
   // ✅ Handle email verification result
   useEffect(() => {
@@ -51,14 +54,23 @@ function Login() {
           const { lsSetSession } = await import("../../utils/storage");
           lsSetSession("token", token);
         } catch {}
+  // Do not keep a plain sessionStorage token; rely on encrypted storage + runtime header
+        // Also set axios runtime header immediately so follow-up calls carry the token
+        try { setRuntimeToken(token, "session"); } catch {}
       }
   // Store per tab/window to isolate multiple users on same machine/browser
   lsSetSession("user", user);
       // mark user as online
       lsSet("onlineUser", user.Username);
       //message.success(`Welcome, ${user.FullName || values.Username}`);
-
-  navigate("/dashboard"); // land on protected dashboard
+      // Pull and apply theme immediately (no flash) before routing; show a small overlay while doing so
+      try {
+        setPostAuthLoading(true);
+        await refreshTheme();
+      } catch {} finally {
+        setPostAuthLoading(false);
+      }
+      navigate("/dashboard"); // land on protected dashboard
     } catch (err) {
       const status = err?.response?.status;
       const serverMsg = err?.response?.data?.message || "Login failed.";
@@ -78,6 +90,22 @@ function Login() {
 
   return (
     <div className="login-container">
+      {postAuthLoading && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(255,255,255,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <Spin size="large" />
+            <Typography.Text type="secondary">Applying your theme…</Typography.Text>
+          </div>
+        </div>
+      )}
       <Card className="login-card">
         <div style={{ textAlign: "center", marginBottom: "1rem" }}>
           <img src={lmisLogo} alt="LMIS Logo" style={{ height: "80px" }} />
@@ -101,7 +129,7 @@ function Login() {
             <Input
               prefix={<UserOutlined />}
               placeholder="Username or Email"
-              size="large"
+              size="middle"
             />
           </Form.Item>
 
@@ -113,7 +141,7 @@ function Login() {
             <Input.Password
               prefix={<LockOutlined />}
               placeholder="Password"
-              size="large"
+              size="middle"
             />
           </Form.Item>
 

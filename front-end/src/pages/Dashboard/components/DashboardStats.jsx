@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Card, Col, Row, Statistic, Button } from "antd";
 import { UserOutlined, ScheduleOutlined, EyeOutlined } from "@ant-design/icons";
+import "./DashboardStats.css";
 
 function DashboardStats({ stats, loading, onShowUpcoming }) {
   useEffect(() => {

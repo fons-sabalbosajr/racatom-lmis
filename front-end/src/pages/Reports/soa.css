@@ -1,0 +1,111 @@
+/* Base spacing for the SOA page */
+.soa-card .ant-card-body {
+  padding: 16px;
+}
+
+/* Compact header extras spacing */
+.soa-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Table tweaks */
+.soa-table .ant-table-thead > tr > th {
+  padding: 8px 8px !important;
+  font-size: 13px;
+}
+.soa-table .ant-table-tbody > tr > td {
+  padding: 8px 8px !important;
+  font-size: 12px;
+}
+
+/* Tag sizing */
+.soa-table .ant-tag {
+  font-size: 12px;
+  height: 22px;
+  line-height: 20px;
+  padding: 0 8px;
+}
+
+/* Modal content tightening */
+.soa-card .ant-modal .ant-modal-body {
+  padding: 16px;
+}
+
+/* Tablet adjustments */
+@media (max-width: 1080px) {
+  .soa-card .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .soa-extra {
+    gap: 8px;
+  }
+
+  /* shrink helper label 'Only with collections' */
+  .soa-extra span {
+    font-size: 11px !important;
+  }
+
+  .soa-table .ant-table-thead > tr > th {
+    padding: 6px 6px !important;
+    font-size: 12px;
+  }
+  .soa-table .ant-table-tbody > tr > td {
+    padding: 6px 6px !important;
+    font-size: 10px;
+  }
+
+  /* Ensure nested elements in cells also scale down on tablet, overriding inline sizes */
+  .soa-table .ant-table-tbody > tr > td * {
+    font-size: 10px !important;
+  }
+
+  /* Make Last Collection and Status compact */
+  .soa-table .ant-tag {
+    font-size: 10px;
+    height: 18px;
+    line-height: 16px;
+    padding: 0 6px;
+  }
+
+  /* Descriptions in preview modal smaller on tablet */
+  .ant-descriptions.soa-descriptions .ant-descriptions-item-label,
+  .ant-descriptions.soa-descriptions .ant-descriptions-item-content {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
+  /* Narrow the 'Client Name & Address' column (2nd column) on tablet */
+  .soa-table table colgroup col:nth-child(2) {
+    width: 30% !important;
+  }
+  .soa-table .ant-table-thead > tr > th:nth-child(2),
+  .soa-table .ant-table-tbody > tr > td:nth-child(2) {
+    width: 30% !important;
+    max-width: 30% !important;
+    word-break: break-word;
+  }
+
+   .soa-table table colgroup col:nth-child(3) {
+    width: 20% !important;
+  }
+  .soa-table .ant-table-thead > tr > th:nth-child(3),
+  .soa-table .ant-table-tbody > tr > td:nth-child(3) {
+    width: 20% !important;
+    max-width: 20% !important;
+    word-break: break-word;
+  }
+
+  /* Make the Action button smaller on tablet (6th column) */
+  .soa-table .ant-table-tbody > tr > td:nth-child(6) .ant-btn {
+    height: 24px !important;
+    line-height: 22px !important;
+    padding: 0 8px !important;
+    font-size: 10px !important; /* keep text compact */
+  }
+  .soa-table .ant-table-tbody > tr > td:nth-child(6) .ant-btn > span {
+    line-height: 22px !important;
+  }
+}

@@ -12,6 +12,7 @@ const LoanCycleSchema = new mongoose.Schema(
     PrincipalAmount: Number,
     LoanBalance: Number,
     LoanInterest: Number,
+  LoanAmortization: Number,
     Penalty: Number,
     PaymentMode: String,
     StartPaymentDate: Date,

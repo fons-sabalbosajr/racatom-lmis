@@ -32,6 +32,7 @@ import {
   debugGetRawClient,
   debugListClientsMissingNames,
   debugUpdateClientNames,
+  applyAutomatedStatuses,
 } from "../controllers/loanController.js";
 import uploadLoanDocument from "../middleware/uploadLoanDocument.js";
 
@@ -48,6 +49,8 @@ router.get("/approved-clients", getApprovedClients);
 
 // GET /api/loans
 router.get("/", getLoans);
+// POST /api/loans/apply-automated-statuses
+router.post("/apply-automated-statuses", applyAutomatedStatuses);
 
 // POST /api/loans/loan_clients_application
 router.post("/loan_clients_application", createLoanApplication);

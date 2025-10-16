@@ -248,7 +248,7 @@ function Dashboard() {
           <Button
             type="primary"
             onClick={() => setLoanAppModalVisible(true)}
-            style={{ marginRight: "8px" }}
+            className="loan-applications-btn"
           >
             New Loan Application
           </Button>

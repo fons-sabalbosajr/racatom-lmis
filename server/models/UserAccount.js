@@ -9,6 +9,12 @@ const userSchema = new mongoose.Schema({
   Password: String, // hashed password
   Designation: String,
   Photo: Buffer, // store binary photo
+  // Per-user UI theme preferences (persisted so user's theme loads when they sign in)
+  siderBg: { type: String, default: '#001529' },
+  headerBg: { type: String, default: '#ffffff' },
+
+  // Presence tracking: last activity timestamp
+  lastSeen: { type: Date },
 
   isVerified: { type: Boolean, default: false },
   verificationToken: String,

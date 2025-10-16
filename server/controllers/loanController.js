@@ -76,6 +76,7 @@ const transformLoan = (doc) => {
       amount: Number(String(loan.LoanAmount || 0).replace(/[₱,]/g, "")),
       principal: Number(String(loan.PrincipalAmount || 0).replace(/[₱,]/g, "")),
       balance: Number(String(loan.LoanBalance || 0).replace(/[₱,]/g, "")),
+      amortization: Number(String(loan.LoanAmortization || 0).replace(/[₱,]/g, "")),
       penalty: Number(String(loan.Penalty || 0).replace(/[₱,]/g, "")),
       interest: Number(String(loan.LoanInterest || 0).replace(/[₱,]/g, "")),
       paymentMode: loan.PaymentMode,
@@ -132,6 +133,7 @@ const _getStatementOfAccountData = async (
         _id: "$_id",
         AccountId: "$AccountId",
         ClientNo: "$ClientNo",
+          LoanAmortization: "$LoanAmortization",
         LoanCycleNo: "$LoanCycleNo",
         LoanType: "$LoanType",
         LoanStatus: "$LoanStatus",
@@ -221,6 +223,7 @@ const _getLedgerData = async (accountId, loanCycleNo, startDate, endDate) => {
         _id: "$_id",
         AccountId: "$AccountId",
         ClientNo: "$ClientNo",
+          LoanAmortization: "$LoanAmortization",
         LoanCycleNo: "$LoanCycleNo",
         LoanType: "$LoanType",
         LoanStatus: "$LoanStatus",
@@ -291,7 +294,11 @@ const _getLedgerData = async (accountId, loanCycleNo, startDate, endDate) => {
 
 export const createLoanCycle = async (req, res) => {
   try {
-    const { LoanNo, ...restOfBody } = req.body;
+    const { LoanNo, AccountId, ClientNo, ...restOfBody } = req.body;
+
+    if (!AccountId || !ClientNo) {
+      return res.status(400).json({ success: false, message: "AccountId and ClientNo are required to create a loan cycle." });
+    }
 
     // Check if a loan with this LoanCycleNo already exists
     const existingLoan = await LoanCycle.findOne({ LoanCycleNo: LoanNo });
@@ -305,6 +312,8 @@ export const createLoanCycle = async (req, res) => {
     // Create the new loan cycle object
     const newLoanCycleData = {
       ...restOfBody,
+      AccountId,
+      ClientNo,
       LoanCycleNo: LoanNo, // Map frontend's LoanNo to the model's LoanCycleNo
     };
 
@@ -344,11 +353,22 @@ export const getLoans = async (req, res) => {
     const matchQuery = {};
 
     // 🔍 Filters
-    if (loanStatus) matchQuery.LoanStatus = loanStatus;
+    // If loanStatus matches one of automated statuses, we'll filter later in pipeline using automatedStatus.
+    const automatedStatusValues = ["ARREARS", "PAST DUE", "LITIGATION", "DORMANT", "UPDATED"];
+    let filterByAutomatedStatus = false;
+    if (loanStatus) {
+      if (automatedStatusValues.includes(String(loanStatus).toUpperCase())) {
+        // mark to filter inside aggregation pipeline
+        filterByAutomatedStatus = String(loanStatus).toUpperCase();
+      } else {
+        matchQuery.LoanStatus = loanStatus;
+      }
+    }
     if (paymentMode) matchQuery.PaymentMode = paymentMode;
     if (year) matchQuery.AccountId = { $regex: `^RCT-${year}`, $options: "i" };
     if (needsUpdate === "true") {
-      matchQuery.LoanCycleNo = { $regex: "-R", $options: "i" };
+      // Only match loan numbers that end with '-R' (no numeric suffix yet)
+      matchQuery.LoanCycleNo = { $regex: "-R$", $options: "i" };
     }
 
     // Filter by collector names (can be array or comma-separated string)
@@ -388,6 +408,50 @@ export const getLoans = async (req, res) => {
     const limitNum = parseInt(limit);
     const sortOrder = sortDir === "desc" ? -1 : 1;
 
+    // Compute Last-Modified across matched loans and their collections to enable 304 responses
+    try {
+      const lmPipeline = [];
+      // When q searches client names, we need the loan_clients join before matching
+      if (q) {
+        lmPipeline.push(
+          {
+            $lookup: {
+              from: "loan_clients",
+              localField: "ClientNo",
+              foreignField: "ClientNo",
+              as: "clientInfo",
+            },
+          },
+          { $unwind: { path: "$clientInfo", preserveNullAndEmptyArrays: true } }
+        );
+      }
+      lmPipeline.push({ $match: matchQuery });
+      lmPipeline.push({ $group: { _id: null, maxLoanUpdated: { $max: "$updatedAt" } } });
+      const lmResult = await LoanCycle.aggregate(lmPipeline);
+      if (Array.isArray(lmResult) && lmResult.length > 0) {
+  const maxLoanUpdated = lmResult[0].maxLoanUpdated ? new Date(lmResult[0].maxLoanUpdated).getTime() : 0;
+  const maxTs = maxLoanUpdated;
+        if (maxTs > 0) {
+          const lastModified = new Date(maxTs);
+          const ims = req.headers["if-modified-since"];
+          if (ims) {
+            const imsDate = new Date(ims);
+            if (!isNaN(imsDate.getTime()) && imsDate.getTime() >= lastModified.getTime()) {
+              res.status(304).end();
+              return;
+            }
+          }
+          res.setHeader("Last-Modified", lastModified.toUTCString());
+          // Allow short-term caching by the browser
+          res.setHeader("Cache-Control", "private, max-age=60");
+        }
+      }
+    } catch (e) {
+      // non-blocking; continue without last-modified if aggregation fails
+      // eslint-disable-next-line no-console
+      console.warn("getLoans: last-modified calc failed:", e?.message || e);
+    }
+
     // ✅ MODIFIED: The pipeline now joins first, then applies the comprehensive match query.
     const pipeline = [
       {
@@ -404,17 +468,61 @@ export const getLoans = async (req, res) => {
 
       {
         $lookup: {
-          from: "loan_collections",
-          localField: "LoanCycleNo",
-          foreignField: "LoanCycleNo",
+          from: "loan_clients_collections",
+          let: { lcNo: "$LoanCycleNo", acct: "$AccountId", client: "$ClientNo" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $and: [ { $ne: ["$$lcNo", null] }, { $eq: ["$LoanCycleNo", "$$lcNo"] } ] },
+                    { $and: [ { $ne: ["$$acct", null] }, { $eq: ["$AccountId", "$$acct"] } ] },
+                    { $and: [ { $ne: ["$$client", null] }, { $eq: ["$ClientNo", "$$client"] } ] }
+                  ]
+                }
+              }
+            },
+            { $sort: { updatedAt: -1 } },
+            { $project: { updatedAt: 1 } },
+            { $limit: 1 }
+          ],
           as: "collections",
         },
       },
 
       {
         $addFields: {
-          collectionCount: { $size: "$collections" },
-          latestCollectionUpdate: { $max: "$collections.updatedAt" },
+          // compute from limited lookup
+          latestCollectionUpdate: { $arrayElemAt: ["$collections.updatedAt", 0] },
+          collectionCount: { $cond: [ { $gt: [ { $size: "$collections" }, 0 ] }, 1, 0 ] },
+          // days since last collection (null when no collections)
+          daysSinceLastCollection: {
+            $cond: [
+              { $ifNull: ["$latestCollectionUpdate", false] },
+              { $dateDiff: { startDate: "$latestCollectionUpdate", endDate: "$$NOW", unit: "day" } },
+              null,
+            ],
+          },
+          // days since maturity (null when no maturity date)
+          daysSinceMaturity: {
+            $cond: [
+              { $ifNull: ["$MaturityDate", false] },
+              { $dateDiff: { startDate: "$MaturityDate", endDate: "$$NOW", unit: "day" } },
+              null,
+            ],
+          },
+          // threshold days based on payment mode
+          thresholdDays: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$PaymentMode", "DAILY"] }, then: 3 },
+                { case: { $eq: ["$PaymentMode", "WEEKLY"] }, then: 7 },
+                { case: { $eq: ["$PaymentMode", "SEMI-MONTHLY"] }, then: 15 },
+                { case: { $eq: ["$PaymentMode", "MONTHLY"] }, then: 30 },
+              ],
+              default: 30,
+            },
+          },
           "person.firstName": "$clientInfo.FirstName",
           "person.middleName": "$clientInfo.MiddleName",
           "person.lastName": "$clientInfo.LastName",
@@ -457,7 +565,7 @@ export const getLoans = async (req, res) => {
         },
       },
 
-      minimal
+  minimal
         ? {
             $project: {
               _id: 1,
@@ -469,6 +577,7 @@ export const getLoans = async (req, res) => {
               LoanProcessStatus: 1,
               LoanAmount: 1,
               LoanBalance: 1,
+              LoanAmortization: 1,
               PaymentMode: 1,
               CollectorName: 1,
               StartPaymentDate: 1,
@@ -480,7 +589,7 @@ export const getLoans = async (req, res) => {
               address: 1,
             },
           }
-        : {
+  : {
             $project: {
               _id: 1,
               AccountId: 1,
@@ -494,6 +603,7 @@ export const getLoans = async (req, res) => {
               PrincipalAmount: 1,
               LoanBalance: 1,
               LoanInterest: 1,
+              LoanAmortization: 1,
               Penalty: 1,
               PaymentMode: 1,
               CollectorName: 1,
@@ -508,18 +618,52 @@ export const getLoans = async (req, res) => {
               fullName: 1,
               collectionCount: 1,
               latestCollectionUpdate: 1,
+              daysSinceLastCollection: 1,
+              daysSinceMaturity: 1,
+              thresholdDays: 1,
+              automatedStatus: 1,
+              automatedReason: 1,
             },
           },
 
-      // keep existing sort-by behavior from request query
-      { $sort: { [sortBy]: sortOrder, ClientNo: sortOrder } },
+  // keep existing sort-by behavior from request query
+  { $sort: { [sortBy]: sortOrder, ClientNo: sortOrder } },
+
 
       { $skip: (pageNum - 1) * limitNum },
       { $limit: limitNum },
     ];
 
+    // Optionally filter to only loans that have collections (via toggle in client)
+    try {
+      const withCollectionsFlagRaw = String(req.query?.withCollections || '').trim().toLowerCase();
+      const withCollectionsFlag = withCollectionsFlagRaw === '1' || withCollectionsFlagRaw === 'true';
+      if (withCollectionsFlag) {
+        const sortIndex = pipeline.findIndex((s) => s.$sort);
+        const hasCollectionsMatch = {
+          $match: {
+            $or: [
+              { collectionCount: { $gt: 0 } },
+              { latestCollectionUpdate: { $ne: null } },
+            ],
+          },
+        };
+        if (sortIndex >= 0) pipeline.splice(sortIndex, 0, hasCollectionsMatch);
+        else pipeline.push(hasCollectionsMatch);
+      }
+    } catch {}
+
     // The total count needs to be calculated on the filtered data.
     // We create a separate pipeline for counting that stops before pagination.
+    // If we need to filter by automated status, inject a $match stage after the computed fields
+    if (filterByAutomatedStatus) {
+      // insert match just before $sort (which is near the end). Find index of $sort.
+      const sortIndex = pipeline.findIndex((s) => s.$sort);
+      const matchStage = { $match: { automatedStatus: filterByAutomatedStatus } };
+      if (sortIndex >= 0) pipeline.splice(sortIndex, 0, matchStage);
+      else pipeline.push(matchStage);
+    }
+
     const countPipeline = [
       ...pipeline.slice(0, -2), // Remove $skip and $limit
       { $count: "total" },
@@ -536,7 +680,7 @@ export const getLoans = async (req, res) => {
 
     const total = totalResult.length > 0 ? totalResult[0].total : 0;
 
-    // ✅ Transform for frontend
+  // ✅ Transform for frontend
     const loans = data.map((loan) => {
       let collectionStatus = "No Data Encoded";
       if (loan.collectionCount > 0 && loan.latestCollectionUpdate) {
@@ -553,12 +697,17 @@ export const getLoans = async (req, res) => {
         processStatus: loan.LoanProcessStatus || "N/A",
         amount: loan.LoanAmount || 0,
         balance: loan.LoanBalance || 0,
+        amortization: loan.LoanAmortization || 0,
         paymentMode: loan.PaymentMode || "N/A",
         type: loan.LoanType || "N/A",
         collectorName: loan.CollectorName || "N/A",
         // <-- include the maturity date (and start date if you want)
         startPaymentDate: loan.StartPaymentDate || null,
         maturityDate: loan.MaturityDate || null,
+        // expose last collection date (if available)
+        lastCollectionDate: loan.latestCollectionUpdate || null,
+        automatedStatus: loan.automatedStatus || null,
+        automatedReason: loan.automatedReason || null,
       };
 
       return {
@@ -569,6 +718,20 @@ export const getLoans = async (req, res) => {
       };
     });
 
+    // Set ETag as a simple hash based on total, page and last-modified if present
+    try {
+      const lmHeader = res.getHeader("Last-Modified");
+      const etagBase = `${total}:${pageNum}:${String(lmHeader || "")}`;
+      // Simple weak etag
+      const weakEtag = "W/\"" + Buffer.from(etagBase).toString("base64").slice(0, 24) + "\"";
+      const inm = req.headers["if-none-match"]; 
+      if (inm && inm === weakEtag) {
+        res.status(304).end();
+        return;
+      }
+      res.setHeader("ETag", weakEtag);
+    } catch {}
+
     res.json({
       success: true,
       data: loans,
@@ -576,6 +739,169 @@ export const getLoans = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error in getLoans:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// POST: apply automated statuses to DB (updates LoanStatus based on current data)
+export const applyAutomatedStatuses = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const thresholds = {
+      dormantDays: 365,
+      litigationDaysAfterMaturity: 180, // approx 6 months
+      pastDueDaysAfterMaturity: 7,
+      arrearsDailyDays: 3,
+      arrearsWeeklyDays: 7,
+      arrearsSemiMonthlyDays: 15,
+      arrearsMonthlyDays: 30,
+      ...(body.thresholds || {}),
+    };
+
+    // Aggregate minimal fields + last collection date and last running balance per loan
+    const pipeline = [
+      // Optional scope filter (e.g., { AccountId, ClientNo, LoanCycleNo })
+      ...(body.filter && Object.keys(body.filter).length > 0
+        ? [{ $match: body.filter }]
+        : []),
+      {
+        $lookup: {
+          from: "loan_clients_collections",
+          let: { lcNo: "$LoanCycleNo", acct: "$AccountId", client: "$ClientNo" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $and: [ { $ne: ["$$lcNo", null] }, { $eq: ["$LoanCycleNo", "$$lcNo"] } ] },
+                    { $and: [ { $ne: ["$$acct", null] }, { $eq: ["$AccountId", "$$acct"] } ] },
+                    { $and: [ { $ne: ["$$client", null] }, { $eq: ["$ClientNo", "$$client"] } ] }
+                  ]
+                }
+              }
+            },
+            { $sort: { PaymentDate: -1, updatedAt: -1, _id: -1 } },
+            { $project: { PaymentDate: 1, updatedAt: 1, RunningBalance: 1, CollectionPayment: 1, Penalty: 1 } },
+            { $limit: 1 }
+          ],
+          as: "collections",
+        },
+      },
+      {
+        $addFields: {
+          lastCollectionDate: { $ifNull: [{ $arrayElemAt: ["$collections.PaymentDate", 0] }, { $arrayElemAt: ["$collections.updatedAt", 0] }] },
+          lastRunningBalance: { $arrayElemAt: ["$collections.RunningBalance", 0] },
+          lastCollectionPayment: { $arrayElemAt: ["$collections.CollectionPayment", 0] },
+          lastPenalty: { $arrayElemAt: ["$collections.Penalty", 0] },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          LoanStatus: 1,
+          PaymentMode: 1,
+          MaturityDate: 1,
+          lastCollectionDate: 1,
+          lastRunningBalance: 1,
+          lastCollectionPayment: 1,
+          lastPenalty: 1,
+        },
+      },
+    ];
+
+    const loans = await LoanCycle.aggregate(pipeline);
+
+    const now = new Date();
+    let updates = [];
+    let computedCount = 0;
+    let changedCount = 0;
+
+    const daysBetween = (from, to) =>
+      Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+
+    for (const loan of loans) {
+      const current = loan.LoanStatus || "";
+      if (String(current).toUpperCase() === "CLOSED") continue; // don't override CLOSED
+
+      const pm = String(loan.PaymentMode || "").toUpperCase();
+      const lastCol = loan.lastCollectionDate ? new Date(loan.lastCollectionDate) : null;
+      const maturity = loan.MaturityDate ? new Date(loan.MaturityDate) : null;
+
+      let auto = null;
+
+      // DORMANT
+      if (!lastCol || daysBetween(lastCol, now) >= thresholds.dormantDays) {
+        auto = "DORMANT";
+      } else if (
+        maturity &&
+        now > new Date(maturity.getTime() + thresholds.litigationDaysAfterMaturity * 86400000) &&
+        lastCol <= maturity
+      ) {
+        auto = "LITIGATION";
+      } else if (
+        maturity &&
+        now > new Date(maturity.getTime() + thresholds.pastDueDaysAfterMaturity * 86400000) &&
+        lastCol <= maturity
+      ) {
+        auto = "PAST DUE";
+      } else if (lastCol) {
+        const diff = daysBetween(lastCol, now);
+        const arrearsMap = {
+          DAILY: thresholds.arrearsDailyDays,
+          WEEKLY: thresholds.arrearsWeeklyDays,
+          "SEMI-MONTHLY": thresholds.arrearsSemiMonthlyDays,
+          "SEMI-MOTHLY": thresholds.arrearsSemiMonthlyDays,
+          MONTHLY: thresholds.arrearsMonthlyDays,
+        };
+        const limit = arrearsMap[pm] ?? thresholds.arrearsMonthlyDays;
+        if (diff >= limit) {
+          auto = "ARREARS";
+        } else {
+          auto = "UPDATED"; // within threshold treated as updated
+        }
+      } else {
+        auto = null;
+      }
+
+      // Prepare update doc: set LoanStatus (if computed) and sync LoanBalance when available
+      const setDoc = {};
+      if (auto) {
+        computedCount++;
+        if (auto !== current) {
+          changedCount++;
+          setDoc.LoanStatus = auto;
+        }
+      }
+      if (loan.lastRunningBalance != null) {
+        setDoc.LoanBalance = loan.lastRunningBalance;
+      }
+      if (loan.lastCollectionPayment != null) {
+        setDoc.LoanAmortization = loan.lastCollectionPayment;
+      }
+      if (loan.lastPenalty != null) {
+        setDoc.Penalty = loan.lastPenalty;
+      }
+      if (Object.keys(setDoc).length > 0) {
+        updates.push({
+          updateOne: {
+            filter: { _id: loan._id },
+            update: { $set: setDoc },
+          },
+        });
+      }
+    }
+
+    if (updates.length > 0) {
+      await LoanCycle.bulkWrite(updates, { ordered: false });
+    }
+
+    res.json({
+      success: true,
+      message: "Automated statuses applied",
+      data: { computed: computedCount, changed: changedCount },
+    });
+  } catch (err) {
+    console.error("❌ Error applying automated statuses:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -609,6 +935,7 @@ export const getLoanById = async (req, res) => {
           PrincipalAmount: "$PrincipalAmount",
           LoanBalance: "$LoanBalance",
           LoanInterest: "$LoanInterest",
+          LoanAmortization: "$LoanAmortization",
           Penalty: "$Penalty",
           PaymentMode: "$PaymentMode",
           StartPaymentDate: "$StartPaymentDate",
@@ -723,6 +1050,34 @@ export const updateLoan = async (req, res) => {
           loanCycleUpdate[pascalKey] = loanInfo[key];
         }
       });
+    }
+
+    // Normalize incoming LoanProcessStatus to match model enum values.
+    // Common incorrect values observed: 'Loan Updated' which should map to 'Updated'.
+    if (loanCycleUpdate.LoanProcessStatus !== undefined && loanCycleUpdate.LoanProcessStatus !== null) {
+      try {
+        const rawVal = String(loanCycleUpdate.LoanProcessStatus).trim();
+        const allowed = ["Approved", "Updated", "Released", "Pending", "Loan Released"];
+
+        // If exact match (case-sensitive) not found, try case-insensitive match
+        if (!allowed.includes(rawVal)) {
+          // Remove leading 'Loan ' prefix (e.g., 'Loan Updated' -> 'Updated') and test
+          const withoutLoanPrefix = rawVal.replace(/^Loan\s+/i, "").trim();
+          if (allowed.includes(withoutLoanPrefix)) {
+            loanCycleUpdate.LoanProcessStatus = withoutLoanPrefix;
+          } else {
+            // Case-insensitive match to one of allowed values
+            const ciMatch = allowed.find((a) => a.toLowerCase() === rawVal.toLowerCase());
+            if (ciMatch) loanCycleUpdate.LoanProcessStatus = ciMatch;
+          }
+        } else {
+          // Ensure canonical casing when possible (match by lowercase)
+          const canonical = allowed.find((a) => a.toLowerCase() === rawVal.toLowerCase());
+          if (canonical) loanCycleUpdate.LoanProcessStatus = canonical;
+        }
+      } catch (e) {
+        // If normalization fails, fall back to letting Mongoose validate and reject.
+      }
     }
 
     // Remove undefined fields
@@ -949,6 +1304,7 @@ export const getLoansByClientNo = async (req, res) => {
           PrincipalAmount: "$PrincipalAmount",
           LoanBalance: "$LoanBalance",
           LoanInterest: "$LoanInterest",
+          LoanAmortization: "$LoanAmortization",
           Penalty: "$Penalty",
           PaymentMode: "$PaymentMode",
           StartPaymentDate: "$StartPaymentDate",
@@ -1337,6 +1693,7 @@ export const getLoansByAccountId = async (req, res) => {
           PrincipalAmount: "$PrincipalAmount",
           LoanBalance: "$LoanBalance",
           LoanInterest: "$LoanInterest",
+          LoanAmortization: "$LoanAmortization",
           Penalty: "$Penalty",
           PaymentMode: "$PaymentMode",
           StartPaymentDate: "$StartPaymentDate",

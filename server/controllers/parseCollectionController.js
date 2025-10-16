@@ -4,6 +4,7 @@ import path from "path";
 import mammoth from "mammoth";
 import LoanClient from '../models/LoanClient.js';
 import LoanCycle from '../models/LoanCycle.js';
+import { parse as csvParse } from 'fast-csv';
 
 // 🧠 Parse header info (name, account no, address, etc.)
 function parseHeaderInfo(lines) {
@@ -129,6 +130,83 @@ export const parseWordFile = async (req, res) => {
       });
     } catch (error) {
       console.error("Parsing failed:", error);
+      res.status(500).json({ success: false, message: "Parsing failed" });
+    }
+  });
+};
+
+// 📄 CSV parser
+export const parseCsvFile = async (req, res) => {
+  const form = formidable({ multiples: false });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: "Upload failed" });
+    }
+    try {
+      const file = files.file?.[0];
+      if (!file) {
+        return res.status(400).json({ success: false, message: "No file uploaded" });
+      }
+      const ext = path.extname(file.originalFilename).toLowerCase();
+      if (ext !== ".csv") {
+        return res.status(400).json({ success: false, message: "Please upload a valid .csv file" });
+      }
+
+      const normalize = (s) => String(s ?? "").trim();
+      const toKey = (s) => normalize(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const num = (v) => {
+        if (v == null || v === "") return 0;
+        if (typeof v === "number") return v;
+        const n = parseFloat(String(v).replace(/,/g, ""));
+        return isNaN(n) ? 0 : n;
+      };
+      const getVal = (row, names) => {
+        const keys = Object.keys(row || {});
+        for (const k of keys) {
+          const nk = toKey(k);
+          if (names.includes(nk)) return row[k];
+        }
+        return null;
+      };
+
+      const rows = [];
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(file.filepath)
+          .pipe(csvParse({ headers: true, ignoreEmpty: true, trim: true }))
+          .on('error', reject)
+          .on('data', (row) => rows.push(row))
+          .on('end', resolve);
+      });
+
+      const mapped = rows.map((row) => {
+        const dateRaw = getVal(row, ["date","paymentdate","paymentdt","payment_on"]);
+        const refRaw = getVal(row, ["ref","refno","reference","referenceno","collectionreferenceno"]);
+        const totalRaw = getVal(row, ["total","amortization","amort","totalamortization"]);
+        const collectRaw = getVal(row, ["lrpmt","collection","collectionpayment","amount","payment"]);
+        const balRaw = getVal(row, ["balance","runningbalance","rb","remainingbalance"]);
+        const penRaw = getVal(row, ["penalty","pen"]);
+
+        // Try to parse date in common formats (MM/DD/YYYY or MM/DD/YY)
+        const date = dateRaw ? new Date(dateRaw) : null;
+        return {
+          PaymentDate: date && !isNaN(date) ? date : null,
+          CollectionReferenceNo: normalize(refRaw),
+          Amortization: num(totalRaw),
+          CollectionPayment: num(collectRaw),
+          RunningBalance: num(balRaw),
+          Penalty: num(penRaw),
+          RawLine: JSON.stringify(row),
+        };
+      }).filter(r => r.CollectionReferenceNo || r.CollectionPayment || r.RunningBalance);
+
+      if (!mapped.length) {
+        return res.json({ success: true, data: [], rawLines: [], info: {} });
+      }
+
+      res.json({ success: true, data: mapped, rawLines: [], info: {} });
+    } catch (error) {
+      console.error("CSV parsing failed:", error);
       res.status(500).json({ success: false, message: "Parsing failed" });
     }
   });

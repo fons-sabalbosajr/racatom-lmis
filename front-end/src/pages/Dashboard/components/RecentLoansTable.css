@@ -1,0 +1,159 @@
+/* Styles for RecentLoansTable component */
+
+/* Increase space between the table container and the footer */
+.recent-loans-wrapper .ant-table-container {
+  padding-bottom: 20px;
+  /* allow the table container to be flexible inside the wrapper */
+  flex: 1 1 auto;
+}
+
+.recent-loans-footer {
+  margin-top: 12px;
+  /* push footer to bottom when wrapper is a column flex container */
+  margin-left: 0;
+}
+
+/* Make the table and footer layout more spacious on desktop while keeping compact on smaller screens */
+.recent-applications-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  /* make card body a flex column so inner wrapper can pin the footer */
+}
+
+/* Add a small bottom margin so there's a clean gap before the fixed page footer */
+.recent-applications-card {
+  margin-bottom: 36px; /* clearer gap above fixed footer on desktop */
+}
+
+/* Wrapper around the table + footer: table area grows, footer stays at bottom */
+.recent-loans-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 300px; /* ensures some vertical space so footer can sit at the bottom */
+}
+
+.recent-loans-footer {
+  margin-top: auto; /* pushes the footer to the bottom of the wrapper */
+  padding-top: 8px;
+}
+
+/* Footer total text size */
+.recent-loans-footer { font-size: 13px; }
+.recent-loans-footer strong { font-weight: 600; }
+
+/* Desktop: footer is non-fixed, so don't add extra bottom padding that inflates card height */
+@media (min-width: 481px) {
+  .recent-loans-wrapper .ant-table-container,
+  .recent-applications-card .ant-card-body {
+    padding-bottom: 16px;
+  }
+}
+
+/* Mobile: footer may be at the bottom of the flow; keep a bit more breathing room */
+@media (max-width: 480px) {
+  .recent-loans-wrapper .ant-table-container,
+  .recent-applications-card .ant-card-body {
+    padding-bottom: 20px;
+  }
+}
+
+/* Tablet and below: reduce font-size in table and tighten paddings */
+@media (max-width: 1080px) {
+  .recent-loans-table .ant-table-thead th,
+  .recent-loans-table .ant-table-tbody td {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+
+  /* Reduce pagination/select sizes for consistency (footer area) */
+  .recent-loans-footer .ant-pagination,
+  .recent-loans-footer .ant-pagination-item,
+  .recent-loans-footer .ant-pagination-item a,
+  .recent-loans-footer .ant-pagination-item-ellipsis,
+  .recent-loans-footer .ant-pagination-prev .ant-pagination-item-link,
+  .recent-loans-footer .ant-pagination-next .ant-pagination-item-link,
+  .recent-loans-footer .ant-pagination-options {
+    font-size: 11px !important;
+  }
+  .recent-loans-footer .ant-select-selector {
+    font-size: 11px !important;
+  }
+
+  /* Slightly reduce the footer font as well */
+  .recent-loans-table .ant-table-footer,
+  .recent-loans-footer { font-size: 11px !important; }
+
+  /* Shrink action buttons on tablet */
+  .recent-loans-table .ant-btn {
+    height: 24px !important;
+    padding: 0 8px !important;
+    font-size: 11px !important;
+    line-height: 22px !important;
+  }
+
+  .total-accounts{
+    font-size: 11px;
+  }
+
+  .total-value{
+    font-size: 11px;
+  }
+}
+
+/* iPad narrow height tweak: slightly tighter gap */
+/* Tablet general: slightly reduced gap */
+@media (max-width: 1080px) {
+  .recent-applications-card { margin-bottom: 10px; }
+}
+
+/* iPad: tighter still to fit viewport */
+@media (min-width: 768px) and (max-width: 834px) {
+  .recent-applications-card { margin-bottom: 8px; }
+}
+
+/* Desktop: keep table compact so card height stays reasonable */
+@media (min-width: 1081px) {
+  .recent-loans-table .ant-table-thead th,
+  .recent-loans-table .ant-table-tbody td {
+    font-size: 13px !important;
+    padding: 10px 12px !important;
+  }
+  .recent-loans-table .ant-pagination-item,
+  .recent-loans-table .ant-select-selector,
+  .recent-loans-table .ant-pagination {
+    font-size: 13px !important;
+  }
+  .recent-loans-table .ant-table-footer {
+    font-size: 13px !important;
+  }
+}
+
+/* Small niceties: ensure the search input isn't too large inside the card */
+.recent-applications-card .ant-input {
+  max-width: 100%;
+}
+
+/* Right-aligned search input in Card header */
+.recent-loans-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.recent-loans-search {
+  width: 280px;
+}
+
+@media (max-width: 1080px) {
+  .recent-loans-search {
+    width: 220px;
+    font-size: 11px;
+    height: 28px;
+    padding: 2px 8px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .recent-loans-search {
+    width: 100%;
+  }
+}

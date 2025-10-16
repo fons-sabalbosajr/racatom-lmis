@@ -10,7 +10,13 @@ import {
 
 const { Text } = Typography;
 
-import { getLoanStatusColor, getProcessStatusColor, getCollectionStatusColor } from "../../../utils/statusColors";
+import {
+  getLoanStatusColor,
+  getProcessStatusColor,
+  getCollectionStatusColor,
+} from "../../../utils/statusColors";
+import { getAutomatedLoanStatusDetailed } from "../../../utils/automatedLoanStatus";
+import "./loancolumns.css";
 
 // Corporate Color Palette (moved to shared util for Loan Status)
 
@@ -22,7 +28,9 @@ export const getLoanColumns = ({
   viewCollectionSummary,
   generateStatementOfAccount,
   generateLoanSummary,
-  onUpdateStatus, // Added this prop
+  onUpdateStatus, // quick update status handler
+  enableAutoLoanStatus = false, // dev setting flag passed from parent
+  autoLoanStatusGrace,
 }) => [
   {
     title: "Account / Loan No.",
@@ -34,10 +42,11 @@ export const getLoanColumns = ({
     render: (_, record) => {
       const loanNo = record.loanInfo?.loanNo || record.loanNo;
       return (
-        <div>
-          <Text strong>
-            {loanNo || "N/A"}
-          </Text>
+        <div className="loan-loanno-cell">
+          <Text strong>{loanNo || "N/A"}</Text>
+          {loanNo && /-R$/i.test(loanNo) && (
+            <Tag color="gold" style={{ marginLeft: 8 }}>Needs suffix</Tag>
+          )}
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>
             {record.accountId}
@@ -81,10 +90,8 @@ export const getLoanColumns = ({
         record.clientNo;
 
       return (
-        <div>
-          <Typography.Text strong>
-            {fullName || "N/A"}
-          </Typography.Text>
+        <div className="loan-clientname-cell">
+          <Typography.Text strong>{fullName || "N/A"}</Typography.Text>
           <br />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {clientNo || "N/A"}
@@ -98,24 +105,28 @@ export const getLoanColumns = ({
     key: "loanInfo",
     width: 180,
     render: (record) => (
-      <div>
-        <Text>
+      <div className="loan-loandetails-cell">
+        <Text className="loan-amount-text">
           {new Intl.NumberFormat("en-PH", {
             style: "currency",
             currency: "PHP",
-          }).format(record.loanInfo?.amount || 0)}
+          }).format((record.displayLoanInfo?.amount ?? record.loanInfo?.amount) || 0)}
         </Text>
         <br />
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          Balance:{" "}
+        <Text
+          className="loan-balance-text"
+          type="secondary"
+          style={{ fontSize: 12 }}
+        >
+          Bal:{" "}
           {new Intl.NumberFormat("en-PH", {
             style: "currency",
             currency: "PHP",
-          }).format(record.loanInfo?.balance || 0)}
+          }).format((record.displayLoanInfo?.balance ?? record.loanInfo?.balance) || 0)}
         </Text>
         <br />
         <Tag color="blue" style={{ marginTop: 4 }}>
-          {record.loanInfo?.paymentMode || "N/A"}
+          {record.displayLoanInfo?.paymentMode || record.loanInfo?.paymentMode || "N/A"}
         </Tag>
       </div>
     ),
@@ -124,6 +135,7 @@ export const getLoanColumns = ({
     title: "Location",
     dataIndex: "address",
     key: "location",
+    width: 280,
     render: (address, record) => {
       // address can be an object or a string depending on payload
       let location = "";
@@ -137,9 +149,17 @@ export const getLoanColumns = ({
       // Fallback to other possible fields
       if (!location) {
         location =
-          (record && (record.Address || record.addressText || record.clientInfo?.Address)) || "";
+          (record &&
+            (record.Address ||
+              record.addressText ||
+              record.clientInfo?.Address)) ||
+          "";
       }
-      return <Text>{location || "N/A"}</Text>;
+      return (
+        <div className="loan-location-cell">
+          <Text>{location || "N/A"}</Text>
+        </div>
+      );
     },
   },
   {
@@ -147,7 +167,24 @@ export const getLoanColumns = ({
     key: "status",
     width: 260,
     render: (_, record) => {
-      const loanStatus = record.loanInfo?.status || "N/A";
+      // Prefer backend/stored loan status, but optionally override via automated status rules
+      let loanStatus = record.loanInfo?.status || "N/A";
+      let statusReason = "";
+      if (enableAutoLoanStatus && loanStatus !== "CLOSED") {
+        const auto = getAutomatedLoanStatusDetailed({
+          paymentMode: record.loanInfo?.paymentMode,
+          lastCollectionDate:
+            record.loanInfo?.lastCollectionDate || record.lastCollectionDate,
+          maturityDate: record.loanInfo?.maturityDate,
+          collectionStatus: record.collectionStatus,
+          currentDate: new Date(),
+          thresholds: autoLoanStatusGrace,
+        });
+        if (auto?.status) {
+          loanStatus = auto.status;
+          statusReason = auto.reason || "";
+        }
+      }
       const processStatus = record.loanInfo?.processStatus || "N/A";
       const collectionStatus = record.collectionStatus || "No Data Encoded";
       const isClosed = loanStatus === "CLOSED";
@@ -160,12 +197,14 @@ export const getLoanColumns = ({
               <Text strong className="status-label">
                 Loan Status:
               </Text>
-              <Tag
-                className="status-tag"
-                color={getLoanStatusColor(loanStatus)}
-              >
-                {loanStatus}
-              </Tag>
+              <Tooltip title={statusReason || undefined} placement="top">
+                <Tag
+                  className="status-tag"
+                  color={getLoanStatusColor(loanStatus)}
+                >
+                  {loanStatus}
+                </Tag>
+              </Tooltip>
             </div>
             <Tooltip title="Quick Update Status" size="small">
               <Button
@@ -173,16 +212,16 @@ export const getLoanColumns = ({
                 size="small"
                 className="loan-status-update-btn"
                 style={{
-                  background: '#27ae60',
-                  borderColor: '#27ae60',
-                  color: '#fff',
+                  background: "#27ae60",
+                  borderColor: "#27ae60",
+                  color: "#fff",
                   width: 20,
                   height: 20,
                   padding: 0,
                   borderRadius: 4,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   lineHeight: 1,
                 }}
                 onClick={() => onUpdateStatus(record)}
@@ -233,6 +272,7 @@ export const getLoanColumns = ({
     key: "actions",
     fixed: "right",
     align: "center",
+    className: "loan-actions-col",
     render: (_, record) => {
       const menuItems = [
         {
@@ -259,28 +299,30 @@ export const getLoanColumns = ({
       };
 
       return (
-        <Space>
-          <Tooltip title="View Details">
-            <Button
-              type="primary"
-              icon={<EyeOutlined />}
-              size="small"
-              onClick={() => viewLoan(record)}
-            />
-          </Tooltip>
-          {record.loanInfo?.loanNo?.includes("-R") && (
-            <Tooltip title="Update Loan Number">
+        <div className="loan-actions-cell">
+          <Space size={6}>
+            <Tooltip title="View Details">
               <Button
-                icon={<EditOutlined />}
+                type="primary"
+                icon={<EyeOutlined />}
                 size="small"
-                onClick={() => onUpdateSingleLoan(record)}
+                onClick={() => viewLoan(record)}
               />
             </Tooltip>
-          )}
-          <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }}>
-            <Button size="small" icon={<MoreOutlined />} />
-          </Dropdown>
-        </Space>
+            {/ -R$/i.test(record.loanInfo?.loanNo || "") && (
+              <Tooltip title="Update Loan Number">
+                <Button
+                  icon={<EditOutlined />}
+                  size="small"
+                  onClick={() => onUpdateSingleLoan(record)}
+                />
+              </Tooltip>
+            )}
+            <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }}>
+              <Button size="small" icon={<MoreOutlined />} />
+            </Dropdown>
+          </Space>
+        </div>
       );
     },
   },

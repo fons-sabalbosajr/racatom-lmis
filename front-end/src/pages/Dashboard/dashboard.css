@@ -62,3 +62,79 @@
     margin-bottom: 15px;
   }
 }
+
+/* Tablet-specific tweaks */
+@media (min-width: 481px) and (max-width: 1080px) {
+  .dashboard-container {
+    padding: 12px 14px;
+  }
+
+  .dashboard-title {
+    font-size: 1rem;
+  }
+
+  .dashboard-actions {
+    gap: 10px;
+  }
+
+  /* Equalize chart card heights on tablets */
+  .chart-card { min-height: 260px; }
+  .chart-card .ant-card-body { min-height: 220px; }
+
+  .pending-applications-btn {
+    padding: 0 8px;
+    height: 26px;
+    font-size: 11px;
+  }
+
+  .loan-applications-btn {
+    padding: 0 8px;
+    height: 26px;
+    font-size: 11px;
+  }
+}
+
+/* Compact variant for chart cards when viewport is tablet-sized or card has .compact */
+.chart-card.compact .ant-card-body {
+  padding: 8px 10px !important;
+}
+
+.chart-card.compact .ant-card-head {
+  padding: 8px 10px !important;
+  font-size: 13px !important;
+}
+
+/* Make SVG container adapt to smaller heights via the component logic, but ensure no extra margins */
+/* Avoid forcing Recharts internal container heights — ResponsiveContainer manages heights via props. */
+
+@media (min-width: 481px) and (max-width: 1080px) {
+  .chart-card .ant-card-body {
+    padding: 8px 10px !important;
+  }
+
+  .chart-card .ant-card-head {
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+  }
+
+}
+
+/* iPad 9th gen specific tweaks */
+@media (min-width: 768px) and (max-width: 834px) {
+  .dashboard-container {
+    padding: 10px 12px;
+  }
+
+  .dashboard-title {
+    font-size: 1.05rem;
+  }
+
+  .dashboard-actions {
+    gap: 8px;
+  }
+
+  .chart-card,
+  .recent-applications-card {
+    margin-bottom: 10px;
+  }
+}

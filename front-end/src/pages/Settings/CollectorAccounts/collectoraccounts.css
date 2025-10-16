@@ -1,12 +1,18 @@
 /* Main container */
 .collector-container {
   padding: 5px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto; /* allow horizontal scroll only when needed */
 }
 
 /* Table styling */
 .ant-table {
   border-radius: 10px;
   overflow: hidden;
+  width: 100% !important;
+  table-layout: fixed; /* ensure columns respect widths and prevent overflow */
 }
 
 .ant-table-thead > tr > th {
@@ -17,6 +23,76 @@
 
 .ant-table-tbody > tr > td {
   font-size: 13px;
+}
+
+/* Truncate long cell content to keep table within viewport on desktop */
+@media (min-width: 1081px) {
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Allow collector-info column content to wrap inside its box while keeping other cells truncated */
+.collector-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; /* allow truncation children */
+}
+
+/* Make tags wrap within the available width */
+.collector-routes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+
+/* Tablet-specific adjustments */
+@media (max-width: 1080px) {
+  .collector-container {
+    padding: 8px;
+    overflow-x: visible; /* let table content wrap instead of scrolling */
+  }
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .collector-name {
+    font-size: 16px;
+  }
+
+  .area-route-tag {
+    font-size: 11px;
+    padding: 0 6px;
+    line-height: 18px;
+  }
+
+  /* Reduce some gaps to fit more content */
+  .collector-actions {
+    gap: 8px;
+  }
+
+  /* Allow table cells to wrap on tablet so columns fit the page */
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
+  }
+
+  /* Ensure fixed table layout still respects column widths but allows wrapping */
+  .ant-table {
+    table-layout: fixed;
+    width: 100% !important;
+  }
 }
 
 .collector-actions {
@@ -95,4 +171,51 @@
 
 .ant-btn-link {
   padding: 0;
+}
+
+/* Collector modal input adjustments: smaller radius, increased height */
+.collector-input .ant-input,
+.collector-input .ant-select-selector,
+.collector-input .ant-picker {
+  border-radius: 6px !important; /* reduced radius */
+  height: 40px !important;       /* increased height */
+  padding-top: 8px !important;   /* vertically center text */
+  padding-bottom: 8px !important;
+  box-sizing: border-box;
+}
+
+/* For Select when using tags mode, the selector has additional padding */
+.collector-input .ant-select-selection-overflow {
+  min-height: 40px !important;
+}
+
+/* DatePicker: adjust inner input appearance */
+.collector-input .ant-picker-input > input {
+  height: 24px; /* keep inner input line-height reasonable */
+}
+
+/* Tighter padding for Select dropdowns and tag items inside area routes */
+.collector-input .ant-select-selector {
+  padding: 6px 10px !important; /* horizontal padding */
+}
+
+.collector-input .ant-select-selection-overflow {
+  padding: 4px 6px !important; /* inner padding for tags container */
+}
+
+.collector-input .ant-select-selection-overflow-item {
+  margin: 4px 6px !important;   /* spacing between tags */
+  padding: 2px 8px !important;  /* tag inner padding */
+  line-height: 20px !important;
+}
+
+/* Ensure the single-select Employment Status aligns vertically */
+.collector-input .ant-select-single .ant-select-selector {
+  display: flex;
+  align-items: center;
+}
+
+/* Small tweak for DatePicker clear/icon alignment */
+.collector-input .ant-picker .ant-picker-suffix {
+  margin-top: 0 !important;
 }

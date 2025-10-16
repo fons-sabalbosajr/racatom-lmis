@@ -22,6 +22,7 @@ import loanRoutes from "./routes/loanRoutes.js";
 import loanDisbursedRoutes from "./routes/loanDisburseRoutes.js";
 import loanCollectionRoutes from "./routes/loanCollectionRoutes.js";
 import dashboardRoutes from "./routes/dashboard.js";
+import themeRoutes from "./routes/themeRoutes.js";
 
 import loanCollectionImportRoutes from "./routes/loanCollectionImportRoutes.js";
 import path from "path";
@@ -32,24 +33,18 @@ import databaseRoutes from "./routes/databaseRoutes.js";
 import runtimeFlags from "./utils/runtimeFlags.js";
 import User from "./models/UserAccount.js";
 
-
 const app = express();
 
-// Google Drive upload config is read from environment:
-// - DRIVE_FOLDER_ID: target parent folder ID(s), comma-separated
-// - DRIVE_KEY_FILE or DRIVE_SA_KEY_BASE64 or DRIVE_SERVICE_ACCOUNT_JSON
-// - DRIVE_SHARE_PUBLIC=true to auto-share as anyone-with-link reader
-
 // Middleware
-app.use(express.json({ limit: "10mb" })); // parse JSON body
-app.use(cookieParser()); // parse cookies
+app.use(express.json({ limit: "10mb" }));
+app.use(cookieParser());
 
-// Static serving for uploaded loan documents remains for backward compatibility.
-// When Google Drive is configured (any DRIVE_FOLDER_* set), skip creating/serving local uploads.
 const hasDriveFolders = Boolean(
-  (process.env.DRIVE_FOLDER_IMAGES_ID && process.env.DRIVE_FOLDER_IMAGES_ID.trim()) ||
-  (process.env.DRIVE_FOLDER_DOCS_ID && process.env.DRIVE_FOLDER_DOCS_ID.trim()) ||
-  (process.env.DRIVE_FOLDER_ID && process.env.DRIVE_FOLDER_ID.trim())
+  (process.env.DRIVE_FOLDER_IMAGES_ID &&
+    process.env.DRIVE_FOLDER_IMAGES_ID.trim()) ||
+    (process.env.DRIVE_FOLDER_DOCS_ID &&
+      process.env.DRIVE_FOLDER_DOCS_ID.trim()) ||
+    (process.env.DRIVE_FOLDER_ID && process.env.DRIVE_FOLDER_ID.trim())
 );
 if (!hasDriveFolders) {
   const uploadsDir = path.join(process.cwd(), "uploads");
@@ -61,7 +56,11 @@ if (!hasDriveFolders) {
 app.use(
   cors({
     origin: (origin, callback) => {
-      const envList = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || "http://localhost:5173")
+      const envList = (
+        process.env.CLIENT_ORIGINS ||
+        process.env.CLIENT_ORIGIN ||
+        "http://localhost:5173"
+      )
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
@@ -89,25 +88,40 @@ app.use(async (req, res, next) => {
     // Allow auth routes to let developers log in
     if (req.path.startsWith("/api/auth")) return next();
     // Allow developers or users with DB-tools permissions to access while in maintenance
-    const token = req.headers?.authorization?.split?.(" ")[1] || req.cookies?.token;
-    if (!token) return res.status(503).json({ success: false, message: "Maintenance mode active" });
+    const token =
+      req.headers?.authorization?.split?.(" ")[1] || req.cookies?.token;
+    if (!token)
+      return res
+        .status(503)
+        .json({ success: false, message: "Maintenance mode active" });
     try {
       // reuse requireAuth logic minimally (avoid circular import): verify via User lookup on decoded token id
       const jwt = (await import("jsonwebtoken")).default;
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       if (decoded?.id) {
         // Fetch role and permissions to decide bypass
-        const u = await User.findById(decoded.id).select("Position permissions");
-        const role = String(u?.Position || "").trim().toLowerCase();
-        const hasDbPerm = !!(u?.permissions?.menus?.settingsDatabase === true || u?.permissions?.menus?.developerSettings === true);
+        const u = await User.findById(decoded.id).select(
+          "Position permissions"
+        );
+        const role = String(u?.Position || "")
+          .trim()
+          .toLowerCase();
+        const hasDbPerm = !!(
+          u?.permissions?.menus?.settingsDatabase === true ||
+          u?.permissions?.menus?.developerSettings === true
+        );
         if (role === "developer" || hasDbPerm) return next();
       }
     } catch (e) {
       // ignore and block below
     }
-    return res.status(503).json({ success: false, message: "Maintenance mode active" });
+    return res
+      .status(503)
+      .json({ success: false, message: "Maintenance mode active" });
   } catch (err) {
-    return res.status(503).json({ success: false, message: "Maintenance mode" });
+    return res
+      .status(503)
+      .json({ success: false, message: "Maintenance mode" });
   }
 });
 
@@ -126,38 +140,59 @@ app.use("/api/parse", parseCollectionRoutes);
 app.use("/api/loan_clients_application", loanClientApplicationRoute);
 // Database maintenance (developer-only)
 app.use("/api/database", databaseRoutes);
+// Theme preferences per user
+app.use("/api/theme", themeRoutes);
 
 // Lightweight health check: confirms server is up and whether Drive config looks present
 app.get("/api/health", (req, res) => {
   try {
     const driveConfigured = Boolean(
-      (process.env.DRIVE_FOLDER_IMAGES_ID && process.env.DRIVE_FOLDER_IMAGES_ID.trim()) ||
-      (process.env.DRIVE_FOLDER_DOCS_ID && process.env.DRIVE_FOLDER_DOCS_ID.trim()) ||
-      (process.env.DRIVE_FOLDER_ID && process.env.DRIVE_FOLDER_ID.trim())
+      (process.env.DRIVE_FOLDER_IMAGES_ID &&
+        process.env.DRIVE_FOLDER_IMAGES_ID.trim()) ||
+        (process.env.DRIVE_FOLDER_DOCS_ID &&
+          process.env.DRIVE_FOLDER_DOCS_ID.trim()) ||
+        (process.env.DRIVE_FOLDER_ID && process.env.DRIVE_FOLDER_ID.trim())
     );
     const secretsPaths = [
       path.join(process.cwd(), "secrets", "google_drive_credentials.json"),
       path.join(process.cwd(), "secrets", "rct-credentials.json"),
     ];
-    const driveCredsFound = secretsPaths.some((p) => {
-      try { return fs.existsSync(p); } catch { return false; }
-    }) || Boolean(
-      (process.env.DRIVE_KEY_FILE && process.env.DRIVE_KEY_FILE.trim()) ||
-      (process.env.DRIVE_SA_KEY_BASE64 && process.env.DRIVE_SA_KEY_BASE64.trim()) ||
-      (process.env.DRIVE_SERVICE_ACCOUNT_JSON && process.env.DRIVE_SERVICE_ACCOUNT_JSON.trim())
-    );
+    const driveCredsFound =
+      secretsPaths.some((p) => {
+        try {
+          return fs.existsSync(p);
+        } catch {
+          return false;
+        }
+      }) ||
+      Boolean(
+        (process.env.DRIVE_KEY_FILE && process.env.DRIVE_KEY_FILE.trim()) ||
+          (process.env.DRIVE_SA_KEY_BASE64 &&
+            process.env.DRIVE_SA_KEY_BASE64.trim()) ||
+          (process.env.DRIVE_SERVICE_ACCOUNT_JSON &&
+            process.env.DRIVE_SERVICE_ACCOUNT_JSON.trim())
+      );
 
     return res.json({
       success: true,
       server: "ok",
-      mongo: mongoose.connection?.readyState === 1 ? "connected" : "not-connected",
+      mongo:
+        mongoose.connection?.readyState === 1 ? "connected" : "not-connected",
       drive: {
         foldersConfigured: driveConfigured,
         credentialsPresent: !!driveCredsFound,
-        sharePublic: String(process.env.DRIVE_SHARE_PUBLIC || "").toLowerCase() === "true",
+        sharePublic:
+          String(process.env.DRIVE_SHARE_PUBLIC || "").toLowerCase() === "true",
       },
       env: {
-        clientOrigins: (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean),
+        clientOrigins: (
+          process.env.CLIENT_ORIGINS ||
+          process.env.CLIENT_ORIGIN ||
+          ""
+        )
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
         port: process.env.PORT || 5000,
       },
     });
@@ -183,7 +218,9 @@ cron.schedule("0 0 * * *", async () => {
   });
 
   if (result.deletedCount > 0) {
-    console.log(`🧹 Cleaned ${result.deletedCount} stale rejected applications`);
+    console.log(
+      `🧹 Cleaned ${result.deletedCount} stale rejected applications`
+    );
   }
 });
 

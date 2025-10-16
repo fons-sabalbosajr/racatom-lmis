@@ -36,6 +36,18 @@
   }
 }
 
+/* Compact button styling for Collections filters on tablets */
+@media (max-width: 1080px) {
+  .collections-filters .ant-btn {
+    padding: 0 8px;
+    height: 26px;
+    font-size: 12px;
+  }
+  .collections-filters .ant-btn .anticon {
+    font-size: 12px;
+  }
+}
+
 /* Theme-aligned row backgrounds for special cases */
 .disbursement-row {
   background-color: var(--table-row-selected-bg, #e6f7ff);
@@ -48,4 +60,48 @@
 
 .advanced-payment-row {
   background-color: var(--table-row-hover-bg, #f6ffed);
+}
+
+/* Synthetic initial loan row styling */
+.initial-loan-row {
+  background-color: #fffbe6; /* light yellow */
+}
+
+/* Compact modal styling for tablet screens */
+@media (max-width: 1080px) {
+  .compact-modal .ant-modal-content {
+    padding: 12px 12px 8px 12px;
+  }
+  .compact-modal .ant-modal-header {
+    padding: 10px 12px;
+  }
+  .compact-modal .ant-modal-title {
+    font-size: 14px;
+  }
+  .compact-modal .ant-form-item-label > label {
+    font-size: 12px;
+  }
+  .compact-modal .ant-input,
+  .compact-modal .ant-input-number-input,
+  .compact-modal .ant-select-selector,
+  .compact-modal .ant-picker-input > input,
+  .compact-modal .ant-radio-wrapper {
+    font-size: 12px;
+  }
+  .compact-modal .ant-card-head-title {
+    font-size: 13px;
+  }
+  .compact-modal .ant-card-body {
+    padding: 10px;
+  }
+  .compact-modal .ant-modal-footer {
+    padding: 8px 12px;
+  }
+  /* Reduce font-size for summary values on tablet */
+  .collections-summary .summary-value {
+    font-size: 12px;
+  }
+  .collections-summary .summary-label {
+    font-size: 12px;
+  }
 }

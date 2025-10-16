@@ -12,6 +12,27 @@ import {
 
 const router = express.Router();
 
+// Helpers to sign tokens
+function signAccessToken(userId) {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "15m" });
+}
+function signRefreshToken(userId) {
+  const secret = process.env.REFRESH_SECRET || process.env.JWT_SECRET;
+  return jwt.sign({ id: userId }, secret, { expiresIn: "7d" });
+}
+function setRefreshCookie(res, token) {
+  const isProd = process.env.NODE_ENV === "production";
+  try {
+    res.cookie("rt", token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "Strict" : "Lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+  } catch {}
+}
+
 // ---------- Register ----------
 router.post("/register", async (req, res) => {
   try {
@@ -191,9 +212,10 @@ router.post("/login", async (req, res) => {
         .status(403)
         .json({ success: false, message: "Account not verified." });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
+    const token = signAccessToken(user._id);
+
+    // Issue refresh token cookie (HttpOnly) for seamless re-auth without storing tokens in web storage
+    setRefreshCookie(res, signRefreshToken(user._id));
 
     // Optional cookie for legacy flows. Prefer header token used by frontend session storage.
     // Use a more restrictive cookie scope to reduce cross-tab side effects.
@@ -231,7 +253,38 @@ router.post("/logout", (req, res) => {
     secure: isProd,
     sameSite: isProd ? "Strict" : "None",
   });
+  // also clear refresh cookie
+  try {
+    res.clearCookie("rt", { httpOnly: true, secure: isProd, sameSite: isProd ? "Strict" : "Lax" });
+  } catch {}
   res.json({ success: true, message: "Logged out successfully." });
+});
+
+// ---------- Refresh Access Token (uses HttpOnly refresh cookie) ----------
+router.get("/refresh", async (req, res) => {
+  try {
+    const rt = req.cookies?.rt;
+    if (!rt) return res.status(401).json({ success: false, message: "No refresh token" });
+    const secret = process.env.REFRESH_SECRET || process.env.JWT_SECRET;
+    let decoded;
+    try {
+      decoded = jwt.verify(rt, secret);
+    } catch (e) {
+      return res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+    }
+    const user = await User.findById(decoded.id).select("-Password -verificationToken -resetPasswordToken -resetPasswordExpires");
+    if (!user) return res.status(401).json({ success: false, message: "User not found" });
+    // Issue a new access token (short-lived)
+    const token = signAccessToken(user._id);
+    // Optionally rotate refresh token for better security
+    setRefreshCookie(res, signRefreshToken(user._id));
+    // Lightweight presence update
+    try { User.updateOne({ _id: user._id }, { $set: { lastSeen: new Date() } }).exec(); } catch {}
+    return res.json({ success: true, data: { token, user } });
+  } catch (err) {
+    console.error("Refresh error:", err?.message || err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 // ---------- Resend Verification ----------

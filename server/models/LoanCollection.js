@@ -41,3 +41,11 @@ const LoanCollectionSchema = new mongoose.Schema(
 );
 
 export default mongoose.model("LoanCollection", LoanCollectionSchema, "loan_clients_collections");
+
+// Performance indexes for lookups and latest update queries
+LoanCollectionSchema.index({ LoanCycleNo: 1 });
+LoanCollectionSchema.index({ AccountId: 1 });
+LoanCollectionSchema.index({ ClientNo: 1 });
+LoanCollectionSchema.index({ updatedAt: -1 });
+// Optimize queries that filter by identifiers and sort by PaymentDate
+LoanCollectionSchema.index({ LoanCycleNo: 1, AccountId: 1, ClientNo: 1, PaymentDate: 1 });

@@ -1,4 +1,12 @@
 import React, { useState, useCallback } from "react";
+// Sync with LoanColumns logic
+const automatedStatusOptions = [
+  'ARREARS',
+  'PAST DUE',
+  'LITIGATION',
+  'DORMANT',
+  'UPDATED',
+];
 import { Input, Select, Button, Alert } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 
@@ -76,6 +84,7 @@ export default function LoanFilters({
       >
         {/* 🔍 Search Input MODIFIED */}
         <Search
+          className="loan-search"
           placeholder="Search by any keyword..."
           value={filters.q}
           onChange={handleQChange}
@@ -85,8 +94,9 @@ export default function LoanFilters({
           style={{ maxWidth: 220 }}
         />
 
-        {/* 🏷️ Loan Status (No Change) */}
+        {/* 🏷️ Loan Status */}
         <Select
+          className="loan-select"
           placeholder="Loan Status"
           allowClear
           value={filters.loanStatus || undefined}
@@ -102,6 +112,7 @@ export default function LoanFilters({
           <Option key="all-status" value="">
             All Loan Status
           </Option>
+          {/* Distinct DB statuses first */}
           {statusOptions
             .filter((s) => s && s.trim() !== "")
             .map((s) => (
@@ -109,10 +120,20 @@ export default function LoanFilters({
                 {s}
               </Option>
             ))}
+          {/* Separator and automated statuses */}
+          <Option key="__sep__" value="" disabled>
+            ─────────────
+          </Option>
+          {automatedStatusOptions.map((s) => (
+            <Option key={s} value={s}>
+              {s}
+            </Option>
+          ))}
         </Select>
 
         {/* 💳 Payment Mode (No Change) */}
         <Select
+          className="loan-select"
           placeholder="Payment Mode"
           allowClear
           value={filters.paymentMode || undefined}
@@ -139,6 +160,7 @@ export default function LoanFilters({
 
         {/* 📅 Year (No Change) */}
         <Select
+          className="loan-select"
           placeholder="Year"
           allowClear
           value={filters.year || undefined}

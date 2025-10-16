@@ -1,3 +1,7 @@
+/* =========================
+   BASE LAYOUT RESET
+   ========================= */
+
 /* Fullscreen baseline */
 html,
 body,
@@ -10,14 +14,28 @@ body,
 
 /* Reset body styles */
 body {
-  display: block; /* remove flex from Vite template */
+  display: block;
   min-height: 100vh;
-  background: transparent; /* let pages control background */
+  background: transparent;
   color: #213547;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Prevent default Ant Layout adding unwanted gaps */
+.ant-layout,
+.ant-layout-content {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent;
+}
+
+/* Remove any top margin introduced by nested layout or forms */
+.ant-layout-content > *:first-child {
+  margin-top: 0 !important;
 }
 
 /* Links */
@@ -30,7 +48,9 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Static CSS variables (light baseline) for app */
+/* =========================
+   GLOBAL COLOR & SIZE TOKENS
+   ========================= */
 :root {
   --loan-text-color: #1f1f1f;
   --loan-label-color: #555;
@@ -45,112 +65,95 @@ a:hover {
   --table-row-hover-bg: #f5f5f5;
   --table-row-selected-bg: #e6f7ff;
   --muted-text-color: #8c8c8c;
-  --table-inactive-bg: #f5f5f5;
-  --table-header-hover-bg: #f0f0f0;
   --menu-bg: #ffffff;
   --menu-text-color: #1f1f1f;
   --menu-item-hover-bg: #f5f5f5;
+
+  /* Layout sizing */
+  --sider-width: 200px;
+  --sider-collapsed-width: 80px;
+  --sider-gutter: 12px;
+  --home-header-padding-left: calc(var(--sider-width) + var(--sider-gutter));
+  --home-header-padding-left-collapsed: calc(
+    var(--sider-collapsed-width) + var(--sider-gutter)
+  );
+
+  /* Form and button sizes */
+  --input-font-size: 14px;
+  --input-padding: 10px;
+  --input-height: 40px;
+  --input-height-tablet: 28px;
+  --button-height: 40px;
+  --button-height-tablet: 32px;
+
+  /* Misc */
+  --card-border-radius: 16px;
+  --grid-gutter: 16px;
 }
 
-/* Theme-aware collapsible headers (Ant Design Collapse) */
+/* =========================
+   COMPONENT OVERRIDES
+   ========================= */
+
+/* Collapse headers */
 .ant-collapse-item > .ant-collapse-header .ant-collapse-header-text,
 .ant-collapse-item > .ant-collapse-header .ant-collapse-expand-icon {
-  color: var(--card-header-color, inherit);
+  color: var(--card-header-color);
 }
 .ant-collapse-item > .ant-collapse-header {
-  background: var(--card-header-bg, transparent);
-  border-bottom: 1px solid var(--card-header-border, transparent);
+  background: var(--card-header-bg);
+  border-bottom: 1px solid var(--card-header-border);
 }
 
-/* Global table hover and header hover styles */
+/* Table styling */
 .ant-table-thead > tr > th {
-  background: var(--table-header-bg, #fafafa) !important;
-  color: var(--table-header-color, #262626) !important;
+  background: var(--table-header-bg) !important;
+  color: var(--table-header-color) !important;
 }
 .ant-table-tbody > tr:hover > td {
-  background: var(--table-row-hover-bg, #f5f5f5) !important;
+  background: var(--table-row-hover-bg) !important;
 }
 .ant-table-tbody > tr.ant-table-row-selected > td,
 .ant-table-tbody > tr.ant-table-row-selected:hover > td {
-  background: var(--table-row-selected-bg, #e6f7ff) !important;
-}
-.ant-table-thead > tr > th:hover {
-  background: var(--table-header-hover-bg, #f0f0f0) !important;
+  background: var(--table-row-selected-bg) !important;
 }
 
-/* Global light/dark menu hover (applies to sider and top menus) */
+/* Menu hover (light & dark) */
 .ant-menu-light,
 .ant-menu-dark {
   background: var(--menu-bg) !important;
   color: var(--menu-text-color) !important;
 }
-.ant-menu-light .ant-menu-item:hover,
-.ant-menu-light .ant-menu-submenu-title:hover,
-.ant-menu-dark .ant-menu-item:hover,
-.ant-menu-dark .ant-menu-submenu-title:hover {
+.ant-menu-item:hover,
+.ant-menu-submenu-title:hover {
   background: var(--menu-item-hover-bg) !important;
 }
 
-/* Global Responsiveness */
+/* =========================
+   RESPONSIVENESS
+   ========================= */
 
-/* Tablets (e.g., iPads in portrait and landscape) */
-@media (max-width: 1024px) {
-  body {
-    font-size: 15px;
-  }
-
-/* Compact UI global adjustments */
-.compact-ui .ant-card-body { padding: 12px; }
-.compact-ui .ant-table-thead > tr > th { padding: 6px 8px; }
-.compact-ui .ant-table-tbody > tr > td { padding: 6px 8px; }
-.compact-ui .ant-form-item { margin-bottom: 8px; }
-.compact-ui .ant-list-item { padding: 6px 8px; }
-.compact-ui .ant-modal-body { padding: 12px; }
-.compact-ui .ant-btn { height: 28px; padding: 0 10px; }
-  /* Adjust padding for main content areas if necessary */
-  .ant-layout-content {
-    padding: 16px !important;
-  }
-}
-
-/* Mobile devices */
 @media (max-width: 768px) {
   body {
     font-size: 14px;
   }
-  /* Further reduce padding for main content areas */
   .ant-layout-content {
     padding: 8px !important;
-  }
-  /* Adjust input sizes if needed */
-  .ant-input,
-  .ant-select-selector,
-  .ant-picker {
-    height: 30px !important;
-    font-size: 13px !important;
   }
   .ant-form-item-label > label {
     font-size: 13px !important;
   }
-  /* Adjust card padding */
   .ant-card-body {
     padding: 16px !important;
   }
 }
 
-/* Small mobile devices */
 @media (max-width: 480px) {
   body {
     font-size: 13px;
   }
   .ant-layout-content {
     padding: 4px !important;
-  }
-  .ant-input,
-  .ant-select-selector,
-  .ant-picker {
-    height: 28px !important;
-    font-size: 12px !important;
   }
   .ant-form-item-label > label {
     font-size: 12px !important;
@@ -160,8 +163,68 @@ a:hover {
   }
 }
 
-/* Global Ant Design primary button border radius override */
-/* Keeps circle/round variants intact */
+@media (min-width: 768px) and (max-width: 834px) {
+  body {
+    font-size: 14px;
+  }
+  .ant-layout-content {
+    padding: 10px !important;
+  }
+  .ant-card-body {
+    padding: 12px !important;
+  }
+  .ant-form-item-label > label {
+    font-size: 13px !important;
+  }
+  .ant-btn {
+    height: var(--button-height-tablet) !important;
+    font-size: 13px !important;
+  }
+}
+
+/* =========================
+   CARDS, TABLES, FORMS
+   ========================= */
+.ant-layout-content .ant-card {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 16px;
+  box-sizing: border-box;
+}
+.ant-layout-content .ant-card.small-card {
+  max-width: 520px;
+}
+
+
+
+.ant-layout-content .ant-btn {
+  height: var(--button-height) !important;
+  padding: 0 12px !important;
+  font-size: 14px !important;
+}
+
+@media (max-width: 768px) {
+  .ant-layout-content .ant-card {
+    max-width: 100% !important;
+    margin: 0 8px 12px;
+  }
+
+  .ant-layout-content .ant-btn {
+    height: 36px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* =========================
+   MISC CLEANUPS
+   ========================= */
+
+/* Rounded primary buttons */
 .ant-btn-primary:not(.ant-btn-circle):not(.ant-btn-round) {
   border-radius: 4px !important;
+}
+
+/* Remove any top spacing in root layout */
+#root > .ant-layout {
+  margin-top: 0 !important;
 }

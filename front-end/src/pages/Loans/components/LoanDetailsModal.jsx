@@ -29,6 +29,7 @@ import {
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
 import LoanRateConfig from "../../Settings/LoanRateConfig/LoanRateConfig";
+import { getAutomatedLoanStatusDetailed } from "../../../utils/automatedLoanStatus";
 
 import LoanPersonalInfoTab from "./LoanPersonalInfoTab";
 import LoanInfoTab from "./LoanInfoTab";
@@ -148,6 +149,80 @@ export default function LoanDetailsModal({
   const [loanCollections, setLoanCollections] = useState([]);
   const [isLoanRateModalVisible, setIsLoanRateModalVisible] = useState(false);
   const [loanNoError, setLoanNoError] = useState(""); // State for LoanNo validation
+  const hasTwoCycles = (loan?.allClientLoans?.length || 0) >= 1;
+
+  // Responsive handling for Loan Rates modal width
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1440
+  );
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const isTablet = viewportWidth <= 1080;
+
+  // Normalize numbers possibly coming from Mongo Decimal128 or strings
+  const toNumber = (v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const n = parseFloat(v);
+      return isNaN(n) ? null : n;
+    }
+    if (typeof v === "object") {
+      // Decimal128 as {$numberDecimal: "..."}
+      if (v && typeof v.$numberDecimal === "string") {
+        const n = parseFloat(v.$numberDecimal);
+        return isNaN(n) ? null : n;
+      }
+      try {
+        const s = v.toString?.();
+        if (s) {
+          const n = parseFloat(s);
+          return isNaN(n) ? null : n;
+        }
+      } catch {}
+    }
+    return null;
+  };
+
+  // Import selected loan rate into the currently active form (Add or Edit loan record)
+  const handleImportLoanRate = (rate) => {
+    if (!rate) return;
+    // Normalize fields
+    const principal = Number(rate.Principal || 0);
+    const termMonths = Number(rate.Term || 0);
+    const mode = String(rate.Mode || "");
+    const monthlyRatePct = Number(rate["Interest Rate/Month"] || 0);
+    const totalInterest = principal * (monthlyRatePct / 100) * termMonths;
+    const totalLoanAmount = principal + totalInterest;
+
+    if (isAddLoanModalVisible) {
+      setNewLoanRecord((prev) => ({
+        ...prev,
+        PrincipalAmount: principal,
+        LoanInterest: Math.round(totalInterest * 100) / 100,
+        LoanAmount: Math.round(totalLoanAmount * 100) / 100,
+        PaymentMode: mode,
+        LoanTerm: termMonths ? `${termMonths} months` : prev.LoanTerm,
+      }));
+      message.success("Imported loan rate to new loan record.");
+    } else if (isEditLoanRecordModalVisible) {
+      setEditingLoanRecord((prev) => ({
+        ...prev,
+        PrincipalAmount: principal,
+        LoanInterest: Math.round(totalInterest * 100) / 100,
+        LoanAmount: Math.round(totalLoanAmount * 100) / 100,
+        PaymentMode: mode,
+        LoanTerm: termMonths ? `${termMonths} months` : prev.LoanTerm,
+      }));
+      message.success("Imported loan rate to existing loan record.");
+    } else {
+      // No active record form; ignore
+    }
+    setIsLoanRateModalVisible(false);
+  };
 
   useEffect(() => {
     if (loan) {
@@ -180,22 +255,22 @@ export default function LoanDetailsModal({
         if (res.data?.success && res.data.data) {
           const raw = res.data.data;
           // Only hydrate if raw has non-empty names
-            if (raw.FirstName || raw.MiddleName || raw.LastName) {
-              setEditedLoan((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev, person: { ...(prev.person || {}) } };
-                if (raw.FirstName) next.person.firstName = raw.FirstName;
-                if (raw.MiddleName) next.person.middleName = raw.MiddleName;
-                if (raw.LastName) next.person.lastName = raw.LastName;
-                return next;
-              });
-            }
+          if (raw.FirstName || raw.MiddleName || raw.LastName) {
+            setEditedLoan((prev) => {
+              if (!prev) return prev;
+              const next = { ...prev, person: { ...(prev.person || {}) } };
+              if (raw.FirstName) next.person.firstName = raw.FirstName;
+              if (raw.MiddleName) next.person.middleName = raw.MiddleName;
+              if (raw.LastName) next.person.lastName = raw.LastName;
+              return next;
+            });
+          }
         }
       } catch (e) {
         // Silent fail; leave fields blank
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== "production") {
           // eslint-disable-next-line no-console
-          console.log('[LoanDetailsModal] Name hydration failed', e);
+          console.log("[LoanDetailsModal] Name hydration failed", e);
         }
       }
     })();
@@ -442,13 +517,44 @@ export default function LoanDetailsModal({
   // 🟢 UPDATE EXISTING LOAN RECORD
   const handleUpdateLoanRecord = async () => {
     try {
-      const payload = { ...editingLoanRecord };
-      payload.RunningBalance = payload.LoanBalance;
-
-      const res = await api.put(
-        `/loans/cycle/${editingLoanRecord._id}`,
-        payload
+      // Prevent duplicate LoanNo among the client's cycles
+      const dup = (mergedLoans || []).some(
+        (l) =>
+          l?._id !== editingLoanRecord?._id &&
+          l?.LoanNo === editingLoanRecord?.LoanNo
       );
+      if (dup) {
+        message.error(
+          "This Loan No already exists for this client. Please choose a unique Loan No."
+        );
+        return;
+      }
+
+      // Coerce numerics to ensure persistence on backend (Penalty, LoanAmortization, etc.)
+      const toNum = (v) => (v === null || v === undefined || v === "" ? null : Number(String(v).replace(/[₱,]/g, "")));
+      const base = { ...editingLoanRecord };
+      const payload = {
+        ...base,
+        LoanAmount: toNum(base.LoanAmount),
+        PrincipalAmount: toNum(base.PrincipalAmount),
+        LoanBalance: toNum(base.LoanBalance),
+        LoanInterest: toNum(base.LoanInterest),
+        LoanAmortization: toNum(base.LoanAmortization),
+        Penalty: toNum(base.Penalty),
+      };
+      if (payload.LoanBalance != null) payload.RunningBalance = payload.LoanBalance;
+      // Map LoanNo -> LoanCycleNo so backend updates the primary loan cycle number
+      if (payload.LoanNo && !payload.LoanCycleNo) {
+        payload.LoanCycleNo = payload.LoanNo;
+      }
+
+      // Route to correct backend resource based on source
+      let res;
+      if (editingLoanRecord?.Source === "Disbursed") {
+        res = await api.put(`/loan_disbursed/${editingLoanRecord._id}`, payload);
+      } else {
+        res = await api.put(`/loans/cycle/${editingLoanRecord._id}`, payload);
+      }
 
       if (res.data.success) {
         message.success("Loan record updated successfully.");
@@ -456,6 +562,13 @@ export default function LoanDetailsModal({
 
         // 🔁 Use parent’s refresh callback instead of undefined local function
         if (onLoanUpdate) onLoanUpdate();
+        // Optionally recompute automated statuses for this cycle
+        try {
+          const cycleNo = payload.LoanCycleNo || payload.LoanNo;
+          if (cycleNo) {
+            await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: cycleNo } });
+          }
+        } catch {}
       } else {
         message.error(res.data.message || "Failed to update loan record.");
       }
@@ -531,15 +644,48 @@ export default function LoanDetailsModal({
             return 0;
           })[0];
 
+        // Compute automated status based on latest collection and maturity
+        const auto = getAutomatedLoanStatusDetailed({
+          paymentMode: l.loanInfo?.paymentMode,
+          lastCollectionDate:
+            latestCollection?.PaymentDate ||
+            latestCollection?.updatedAt ||
+            latestCollection?.createdAt ||
+            null,
+          maturityDate: l.loanInfo?.maturityDate || null,
+          currentDate: new Date(),
+          thresholds: undefined,
+        });
+        const computedStatus = auto?.status || l.loanInfo?.status;
+        const lastAmort = latestCollection
+          ? toNumber(
+              latestCollection.CollectionPayment ??
+                latestCollection.TotalCollected ??
+                latestCollection.Amortization ??
+                null
+            )
+          : null;
+        const lastPenalty = latestCollection
+          ? toNumber(latestCollection.Penalty)
+          : null;
+
         return {
           _id: l._id,
           LoanNo: l.loanInfo?.loanNo,
           LoanType: l.loanInfo?.type,
-          LoanStatus: l.loanInfo?.status,
+          LoanStatus: computedStatus,
           LoanAmount: l.loanInfo?.amount,
           PrincipalAmount: l.loanInfo?.principal,
           LoanInterest: l.loanInfo?.interest,
-          Penalty: l.loanInfo?.penalty,
+          Penalty:
+            lastPenalty != null && !isNaN(lastPenalty)
+              ? lastPenalty
+              : l.loanInfo?.penalty,
+          // Prefer stored amortization (editable) over inferred last collection payment
+          LoanAmortization:
+            l.loanInfo?.amortization != null && !isNaN(l.loanInfo?.amortization) && Number(l.loanInfo?.amortization) > 0
+              ? Number(l.loanInfo.amortization)
+              : (lastAmort != null && !isNaN(lastAmort) && Number(lastAmort) > 0 ? Number(lastAmort) : null),
           LoanTerm: l.loanInfo?.term,
           LoanProcessStatus: l.loanInfo?.processStatus,
           CollectorName: l.loanInfo?.collectorName,
@@ -548,9 +694,18 @@ export default function LoanDetailsModal({
           PaymentMode: l.loanInfo?.paymentMode,
           StartPaymentDate: l.loanInfo?.startPaymentDate,
           MaturityDate: l.loanInfo?.maturityDate,
+          LastCollectionDate:
+            latestCollection?.PaymentDate ||
+            latestCollection?.updatedAt ||
+            latestCollection?.createdAt ||
+            null,
+          LastCollectionRef: latestCollection?.CollectionReferenceNo || "",
           RunningBalance: latestCollection
-            ? parseFloat(latestCollection.RunningBalance)
+            ? toNumber(latestCollection.RunningBalance)
             : l.loanInfo?.balance,
+          // Debug helpers to trace amortization source
+          __DebugCycleAmort: l.loanInfo?.amortization ?? null,
+          __DebugLastAmort: lastAmort,
         };
       }) || [];
 
@@ -575,6 +730,29 @@ export default function LoanDetailsModal({
               return 0;
             })[0];
 
+          const auto = getAutomatedLoanStatusDetailed({
+            paymentMode: d.PaymentMode,
+            lastCollectionDate:
+              latestCollection?.PaymentDate ||
+              latestCollection?.updatedAt ||
+              latestCollection?.createdAt ||
+              null,
+            maturityDate: d.MaturityDate || null,
+            currentDate: new Date(),
+            thresholds: undefined,
+          });
+          const lastAmort = latestCollection
+            ? toNumber(
+                latestCollection.CollectionPayment ??
+                  latestCollection.TotalCollected ??
+                  latestCollection.Amortization ??
+                  null
+              )
+            : null;
+          const lastPenalty = latestCollection
+            ? toNumber(latestCollection.Penalty)
+            : null;
+
           return {
             ...d,
             StartPaymentDate: d.StartPaymentDate
@@ -585,13 +763,34 @@ export default function LoanDetailsModal({
               : null,
             Remarks: d.Remarks,
             Source: "Disbursed",
+            LoanStatus: auto?.status || d.LoanStatus,
+            // Prefer stored amortization (editable) over inferred last collection payment
+            LoanAmortization:
+              d.LoanAmortization != null && !isNaN(d.LoanAmortization) && Number(d.LoanAmortization) > 0
+                ? Number(d.LoanAmortization)
+                : (lastAmort != null && !isNaN(lastAmort) && Number(lastAmort) > 0 ? Number(lastAmort) : null),
+            Penalty:
+              lastPenalty != null && !isNaN(lastPenalty)
+                ? lastPenalty
+                : d.Penalty,
+            LastCollectionDate:
+              latestCollection?.PaymentDate ||
+              latestCollection?.updatedAt ||
+              latestCollection?.createdAt ||
+              null,
+            LastCollectionRef: latestCollection?.CollectionReferenceNo || "",
             RunningBalance: latestCollection
-              ? parseFloat(latestCollection.RunningBalance)
+              ? toNumber(latestCollection.RunningBalance)
               : d.LoanBalance,
+            // Debug helpers to trace amortization source
+            __DebugCycleAmort: d.LoanAmortization ?? null,
+            __DebugLastAmort: lastAmort,
           };
         }) || [];
 
     const merged = [...clientLoans, ...disbursedLoans];
+
+    // Console debug removed
 
     setMergedLoans(merged);
   }, [loan, loanDisbursed, loanCollections]);
@@ -665,9 +864,7 @@ export default function LoanDetailsModal({
   const refreshDocCounts = async () => {
     try {
       const accountId = loan?.accountId || loan?.AccountId;
-      const loanNos = (mergedLoans || [])
-        .map((m) => m?.LoanNo)
-        .filter(Boolean);
+      const loanNos = (mergedLoans || []).map((m) => m?.LoanNo).filter(Boolean);
       if (!accountId || loanNos.length === 0) {
         setDocCounts({});
         return;
@@ -676,7 +873,10 @@ export default function LoanDetailsModal({
         loanNos.map((ln) =>
           api
             .get(`/loans/account/${accountId}/cycle/${ln}/documents`)
-            .then((res) => ({ ln, count: Array.isArray(res?.data?.data) ? res.data.data.length : 0 }))
+            .then((res) => ({
+              ln,
+              count: Array.isArray(res?.data?.data) ? res.data.data.length : 0,
+            }))
         )
       );
       const map = {};
@@ -746,7 +946,7 @@ export default function LoanDetailsModal({
           )}
         </>
       ),
-      width: 200,
+      width: 220,
     },
     {
       title: "Amounts",
@@ -797,6 +997,20 @@ export default function LoanDetailsModal({
               {formatCurrency(record.LoanAmortization)}
             </span>
           </div>
+          {record.LastCollectionDate && (
+            <div className="info-row">
+              <span className="info-label">Last Coll Date:</span>
+              <span className="info-value">
+                {dayjs(record.LastCollectionDate).format("MM/DD/YYYY")}
+              </span>
+            </div>
+          )}
+          {record.LastCollectionRef && (
+            <div className="info-row">
+              <span className="info-label">Last Ref No:</span>
+              <span className="info-value">{record.LastCollectionRef}</span>
+            </div>
+          )}
         </>
       ),
     },
@@ -855,7 +1069,7 @@ export default function LoanDetailsModal({
         const count = docCounts[record.LoanNo] ?? 0;
         return (
           <Space size={4}>
-            <Tag color={count > 0 ? "blue" : "default"}>{count}</Tag>
+            {count > 0 && <Tag color="blue">{count}</Tag>}
             <Tooltip title="View documents for this Loan No">
               <Button
                 size="small"
@@ -930,7 +1144,7 @@ export default function LoanDetailsModal({
         {label === "Loan Amount" && (
           <Tooltip title="Check Loan Rates">
             <Button
-              type="text"
+              type="link"
               icon={<InfoCircleOutlined />}
               onClick={() => setIsLoanRateModalVisible(true)}
               style={{ marginLeft: 4, padding: 0, border: "none" }}
@@ -1037,6 +1251,7 @@ export default function LoanDetailsModal({
       title="Loan Details"
       open={visible}
       width={1200}
+      className="compact-modal"
       onCancel={onClose}
       footer={[
         activeTabKey === "2" && !isEditing && (
@@ -1082,6 +1297,7 @@ export default function LoanDetailsModal({
         <Tabs
           activeKey={activeTabKey}
           onChange={setActiveTabKey}
+          size="small"
           items={[
             {
               key: "1",
@@ -1151,7 +1367,8 @@ export default function LoanDetailsModal({
         open={isAddLoanModalVisible}
         onCancel={() => setIsAddLoanModalVisible(false)}
         onOk={handleAddLoanRecordSubmit}
-        width={1000}
+        width={800}
+        className="compact-modal"
       >
         <>
           <Row gutter={16} align="stretch">
@@ -1374,7 +1591,8 @@ export default function LoanDetailsModal({
         open={isEditLoanRecordModalVisible}
         onCancel={() => setIsEditLoanRecordModalVisible(false)}
         onOk={handleUpdateLoanRecord}
-        width={1000}
+        width={800}
+        className="compact-modal"
       >
         {editingLoanRecord && (
           <>
@@ -1393,7 +1611,10 @@ export default function LoanDetailsModal({
                         editingLoanRecord.LoanNo,
                         "text",
                         handleEditLoanRecordChange,
-                        true // Keep disabled in edit mode to prevent changing primary keys
+                        !(
+                          hasTwoCycles &&
+                          String(editingLoanRecord?.LoanType) === "Renewal"
+                        ) // Allow editing only for Renewal with >=2 cycles
                       )}
                     </Col>
                     <Col span={12}>
@@ -1592,13 +1813,13 @@ export default function LoanDetailsModal({
       </Modal>
 
       <Modal
-        title="Loan Rates Configuration"
         open={isLoanRateModalVisible}
-        onCancel={() => setIsLoanRateModalVisible(false)}
+        className="compact-modal"
         footer={null}
-        width={1200}
+        width={isTablet ? 800 : 1100}
+        onCancel={() => setIsLoanRateModalVisible(false)}
       >
-        <LoanRateConfig isModal={true} />
+        <LoanRateConfig isModal={true} onSelect={handleImportLoanRate} />
       </Modal>
     </Modal>
   );
