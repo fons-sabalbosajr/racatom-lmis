@@ -4,17 +4,17 @@ import {
   commitCollections,
   importFromExistingDatabase,
 } from "../controllers/loanCollectionImportController.js";
-import requireAuth from "../middleware/requireAuth.js"; // optional
+import requireAuth from "../middleware/requireAuth.js";
 
 const router = express.Router();
 
 // Save parsed metadata
-router.post("/import/:loanNo", /* requireAuth, */ saveParsedCollections);
+router.post("/import/:loanNo", requireAuth, saveParsedCollections);
 
 // Commit to main collection
-router.post("/commit/:loanNo", /* requireAuth, */ commitCollections);
+router.post("/commit/:loanNo", requireAuth, commitCollections);
 
 // Import from existing collection database
-router.post("/import-from-database", /* requireAuth, */ importFromExistingDatabase);
+router.post("/import-from-database", requireAuth, importFromExistingDatabase);
 
 export default router;

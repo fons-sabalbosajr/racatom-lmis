@@ -1,10 +1,10 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import dayjs from "dayjs";
 
-export const exportData = (data = [], options = {}) => {
+export const exportData = async (data = [], options = {}) => {
   const {
     type = "excel",
     title = "Exported Data",
@@ -82,22 +82,30 @@ export const exportData = (data = [], options = {}) => {
 
   // ----------- EXCEL ----------->
   if (type === "excel") {
-    const excelData = [];
-    // Title
-    excelData.push([title]);
-    excelData.push([]); // Spacer
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Sheet1");
+
+    // Title (merged across all columns)
+    const titleRow = ws.addRow([title]);
+    ws.mergeCells(1, 1, 1, columns.length + 1);
+    titleRow.getCell(1).font = { bold: true, size: 14 };
+
+    ws.addRow([]); // Spacer
 
     // Metadata
-    excelData.push(["Borrower:", metadata.name || ""]);
-    excelData.push(["Address:", metadata.address || ""]);
-    excelData.push(["Contact:", metadata.contact || ""]);
-    excelData.push(["Loan No:", metadata.loanNo || ""]);
-    excelData.push(["Collector:", metadata.collector || ""]);
-    excelData.push([]); // Spacer
+    ws.addRow(["Borrower:", metadata.name || ""]);
+    ws.addRow(["Address:", metadata.address || ""]);
+    ws.addRow(["Contact:", metadata.contact || ""]);
+    ws.addRow(["Loan No:", metadata.loanNo || ""]);
+    ws.addRow(["Collector:", metadata.collector || ""]);
+    ws.addRow([]); // Spacer
 
-    // Table Header
+    // Table Header (row 9)
     const tableHeader = ["#", ...columns.map((c) => c.header)];
-    excelData.push(tableHeader);
+    const headerRow = ws.addRow(tableHeader);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true };
+    });
 
     // Table Body
     data.forEach((item, index) => {
@@ -107,7 +115,7 @@ export const exportData = (data = [], options = {}) => {
             if (col.format) value = col.format(value, item);
             row.push(value ?? "");
         });
-        excelData.push(row);
+        ws.addRow(row);
     });
 
     // Table Footer
@@ -121,31 +129,17 @@ export const exportData = (data = [], options = {}) => {
                 footerRow.push("");
             }
         });
-        excelData.push(footerRow);
+        ws.addRow(footerRow);
     }
-
-    const ws = XLSX.utils.aoa_to_sheet(excelData);
-
-    // Merging
-    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: columns.length } }];
 
     // Column widths
-    ws["!cols"] = [{ wch: 5 }, ...columns.map(() => ({ wch: 18 }))];
-    
-    // Get the range of the worksheet
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    // Bold headers
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-        const address = XLSX.utils.encode_cell({r: 8, c: C});
-        if(ws[address]) {
-            ws[address].s = { font: { bold: true } };
-        }
-    }
+    ws.getColumn(1).width = 5;
+    columns.forEach((_, i) => {
+      ws.getColumn(i + 2).width = 18;
+    });
 
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `${fileTitle}.xlsx`);
+    // Write and download
+    const buffer = await wb.xlsx.writeBuffer();
+    saveAs(new Blob([buffer], { type: "application/octet-stream" }), `${fileTitle}.xlsx`);
   }
 };

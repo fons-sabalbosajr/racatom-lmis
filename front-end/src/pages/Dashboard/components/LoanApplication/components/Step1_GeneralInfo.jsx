@@ -584,17 +584,30 @@ const Step1_GeneralInfo = ({ form, onValuesChange }) => {
       if (response.data.success) {
         const { client: clientData, lastLoan } = response.data.data;
 
-        // ✅ FIX: Access the nested '$date' property for correct parsing
-        const dateOfBirth = clientData.DateOfBirth?.$date
-          ? dayjs(clientData.DateOfBirth.$date)
+        // Parse dates — API returns ISO strings, not MongoDB Extended JSON
+        const dateOfBirth = clientData.DateOfBirth
+          ? dayjs(clientData.DateOfBirth)
           : null;
-        const maturityDate = lastLoan?.MaturityDate?.$date
-          ? dayjs(lastLoan.MaturityDate.$date)
+        const maturityDate = lastLoan?.MaturityDate
+          ? dayjs(lastLoan.MaturityDate)
           : null;
 
+        // Map LoanClient field names to application form field names
         form.setFieldsValue({
-          ...clientData,
+          AccountId: clientData.AccountId,
+          FirstName: clientData.FirstName,
+          MiddleName: clientData.MiddleName,
+          LastName: clientData.LastName,
+          NameSuffix: clientData.NameSuffix,
           DateOfBirth: dateOfBirth,
+          Age: clientData.Age,
+          ContactNo: clientData.ContactNumber || clientData.ContactNo,
+          AlternateContactNo: clientData.AlternateContactNumber || clientData.AlternateContactNo,
+          Email: clientData.Email,
+          CurrentAddress: clientData.CurrentAddress || clientData.Address,
+          Occupation: clientData.Occupation,
+          OccupationAddress: clientData.WorkAddress || clientData.OccupationAddress,
+          LoanRecord: true,
           PreviousLoan: {
             Record: lastLoan?.LoanCycleNo,
             Date: maturityDate,

@@ -27,10 +27,15 @@ function VerifyEmail() {
 
       message.success(response.data?.message || "✅ Verification email resent. Check your inbox.");
     } catch (err) {
-      console.error("Resend verification error:", err);
-
-      const serverMessage = err.response?.data?.error || err.response?.data?.details;
-      message.error(serverMessage || "⚠️ Failed to resend verification email. Please try again later.");
+      const status = err.response?.status;
+      // Generic messages to prevent user/email enumeration
+      if (status === 404) {
+        message.info("If that account exists, a verification email has been sent.");
+      } else if (status === 400) {
+        message.info("That account may already be verified. Try logging in.");
+      } else {
+        message.error("Failed to resend verification email. Please try again later.");
+      }
     } finally {
       setLoading(false);
     }

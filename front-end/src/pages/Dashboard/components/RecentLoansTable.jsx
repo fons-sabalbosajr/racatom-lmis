@@ -118,7 +118,7 @@ function RecentLoansTable({
       key: "status",
       render: (status) => <Tag color={statusColor(status)}>{status}</Tag>,
       sorter: true,
-      sortOrder: sort?.sortBy === "LoanStatus" && "ascend",
+      sortOrder: sort?.sortBy === "LoanStatus" ? (sort?.sortDir === "asc" ? "ascend" : "descend") : undefined,
     },
     {
       title: "Due Date",
@@ -166,18 +166,6 @@ function RecentLoansTable({
 
   const onInputChange = (e) => setSearchTerm(e.target.value);
   const onPressEnter = () => applySearch(searchTerm);
-
-  // keep these helpers available for other callers; linter may flag unused ones elsewhere
-  const applyFilters = () =>
-    handleTableChange({ current: 1, pageSize: meta.limit }, { searchTerm }, {});
-  const clearFilters = () => {
-    setSearchTerm("");
-    handleTableChange({ current: 1, pageSize: meta.limit }, {}, {});
-  };
-
-  const getFilters = () => ({ searchTerm });
-  const onTableChange = (pagination, antdFilters, sorter) =>
-    handleTableChange(pagination, getFilters(), sorter);
 
   return (
     <Col xs={24}>

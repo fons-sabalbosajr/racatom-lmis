@@ -82,8 +82,6 @@ api.interceptors.request.use(
     lastTokenSource = token ? (s ? "session" : "local") : "none";
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      // Also include a debug header so backend logs can trace source if needed (harmless in prod)
-      try { config.headers["X-Token-Source"] = lastTokenSource; } catch {}
     }
     try {
       const dev = lsGet("devSettings") || {};

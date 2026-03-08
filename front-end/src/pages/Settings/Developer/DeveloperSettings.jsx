@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal, ColorPicker, Radio, Card, Checkbox } from "antd";
+import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal, ColorPicker, Radio, Card, Checkbox, Result } from "antd";
 import { useDevSettings } from "../../../context/DevSettingsContext";
 import api from "../../../utils/axios";
+import { lsGet, lsGetSession } from "../../../utils/storage";
 import "./devsettings.css";
 
 const { Title, Text } = Typography;
@@ -19,6 +20,21 @@ export default function DeveloperSettings() {
   const [tempPwdSubmitting, setTempPwdSubmitting] = useState(false);
   const [permModal, setPermModal] = useState({ open: false, user: null });
   const [permState, setPermState] = useState(null);
+
+  // ─── Access guard: only developers can use this page ───────
+  const currentUser = lsGetSession("user") || lsGet("user");
+  const pos = String(currentUser?.Position || "").toLowerCase();
+  const menuPerms = currentUser?.permissions?.menus || {};
+  const isDev = pos === "developer" || !!menuPerms.developerSettings || !!menuPerms.settingsDatabase || !!menuPerms.admin;
+  if (!isDev) {
+    return (
+      <Result
+        status="403"
+        title="Access Denied"
+        subTitle="Only developers can access Developer Settings."
+      />
+    );
+  }
 
   const fetchUsers = async () => {
     try {

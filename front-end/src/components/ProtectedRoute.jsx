@@ -1,7 +1,7 @@
 // src/components/ProtectedRoute.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { Spin, message } from "antd";
+import { Spin } from "antd";
 import api, { setRuntimeToken } from "../utils/axios";
 import {
   lsSetSession,
@@ -14,96 +14,61 @@ function ProtectedRoute({ children }) {
   const [isValid, setIsValid] = useState(null);
   const [maint, setMaint] = useState({ maintenance: false, allowed: true });
   const location = useLocation();
-  // Idle timeout: if auth check doesn't resolve within 60s, force logout/reset
-  useEffect(() => {
-    let timer;
-    if (isValid === null) {
-      timer = setTimeout(() => {
-        try {
-          lsClearAllApp();
-        } catch {}
-        setIsValid(false);
-      }, 60000); // 60 seconds
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isValid]);
+  const ran = useRef(false);
 
   useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+
+    // ── Fast-path: no token in storage → skip API call entirely ──
+    const token = lsGetSession("token") || lsGet("token");
+    if (!token) {
+      setIsValid(false);
+      return;
+    }
+
+    // Ensure axios has the token set before calling
+    try {
+      setRuntimeToken(token, lsGetSession("token") ? "session" : "local");
+    } catch {}
+
+    // ── Parallel fetch: /auth/me + /maintenance-status ──
     const checkAuth = async () => {
       try {
-        // Ensure the axios runtime header is set from storage before calling /auth/me
-        try {
-          const t = lsGetSession("token") || lsGet("token");
-          if (t) {
-            setRuntimeToken(t, lsGetSession("token") ? "session" : "local");
-          } else {
-            // No token yet; wait briefly and retry (startup may still be migrating)
-            setTimeout(checkAuth, 120);
-            return;
-          }
-        } catch {}
-        const res = await api.get(`/auth/me`);
+        const [meRes, maintRes] = await Promise.all([
+          api.get("/auth/me"),
+          api.get("/auth/maintenance-status").catch(() => ({
+            data: { maintenance: false, allowed: true },
+          })),
+        ]);
 
-        const user = res.data?.data?.user;
-
+        const user = meRes.data?.data?.user;
         if (user) {
-          // Store minimal user info in sessionStorage (per-tab) to avoid cross-tab bleed
           lsSetSession("user", user);
-          // dev banner removed
-          // Check maintenance status for this user
-          try {
-            const m = await api.get(`/auth/maintenance-status`);
-            setMaint({
-              maintenance: !!m.data?.maintenance,
-              allowed: !!m.data?.allowed,
-            });
-          } catch {
-            setMaint({ maintenance: false, allowed: true });
-          }
+          setMaint({
+            maintenance: !!maintRes.data?.maintenance,
+            allowed: !!maintRes.data?.allowed,
+          });
           setIsValid(true);
         } else {
           setIsValid(false);
         }
-      } catch (err) {
-        console.error(
-          "ProtectedRoute /auth/me error:",
-          err.response?.data || err
-        );
-        // If we have no token at all, redirect to login; otherwise allow a retry by marking invalid
-        const hasToken = Boolean(lsGetSession("token") || lsGet("token"));
-        if (!hasToken) {
-          message.error("Session expired. Please login again.");
-          lsClearAllApp();
-        }
-        // Retry once shortly if we do have a token (migration may still be applying)
-        if (hasToken) {
-          setTimeout(async () => {
-            try {
-              const res2 = await api.get(`/auth/me`);
-              const user2 = res2.data?.data?.user;
-              if (user2) {
-                lsSetSession("user", user2);
-                setIsValid(true);
-                return;
-              }
-            } catch {}
-            setIsValid(false);
-          }, 150);
-        } else {
-          setIsValid(false);
-        }
+      } catch {
+        // Token is invalid or expired — clear and redirect
+        lsClearAllApp();
+        setIsValid(false);
       }
     };
 
     checkAuth();
   }, []);
 
-  if (isValid === null)
+  // Still checking — show spinner
+  if (isValid === null) {
     return <Spin fullscreen tip="Checking authentication..." size="large" />;
+  }
 
-  // If the app is in maintenance and the user is not allowed, send to maintenance page
+  // Maintenance mode — redirect non-allowed users
   if (
     maint.maintenance &&
     !maint.allowed &&

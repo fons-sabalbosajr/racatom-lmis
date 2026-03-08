@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Typography, message, Row, Col, Button, Badge, Space } from "antd";
 import api from "../../utils/axios";
+import { lsGetSession, lsGet } from "../../utils/storage";
 import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
 import LoanApplication from "./components/LoanApplication/LoanApplication";
-import ChartDetailsModal from "./components/ChartDetailsModal"; // Import new modal
+import ChartDetailsModal from "./components/ChartDetailsModal";
 import "./dashboard.css";
 
-// Import new components
 import DashboardStats from "./components/DashboardStats";
 import LoanStatusChart from "./components/LoanStatusChart";
 import LoanTypeChart from "./components/LoanTypeChart";
 import LoanCollectorChart from "./components/LoanCollectorChart";
+import MonthlyDisbursementChart from "./components/MonthlyDisbursementChart";
+import PaymentModeChart from "./components/PaymentModeChart";
 import RecentLoansTable from "./components/RecentLoansTable";
 import PendingApplication from "./components/PendingApplication/PendingApplication";
 
@@ -22,10 +24,15 @@ function Dashboard() {
     totalDisbursed: 0,
     upcomingPayments: 0,
     averageLoanAmount: 0,
+    totalOutstandingBalance: 0,
+    totalCollected: 0,
+    collectionRate: 0,
   });
   const [chartData, setChartData] = useState([]);
   const [loanTypeData, setLoanTypeData] = useState([]);
   const [loanCollectorData, setLoanCollectorData] = useState([]);
+  const [monthlyDisbursement, setMonthlyDisbursement] = useState([]);
+  const [paymentModeData, setPaymentModeData] = useState([]);
   const [recentLoans, setRecentLoans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [meta, setMeta] = useState({
@@ -53,14 +60,16 @@ function Dashboard() {
 
   // Fetch pending applications count
   const fetchPendingCount = useCallback(async () => {
+    // Skip if no auth token is available yet to avoid 401 noise
+    const token = lsGetSession("token") || lsGet("token");
+    if (!token) return;
     try {
       const res = await api.get("/loan_clients_application/pending");
       if (res.data?.success) {
         setPendingCount(Array.isArray(res.data.data) ? res.data.data.length : 0);
       }
     } catch (err) {
-      // keep silent to avoid noisy UI; console.debug for dev
-      // console.debug("Pending count fetch error", err?.response?.data || err?.message);
+      // keep silent to avoid noisy UI
     }
   }, []);
 
@@ -113,6 +122,8 @@ function Dashboard() {
         setChartData(statsRes.data.data.loanStatusChartData);
         setLoanTypeData(statsRes.data.data.loanTypeChartData);
         setLoanCollectorData(statsRes.data.data.loanCollectorChartData || []);
+        setMonthlyDisbursement(statsRes.data.data.monthlyDisbursement || []);
+        setPaymentModeData(statsRes.data.data.paymentModeDistribution || []);
       } else {
         message.error("Failed to load dashboard statistics.");
       }
@@ -292,6 +303,17 @@ function Dashboard() {
           />
         </Col>
       </Row>
+
+      {/* Second row: Monthly Disbursement + Payment Mode Distribution */}
+      <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
+        <Col xs={24} md={16}>
+          <MonthlyDisbursementChart data={monthlyDisbursement} />
+        </Col>
+        <Col xs={24} md={8}>
+          <PaymentModeChart data={paymentModeData} />
+        </Col>
+      </Row>
+
       <Row gutter={[16, 16]} style={{ marginTop: "16px" }}>
         <RecentLoansTable
           recentLoans={recentLoans}

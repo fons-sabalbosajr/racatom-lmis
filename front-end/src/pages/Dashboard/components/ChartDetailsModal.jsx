@@ -3,12 +3,12 @@ import { Modal, Table, message, Pagination, Row, Col, Select, Tag, Button, Space
 import api from '../../../utils/axios';
 import { getLoanStatusColor } from '../../../utils/statusColors';
 
-
+const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
 function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, pageSizeOptions: ['10', '20', '50', '100'] });
+  const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0 });
 
   const fmtCurrency = (val) => `₱${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtDate = (date) => (date ? new Date(date).toLocaleDateString() : '—');
@@ -147,7 +147,6 @@ function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
           page: Number(response.data.meta.page) || 1,
           limit: Number(response.data.meta.limit) || 10,
           total: Number(response.data.meta.total) || 0,
-          pageSizeOptions: meta.pageSizeOptions, // Keep existing options
         });
       } else {
         message.error('Failed to load loan details.');
@@ -158,13 +157,14 @@ function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
     } finally {
       setLoading(false);
     }
-  }, [filter, meta.pageSizeOptions]) // Added meta.pageSizeOptions to dependency array
+  }, [filter]);
 
   useEffect(() => {
     if (visible) {
-      fetchLoans(meta.page, meta.limit);
+      fetchLoans(1, meta.limit);
     }
-  }, [visible, fetchLoans, meta.page, meta.limit]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, fetchLoans]);
 
   const handleTableChange = (page, pageSize) => {
     fetchLoans(page, pageSize);
@@ -174,7 +174,7 @@ function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
   return (
     <Modal
       title={title}
-      visible={visible}
+      open={visible}
       onCancel={onClose}
       footer={null}
       width="80%"
@@ -211,7 +211,7 @@ function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
             onChange={(size) => handleTableChange(1, size)} // Reset to page 1 when page size changes
             style={{ width: 120 }}
           >
-            {meta.pageSizeOptions.map((option) => (
+            {PAGE_SIZE_OPTIONS.map((option) => (
               <Select.Option key={option} value={Number(option)}>
                 {`${option} / page`}
               </Select.Option>

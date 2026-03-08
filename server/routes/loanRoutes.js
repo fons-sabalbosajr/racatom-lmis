@@ -29,14 +29,17 @@ import {
   getApprovedClients,
   createLoanCycle,
   exportLoansExcel,
-  debugGetRawClient,
-  debugListClientsMissingNames,
-  debugUpdateClientNames,
   applyAutomatedStatuses,
 } from "../controllers/loanController.js";
 import uploadLoanDocument from "../middleware/uploadLoanDocument.js";
+import requireAuth from "../middleware/requireAuth.js";
+import { validateFinancialFields } from "../middleware/validateFinancial.js";
+import { checkActionPermission } from "../middleware/checkPermissions.js";
 
 const router = express.Router();
+
+// Protect all loan routes
+router.use(requireAuth);
 
 // GET /api/loans/search-clients
 router.get("/search-clients", searchClients);
@@ -56,7 +59,7 @@ router.post("/apply-automated-statuses", applyAutomatedStatuses);
 router.post("/loan_clients_application", createLoanApplication);
 
 // POST /api/loans/cycles  <-- CORRECTED ROUTE
-router.post("/cycles", createLoanCycle);
+router.post("/cycles", checkActionPermission("loans", "canCreate"), validateFinancialFields, createLoanCycle);
 
 // GET loan statuses, payment modes, and years
 router.get("/statuses", getLoanStatuses);
@@ -66,11 +69,6 @@ router.get("/years", getLoanYears);
 // ✅ FIX: Export routes are moved here, BEFORE parameterized routes like '/:id'
 router.get("/export", exportLoansExcel);
 router.get("/export/:reportType", exportReport);
-
-// DEBUG routes (place before parameterized :id route)
-router.get("/debug/raw-client/:clientNo", debugGetRawClient);
-router.get("/debug/clients/missing-names", debugListClientsMissingNames);
-router.post("/debug/update-client-names/:clientNo", debugUpdateClientNames);
 
 // GET loans by account id
 router.get("/account/:accountId", getLoansByAccountId);
@@ -110,13 +108,13 @@ router.get("/details-by-cycle/:loanCycleNo", getLoanDetailsByCycleNo);
 router.get("/:id", getLoanById);
 
 // UPDATE loan by ID
-router.put("/:id", updateLoan);
+router.put("/:id", checkActionPermission("loans", "canEdit"), validateFinancialFields, updateLoan);
 
 // UPDATE loan cycle by ID
-router.put("/cycle/:id", updateLoanCycle);
+router.put("/cycle/:id", checkActionPermission("loans", "canEdit"), validateFinancialFields, updateLoanCycle);
 
 // DELETE loan by ID
-router.delete("/:id", deleteLoan);
+router.delete("/:id", checkActionPermission("loans", "canDelete"), deleteLoan);
 
 // NEW: Get loan transactions
 router.get("/transactions/:accountId/:loanCycleNo", getLoanTransactions);

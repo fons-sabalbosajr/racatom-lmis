@@ -1,3 +1,6 @@
+import dns from "node:dns";
+dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
+
 import dotenv from "dotenv";
 dotenv.config({ override: true });
 
@@ -7,7 +10,7 @@ import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import cron from "node-cron";
-import moment from "moment";
+import dayjs from "dayjs";
 
 import Announcement from "./models/Announcement.js"; // Import model for cron
 import requireAuth from "./middleware/requireAuth.js";
@@ -127,6 +130,11 @@ app.use(async (req, res, next) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
+
+// Public announcement endpoint (no auth required – used on login page)
+import { getPublicAnnouncements } from "./controllers/announcementController.js";
+app.get("/api/announcements/public", getPublicAnnouncements);
+
 app.use("/api/announcements", requireAuth, announcementRoute);
 app.use("/api/loan_rates", loanRateRoute);
 app.use("/api/users", userRoutes);
@@ -238,7 +246,7 @@ mongoose
     cron.schedule("0 2 * * *", async () => {
       try {
         const now = new Date();
-        const oneYearAgo = moment().subtract(1, "years").toDate();
+        const oneYearAgo = dayjs().subtract(1, "year").toDate();
 
         // Delete expired announcements
         const expired = await Announcement.deleteMany({
@@ -247,7 +255,7 @@ mongoose
 
         // Delete announcements older than 1 year + 7 days
         const oldToDelete = await Announcement.deleteMany({
-          PostedDate: { $lte: moment(oneYearAgo).subtract(7, "days").toDate() },
+          PostedDate: { $lte: dayjs(oneYearAgo).subtract(7, "day").toDate() },
         });
 
         if (expired.deletedCount > 0 || oldToDelete.deletedCount > 0) {

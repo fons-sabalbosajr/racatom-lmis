@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Layout,
   Menu,
@@ -11,6 +11,7 @@ import {
   List,
   Collapse,
   Popover,
+  Modal,
 } from "antd";
 import {
   LogoutOutlined,
@@ -25,6 +26,7 @@ import {
   CalendarOutlined,
   MessageOutlined, // ✅ Message icon
   CodeOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { lsGet, lsGetSession, lsClearAllApp } from "../../utils/storage";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
@@ -34,6 +36,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import api, { setRuntimeToken } from "../../utils/axios";
 import { useDevSettings } from "../../context/DevSettingsContext";
+import useIdleTimeout from "../../utils/useIdleTimeout";
 // Tooltip no longer used
 
 dayjs.extend(relativeTime);
@@ -52,13 +55,48 @@ function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // ============ Idle Auto-Logout (10 min) ============
+  const performIdleLogout = useCallback(async () => {
+    try {
+      await api.post(`/auth/logout`, {});
+    } catch {}
+    lsClearAllApp();
+    try { setRuntimeToken(null); } catch {}
+    // Use replace to prevent going back to protected route
+    window.location.replace("/login?reason=idle");
+  }, []);
+
+  const handleIdleWarning = useCallback(() => {
+    Modal.warning({
+      title: "Session Expiring Soon",
+      content: "You have been idle for a while. Your session will expire in 1 minute unless you interact with the page.",
+      icon: <ClockCircleOutlined />,
+      okText: "I'm still here",
+      centered: true,
+    });
+  }, []);
+
+  useIdleTimeout({
+    timeout: 10 * 60 * 1000, // 10 minutes
+    warningBefore: 60 * 1000, // 1 minute warning
+    onIdle: performIdleLogout,
+    onWarning: handleIdleWarning,
+  });
+
   // Live clock
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Sider width remains fixed (non-compact) on tablet screens per request
+  // Auto-collapse sider on mobile / expand on desktop
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const handleChange = (e) => setCollapsed(e.matches);
+    handleChange(mq); // set initial
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, []);
 
   // Ensure user info (name/photo) reflects the active session
   useEffect(() => {
@@ -344,8 +382,7 @@ function Home() {
             ...(perms.settingsDatabase === false && !isDev
               ? []
               : [{ key: "/settings/database", label: "Database" }]),
-            ...((perms.settingsAnnouncements === false && !isDev) ||
-            settings.accessAnnouncements === false
+            ...(!isDev
               ? []
               : [{ key: "/settings/announcements", label: "Announcements" }]),
             ...(perms.settingsAccounting === false && !isDev
@@ -395,6 +432,10 @@ function Home() {
                       {
                         key: "/reports/account-vouchers",
                         label: "Account Vouchers",
+                      },
+                      {
+                        key: "/reports/demand-letters",
+                        label: "Demand Letters",
                       },
                     ],
                   },
@@ -507,36 +548,34 @@ function Home() {
               </Badge>
             </Popover> */}
 
-            {/* ✅ Notifications Popover */}
+            {/* ✅ Notifications Popover — Corporate Design */}
             <Popover
               placement="bottomRight"
               trigger="click"
               overlayClassName="notif-popover"
               content={
-                <div>
-                  {/* Header */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "6px 12px",
-                      borderBottom: "1px solid #f0f0f0",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <span>Notifications</span>
+                <div className="notif-panel">
+                  {/* Panel Header */}
+                  <div className="notif-panel-header">
+                    <div className="notif-panel-header-left">
+                      <span className="notif-panel-title">Notifications</span>
+                      {notifications.filter((n) => !n.isRead).length > 0 && (
+                        <span className="notif-count-badge">
+                          {notifications.filter((n) => !n.isRead).length}
+                        </span>
+                      )}
+                    </div>
                     <Button
                       type="link"
                       size="small"
-                      style={{ padding: 0 }}
+                      className="notif-mark-all-btn"
                       onClick={handleMarkAllAsRead}
                     >
-                      Mark all as read
+                      Mark all read
                     </Button>
                   </div>
 
-                  {/* List */}
+                  {/* Notification List */}
                   <List
                     className="notif-list"
                     itemLayout="horizontal"
@@ -555,56 +594,30 @@ function Home() {
                           ? dayjs(n.PostedDate).fromNow()
                           : "Just now",
                         link: `/settings/announcements/${n._id}`,
-                        isRead: n.isRead, // Use isRead from API
+                        isRead: n.isRead,
                       }))}
-                    locale={{ emptyText: "No notifications" }}
+                    locale={{ emptyText: <div className="notif-empty">No notifications yet</div> }}
                     renderItem={(item) => (
                       <List.Item
                         key={item.key}
-                        className={item.isRead ? "notif-read" : "notif-unread"}
-                        style={{
-                          cursor: "pointer",
-                          padding: "10px 12px",
-                          borderBottom: "1px solid #f0f0f0",
-                        }}
+                        className={`notif-item ${item.isRead ? "notif-read" : "notif-unread"}`}
                         onClick={() => handleMarkAsRead(item.key, item.link)}
                       >
-                        <List.Item.Meta
-                          title={
-                            <div
-                              style={{
-                                fontWeight: item.isRead ? 500 : 600,
-                                fontSize: "14px",
-                                color: item.isRead ? "#888" : "#000",
-                              }}
-                            >
+                        <div className="notif-item-inner">
+                          <div className="notif-item-icon">
+                            <BellOutlined style={{ fontSize: 16, color: item.isRead ? "#bfbfbf" : "#1890ff" }} />
+                          </div>
+                          <div className="notif-item-content">
+                            <div className={`notif-item-title ${item.isRead ? "" : "notif-item-title-bold"}`}>
                               {item.title}
                             </div>
-                          }
-                          description={
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: "13px",
-                                  color: item.isRead ? "#aaa" : "#444",
-                                  marginBottom: "4px",
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word",
-                                }}
-                              >
-                                {item.content}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: "12px",
-                                  color: "#999",
-                                }}
-                              >
-                                {item.time}
-                              </div>
+                            <div className={`notif-item-desc ${item.isRead ? "notif-item-desc-read" : ""}`}>
+                              {item.content.length > 80 ? item.content.slice(0, 80) + "…" : item.content}
                             </div>
-                          }
-                        />
+                            <div className="notif-item-time">{item.time}</div>
+                          </div>
+                          {!item.isRead && <div className="notif-unread-dot" />}
+                        </div>
                       </List.Item>
                     )}
                   />

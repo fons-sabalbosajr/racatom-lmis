@@ -13,6 +13,7 @@ import {
   Input,
 } from "antd";
 import api from "../../../../utils/axios";
+import dayjs from "dayjs";
 import "./pendingApplication.css";
 import LoanApplication from "../LoanApplication/LoanApplication";
 
@@ -24,6 +25,9 @@ const statusColors = {
   APPROVED: "green",
   REJECTED: "red",
 };
+
+const fmtCurrency = (v) => `₱${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+const fmtDate = (v) => v ? dayjs(v).format("MM/DD/YYYY") : "N/A";
 
 const PendingApplication = ({ visible, onClose, onCountChange }) => {
   const [loading, setLoading] = useState(false);
@@ -207,7 +211,7 @@ const PendingApplication = ({ visible, onClose, onCountChange }) => {
         title="Pending Loan Applications"
         open={visible}
         onCancel={onClose}
-        width={selected ? 1000 : 1000}
+        width={1000}
         footer={null}
         destroyOnHidden
       >
@@ -263,69 +267,81 @@ const PendingApplication = ({ visible, onClose, onCountChange }) => {
             </div>
 
             <Card bordered={false} style={{ marginBottom: 16 }}>
-              {/* 🧾 Basic Info */}
-              <Descriptions bordered size="small" column={2}>
-                <Descriptions.Item label="Account ID">
-                  {selected.AccountId}
-                </Descriptions.Item>
+              {/* Personal Info */}
+              <Descriptions bordered size="small" column={2} title="Personal Information">
+                <Descriptions.Item label="Account ID">{selected.AccountId}</Descriptions.Item>
+                <Descriptions.Item label="Application Date">{fmtDate(selected.ApplicationDate || selected.createdAt)}</Descriptions.Item>
                 <Descriptions.Item label="Full Name" span={2}>
-                  {selected.FirstName} {selected.LastName}
+                  {[selected.FirstName, selected.MiddleName, selected.LastName, selected.NameSuffix].filter(Boolean).join(" ")}
                 </Descriptions.Item>
-                <Descriptions.Item label="Contact">
-                  {selected.ContactNo}
-                </Descriptions.Item>
-                <Descriptions.Item label="Email">
-                  {selected.Email}
-                </Descriptions.Item>
-                <Descriptions.Item label="Address" span={2}>
-                  {selected.CurrentAddress}
-                </Descriptions.Item>
-                <Descriptions.Item label="Occupation">
-                  {selected.Occupation}
-                </Descriptions.Item>
-                <Descriptions.Item label="Occupation Address">
-                  {selected.OccupationAddress}
-                </Descriptions.Item>
+                <Descriptions.Item label="Date of Birth">{fmtDate(selected.DateOfBirth)}</Descriptions.Item>
+                <Descriptions.Item label="Age">{selected.Age || "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Contact">{selected.ContactNo}</Descriptions.Item>
+                <Descriptions.Item label="Alt. Contact">{selected.AlternateContactNo || "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Email">{selected.Email || "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Address">{selected.CurrentAddress || "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Occupation">{selected.Occupation || "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Work Address">{selected.OccupationAddress || "N/A"}</Descriptions.Item>
               </Descriptions>
+
+              {/* Co-Maker */}
+              {selected.CoMaker?.Name && (
+                <>
+                  <Divider />
+                  <Descriptions bordered size="small" column={2} title="Co-Maker Information">
+                    <Descriptions.Item label="Name">{selected.CoMaker.Name}</Descriptions.Item>
+                    <Descriptions.Item label="Relationship">{selected.CoMaker.Relationship || "N/A"}</Descriptions.Item>
+                    <Descriptions.Item label="Contact">{selected.CoMaker.ContactNo || "N/A"}</Descriptions.Item>
+                    <Descriptions.Item label="Address">{selected.CoMaker.Address || "N/A"}</Descriptions.Item>
+                  </Descriptions>
+                </>
+              )}
+
+              {/* Previous Loan */}
+              {selected.LoanRecord && selected.PreviousLoan && (
+                <>
+                  <Divider />
+                  <Descriptions bordered size="small" column={2} title="Previous Loan Record">
+                    <Descriptions.Item label="Record">{selected.PreviousLoan.Record || "N/A"}</Descriptions.Item>
+                    <Descriptions.Item label="Date">{fmtDate(selected.PreviousLoan.Date)}</Descriptions.Item>
+                    <Descriptions.Item label="Amount">{fmtCurrency(selected.PreviousLoan.Amount)}</Descriptions.Item>
+                    <Descriptions.Item label="Status">{selected.PreviousLoan.Status || "N/A"}</Descriptions.Item>
+                  </Descriptions>
+                </>
+              )}
 
               <Divider />
 
-              {/* 💰 Loan Info */}
-              <Descriptions
-                bordered
-                size="small"
-                column={2}
-                title="Loan Information"
-              >
-                <Descriptions.Item label="Loan Amount">
-                  ₱
-                  {selected.LoanAmount?.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
-                </Descriptions.Item>
-                <Descriptions.Item label="Loan Terms">
-                  {selected.LoanTerms}
-                </Descriptions.Item>
-                <Descriptions.Item label="Payment Mode">
-                  {selected.PaymentMode}
-                </Descriptions.Item>
-                <Descriptions.Item label="Processing Fee">
-                  ₱
-                  {selected["Processing Fee"]?.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
-                </Descriptions.Item>
-                <Descriptions.Item label="Interest Rate / Month">
-                  {selected["Interest Rate/Month"]}%
-                </Descriptions.Item>
-                <Descriptions.Item label="Penalty Rate">
-                  {selected["Penalty Rate"]}%
-                </Descriptions.Item>
+              {/* Loan Info */}
+              <Descriptions bordered size="small" column={2} title="Loan Information">
+                <Descriptions.Item label="Loan Amount">{fmtCurrency(selected.LoanAmount)}</Descriptions.Item>
+                <Descriptions.Item label="Loan Terms">{selected.LoanTerms}</Descriptions.Item>
+                <Descriptions.Item label="Payment Mode">{selected.PaymentMode}</Descriptions.Item>
+                <Descriptions.Item label="Processing Fee">{fmtCurrency(selected["Processing Fee"])}</Descriptions.Item>
+                <Descriptions.Item label="Interest Rate/Month">{selected["Interest Rate/Month"] != null ? `${selected["Interest Rate/Month"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Penalty Rate">{selected["Penalty Rate"] != null ? `${selected["Penalty Rate"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Notarial Rate">{selected["Notarial Rate"] != null ? `${selected["Notarial Rate"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Annotation Rate">{selected["Annotation Rate"] != null ? `${selected["Annotation Rate"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Insurance Rate">{selected["Insurance Rate"] != null ? `${selected["Insurance Rate"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="VAT Rate">{selected["Vat Rate"] != null ? `${selected["Vat Rate"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Doc Rate">{selected["Doc Rate"] != null ? `${selected["Doc Rate"]}%` : "N/A"}</Descriptions.Item>
+                <Descriptions.Item label="Misc. Rate">{selected["Misc. Rate"] != null ? `${selected["Misc. Rate"]}%` : "N/A"}</Descriptions.Item>
               </Descriptions>
+
+              {/* Rejection info */}
+              {selected.LoanStatus === "REJECTED" && (
+                <>
+                  <Divider />
+                  <Descriptions bordered size="small" column={1} title="Rejection Details">
+                    <Descriptions.Item label="Reason">{selected.RejectionReason || "No reason provided"}</Descriptions.Item>
+                    <Descriptions.Item label="Rejected At">{fmtDate(selected.RejectedAt)}</Descriptions.Item>
+                  </Descriptions>
+                </>
+              )}
 
               <Divider />
 
-              {/* 📎 Uploaded Documents */}
+              {/* Uploaded Documents */}
               <Title level={5}>Uploaded Documents</Title>
               {selected.UploadedDocs && selected.UploadedDocs.length > 0 ? (
                 <ul>

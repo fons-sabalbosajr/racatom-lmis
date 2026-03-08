@@ -5,12 +5,28 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import User from "../models/UserAccount.js";
 import requireAuth from "../middleware/requireAuth.js";
+import runtimeFlags from "../utils/runtimeFlags.js";
 import {
   sendVerificationEmail,
   sendResetPasswordEmail,
 } from "../utils/email.js";
 
 const router = express.Router();
+
+// ---------- Password Complexity Validation ----------
+// Min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character
+function validatePasswordComplexity(password) {
+  if (!password || typeof password !== "string") return "Password is required";
+  if (password.length < 8) return "Password must be at least 8 characters";
+  if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter";
+  if (!/[a-z]/.test(password)) return "Password must contain at least one lowercase letter";
+  if (!/\d/.test(password)) return "Password must contain at least one number";
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) return "Password must contain at least one special character";
+  return null; // valid
+}
+
+// Designations that self-registering users are NOT allowed to choose
+const RESTRICTED_DESIGNATIONS = ["Administrator", "Developer"];
 
 // Helpers to sign tokens
 function signAccessToken(userId) {
@@ -39,11 +55,30 @@ router.post("/register", async (req, res) => {
     const { FullName, Email, Username, Password, Designation, Position } =
       req.body;
 
+    // Validate required fields
+    if (!FullName || !Email || !Username || !Password || !Designation) {
+      return res.status(400).json({ success: false, message: "All required fields must be provided." });
+    }
+
+    // Block privilege escalation: prevent self-registration as Administrator/Developer
+    if (RESTRICTED_DESIGNATIONS.includes(Designation)) {
+      return res.status(403).json({
+        success: false,
+        message: "This designation is not available for self-registration. Contact an administrator.",
+      });
+    }
+
+    // Validate password complexity
+    const pwError = validatePasswordComplexity(Password);
+    if (pwError) {
+      return res.status(400).json({ success: false, message: pwError });
+    }
+
     const existingUser = await User.findOne({ $or: [{ Username }, { Email }] });
     if (existingUser) {
       return res
         .status(400)
-        .json({ success: false, message: "Username or Email already exists." });
+        .json({ success: false, message: "An account with these credentials already exists." });
     }
 
     const hashedPassword = await bcrypt.hash(Password, 10);
@@ -225,7 +260,7 @@ router.post("/login", async (req, res) => {
         httpOnly: true,
         secure: isProd, // true only for HTTPS production
         sameSite: isProd ? "Strict" : "Lax", // Lax in dev to allow localhost
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 15 * 60 * 1000, // match JWT 15min expiry
         path: "/", // default scope
       });
     } catch {}
@@ -296,9 +331,13 @@ router.post("/resend-verification", async (req, res) => {
   try {
     const query = email ? { Email: email } : { Username: username };
     const user = await User.findOne(query);
-    if (!user) return res.status(404).json({ error: "User not found." });
-    if (user.isVerified)
-      return res.status(400).json({ error: "Email already verified." });
+    if (!user) {
+      // Return generic success to prevent user enumeration
+      return res.status(200).json({ message: "If that account exists, a verification email has been sent." });
+    }
+    if (user.isVerified) {
+      return res.status(200).json({ message: "If that account exists, a verification email has been sent." });
+    }
 
     await sendVerificationEmail(user.Email, user, true);
     res
@@ -308,7 +347,6 @@ router.post("/resend-verification", async (req, res) => {
     console.error("Resend verification failed:", err.message);
     res.status(500).json({
       error: "Failed to send verification email. Please try again later.",
-      details: err.message,
     });
   }
 });
@@ -325,9 +363,8 @@ router.post("/forgot-password", async (req, res) => {
 
     const user = await User.findOne({ Email });
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No account found with this email" });
+      // Return generic success even if email not found (prevent enumeration)
+      return res.json({ success: true, message: "If an account exists with that email, a reset link has been sent." });
     }
 
     // Generate raw + hashed token
@@ -345,12 +382,7 @@ router.post("/forgot-password", async (req, res) => {
     // Send reset email with RAW token
     await sendResetPasswordEmail(Email, rawToken);
 
-    // 🔍 Debug logs
-    // console.log("🔑 Password reset token generated:");
-    // console.log("   Raw (emailed):   ", rawToken);
-    // console.log("   Hashed (stored): ", hashedToken);
-
-    return res.json({ success: true, message: "Password reset email sent" });
+    return res.json({ success: true, message: "If an account exists with that email, a reset link has been sent." });
   } catch (err) {
     console.error("Forgot password error:", err.message);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -368,13 +400,14 @@ router.post("/reset-password/:token", async (req, res) => {
         .json({ success: false, message: "Password is required" });
     }
 
+    // Validate password complexity for new password
+    const pwError = validatePasswordComplexity(Password);
+    if (pwError) {
+      return res.status(400).json({ success: false, message: pwError });
+    }
+
     // Hash the raw token from URL before lookup
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
-
-    // Debug log
-    // console.log("🔍 Incoming reset request:");
-    // console.log("   Raw token:    ", token);
-    // console.log("   Hashed token: ", hashedToken);
 
     // Find user with matching hashed token + valid expiry
     const user = await User.findOne({
@@ -420,6 +453,12 @@ router.put("/change-password", requireAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: "Both old and new password are required" });
     }
 
+    // Validate new password complexity
+    const pwError = validatePasswordComplexity(newPassword);
+    if (pwError) {
+      return res.status(400).json({ success: false, message: pwError });
+    }
+
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
@@ -446,7 +485,6 @@ router.put("/change-password", requireAuth, async (req, res) => {
 // ---------- Protected Route ----------
 router.get("/me", requireAuth, async (req, res) => {
   try {
-    //console.log("req.user:", req.user); // should show { id: ... }
     const user = await User.findById(req.user.id).select(
       "-Password -verificationToken"
     );
@@ -465,13 +503,9 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
-export default router;
-
 // ===== Maintenance status (for UI) =====
 // Allows authenticated users to know if maintenance is active and whether they are allowed to bypass it.
 // This lives under /api/auth so it's reachable even when the maintenance gate is active.
-import runtimeFlags from "../utils/runtimeFlags.js";
-
 router.get("/maintenance-status", requireAuth, async (req, res) => {
   try {
     const role = String(req.user?.Position || "").trim().toLowerCase();
@@ -483,3 +517,5 @@ router.get("/maintenance-status", requireAuth, async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to read maintenance status" });
   }
 });
+
+export default router;

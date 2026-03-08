@@ -15,7 +15,7 @@ import {
 import Step1_GeneralInfo from "./components/Step1_GeneralInfo";
 import Step2_DocumentRequirements from "./components/Step2_DocumentRequirements";
 import Step3_LoanInfo from "./components/Step3_LoanInfo";
-import moment from "moment";
+import dayjs from "dayjs";
 
 const { Step } = Steps;
 const { Title, Text } = Typography;
@@ -35,8 +35,26 @@ const LoanApplication = ({
 
   useEffect(() => {
     if (visible && initialData) {
-      form.setFieldsValue(initialData);
-      setFormData(initialData);
+      // Strip MongoDB / admin-only fields before populating the form
+      const {
+        _id, __v, createdAt, updatedAt,
+        RejectedAt, RejectionReason, LoanStatus, IsArchived,
+        ...cleanData
+      } = initialData;
+
+      // Convert date strings to dayjs for DatePicker compatibility
+      if (cleanData.DateOfBirth) {
+        cleanData.DateOfBirth = dayjs(cleanData.DateOfBirth);
+      }
+      if (cleanData.PreviousLoan?.Date) {
+        cleanData.PreviousLoan = {
+          ...cleanData.PreviousLoan,
+          Date: dayjs(cleanData.PreviousLoan.Date),
+        };
+      }
+
+      form.setFieldsValue(cleanData);
+      setFormData(cleanData);
     } else if (!visible) {
       // Reset form and state when modal is closed
       form.resetFields();
@@ -62,8 +80,7 @@ const LoanApplication = ({
       .then(() => {
         setCurrent(current + 1);
       })
-      .catch((info) => {
-        console.log("Validate Failed:", info);
+      .catch(() => {
         // Step 2 is optional, so allow skipping
         if (current === 1) {
           setCurrent(current + 1);
@@ -103,7 +120,7 @@ const LoanApplication = ({
   };
 
   const renderValue = (value) => {
-    if (moment.isMoment(value)) return value.format("YYYY-MM-DD");
+    if (dayjs.isDayjs(value)) return value.format("YYYY-MM-DD");
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "number") return value.toLocaleString();
     if (typeof value === "object" && value !== null) {
@@ -267,7 +284,7 @@ const LoanApplication = ({
   return (
     <Modal
       open={visible}
-      title="New Loan Application"
+      title={mode === "reapply" ? "Reapply Loan Application" : "New Loan Application"}
       onCancel={onClose}
       footer={null}
       width={1000}

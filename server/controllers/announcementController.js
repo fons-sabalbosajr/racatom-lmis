@@ -1,6 +1,48 @@
 import Announcement from "../models/Announcement.js";
 
-// GET all announcements for the current user (read and unread)
+// ── helpers ──────────────────────────────────────────────────────
+const ALLOWED_FIELDS = [
+  "Title",
+  "Content",
+  "isActive",
+  "showOnLogin",
+  "Priority",
+  "ValidFrom",
+  "ExpirationDate",
+  "PostedBy",
+];
+
+const pick = (obj, keys) =>
+  keys.reduce((o, k) => {
+    if (obj[k] !== undefined) o[k] = obj[k];
+    return o;
+  }, {});
+
+// ── PUBLIC: announcements shown on the Login page (no auth) ──────
+export const getPublicAnnouncements = async (_req, res) => {
+  try {
+    const now = new Date();
+    const announcements = await Announcement.find({
+      isActive: true,
+      showOnLogin: true,
+      $and: [
+        { $or: [{ ExpirationDate: { $exists: false } }, { ExpirationDate: null }, { ExpirationDate: { $gt: now } }] },
+        { $or: [{ ValidFrom: { $exists: false } }, { ValidFrom: null }, { ValidFrom: { $lte: now } }] },
+      ],
+    })
+      .select("Title Content Priority PostedDate PostedBy")
+      .sort({ Priority: -1, PostedDate: -1 })
+      .limit(10)
+      .lean();
+
+    res.json({ success: true, announcements });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ── GET active announcements for the notification bell (authenticated) ──
 export const getAnnouncements = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -8,20 +50,19 @@ export const getAnnouncements = async (req, res) => {
       return res.json({ success: true, announcements: [] });
     }
 
+    const now = new Date();
+
     const announcements = await Announcement.aggregate([
-      // 1. Find all active announcements
       {
-        $match: { isActive: true },
+        $match: {
+          isActive: true,
+          $or: [{ ExpirationDate: { $exists: false } }, { ExpirationDate: null }, { ExpirationDate: { $gt: now } }],
+        },
       },
-      // 2. Sort by most recent
-      {
-        $sort: { PostedDate: -1 },
-      },
-      // 3. Add a new field 'isRead'
+      { $sort: { PostedDate: -1 } },
       {
         $addFields: {
           isRead: {
-            // ✅ FIX: Use userId directly without wrapping it
             $in: [userId, { $ifNull: ["$readBy", []] }],
           },
         },
@@ -35,7 +76,7 @@ export const getAnnouncements = async (req, res) => {
   }
 };
 
-// Mark all announcements as read for the current user
+// ── Mark all as read ─────────────────────────────────────────────
 export const markAllAsRead = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -55,7 +96,7 @@ export const markAllAsRead = async (req, res) => {
   }
 };
 
-// Mark a single announcement as read
+// ── Mark single as read ──────────────────────────────────────────
 export const markAsRead = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -76,10 +117,13 @@ export const markAsRead = async (req, res) => {
   }
 };
 
-// GET all announcements for admin view
+// ── GET all announcements for developer admin view ───────────────
 export const getAllAnnouncementsAdmin = async (req, res) => {
   try {
-    const announcements = await Announcement.find().sort({ PostedDate: -1 });
+    const announcements = await Announcement.find()
+      .select("-readBy")
+      .sort({ PostedDate: -1 })
+      .lean();
     res.json({ success: true, announcements });
   } catch (err) {
     console.error(err);
@@ -87,21 +131,51 @@ export const getAllAnnouncementsAdmin = async (req, res) => {
   }
 };
 
-// CREATE
+// ── GET stats for dashboard cards ────────────────────────────────
+export const getAnnouncementStats = async (_req, res) => {
+  try {
+    const now = new Date();
+    const all = await Announcement.find().select("isActive showOnLogin ExpirationDate ValidFrom").lean();
+
+    let total = all.length;
+    let active = 0;
+    let inactive = 0;
+    let expired = 0;
+    let scheduled = 0;
+    let loginPage = 0;
+
+    for (const a of all) {
+      const isExpired = a.ExpirationDate && new Date(a.ExpirationDate) < now;
+      const isScheduled = a.ValidFrom && new Date(a.ValidFrom) > now;
+
+      if (isExpired) expired++;
+      else if (!a.isActive) inactive++;
+      else if (isScheduled) scheduled++;
+      else active++;
+
+      if (a.showOnLogin) loginPage++;
+    }
+
+    res.json({ success: true, stats: { total, active, inactive, expired, scheduled, loginPage } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ── CREATE ───────────────────────────────────────────────────────
 export const createAnnouncement = async (req, res) => {
   try {
-    const { Title, Content, isActive, ExpirationDate } = req.body;
-    if (!Title || !Content)
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing fields" });
+    const data = pick(req.body, ALLOWED_FIELDS);
+    if (!data.Title || !data.Content) {
+      return res.status(400).json({ success: false, message: "Title and Content are required" });
+    }
+    // Default PostedBy to the authenticated user's name
+    if (!data.PostedBy && req.user) {
+      data.PostedBy = req.user.FullName || req.user.Username || "System";
+    }
 
-    const newAnnouncement = new Announcement({
-      Title,
-      Content,
-      isActive,
-      ExpirationDate,
-    });
+    const newAnnouncement = new Announcement(data);
     await newAnnouncement.save();
     res.status(201).json({ success: true, announcement: newAnnouncement });
   } catch (err) {
@@ -110,15 +184,18 @@ export const createAnnouncement = async (req, res) => {
   }
 };
 
-// UPDATE
+// ── UPDATE ───────────────────────────────────────────────────────
 export const updateAnnouncement = async (req, res) => {
   try {
-    const { Title, Content, isActive, ExpirationDate } = req.body;
+    const data = pick(req.body, ALLOWED_FIELDS);
     const announcement = await Announcement.findByIdAndUpdate(
       req.params.id,
-      { Title, Content, isActive, ExpirationDate },
+      data,
       { new: true }
     );
+    if (!announcement) {
+      return res.status(404).json({ success: false, message: "Announcement not found" });
+    }
     res.json({ success: true, announcement });
   } catch (err) {
     console.error(err);
@@ -126,10 +203,33 @@ export const updateAnnouncement = async (req, res) => {
   }
 };
 
-// DELETE
+// ── TOGGLE fields (isActive / showOnLogin) ───────────────────────
+export const toggleAnnouncementField = async (req, res) => {
+  try {
+    const { field } = req.body;
+    if (!["isActive", "showOnLogin"].includes(field)) {
+      return res.status(400).json({ success: false, message: "Invalid field" });
+    }
+    const announcement = await Announcement.findById(req.params.id);
+    if (!announcement) {
+      return res.status(404).json({ success: false, message: "Announcement not found" });
+    }
+    announcement[field] = !announcement[field];
+    await announcement.save();
+    res.json({ success: true, announcement });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ── DELETE ───────────────────────────────────────────────────────
 export const deleteAnnouncement = async (req, res) => {
   try {
-    await Announcement.findByIdAndDelete(req.params.id);
+    const result = await Announcement.findByIdAndDelete(req.params.id);
+    if (!result) {
+      return res.status(404).json({ success: false, message: "Announcement not found" });
+    }
     res.json({ success: true, message: "Deleted successfully" });
   } catch (err) {
     console.error(err);

@@ -11,13 +11,14 @@ body,
 .login-container {
   min-height: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   background-image: url("../../assets/racatom.webp");
   background-size: cover;
   background-position: center;
   position: relative;
-  padding: 20px; /* ensures breathing room on very small screens */
+  padding: 24px;
 }
 
 .login-container::before {
@@ -39,54 +40,148 @@ body,
   z-index: 1;
 }
 
+/* Wrapper for card + bulletin — side by side on desktop */
+.login-main-wrapper {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 920px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 20px;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Post-auth loading overlay */
+.login-post-auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.login-post-auth-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Login Card */
 .login-card {
-  /* Make the card responsive but constrained. Provide fallbacks if global CSS variables
-     aren't loaded so the card doesn't expand to full viewport width. */
-  width: 100%;
-  max-width: var(--card-max-width, 450px);
-  padding: var(--card-padding, 30px 25px);
-  border-radius: var(--card-border-radius, 12px);
+  width: 430px;
+  min-width: 430px;
+  flex-shrink: 0;
+  padding: 32px 28px 24px;
+  border-radius: 16px;
   box-sizing: border-box;
-  margin: 0 12px; /* breathing room on very small screens */
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  background: rgba(255, 255, 255, 0.9);
-  animation: fadeInUp 0.6s ease-out;
-  z-index: 2;
-  position: relative;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 
-/* Title */
-.login-title {
+.login-card .ant-card-body {
+  padding: 0;
+}
+
+/* Logo */
+.login-logo-wrapper {
   text-align: center;
-  margin-bottom: 24px !important;
-  font-weight: bold !important;
-  color: #333 !important;
+  margin-bottom: 16px;
 }
 
-/* Input fields (scoped to login only) */
+.login-logo {
+  height: 72px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+/* Heading & subheading */
+.login-heading {
+  text-align: center;
+  margin: 0 0 4px !important;
+  font-weight: 700 !important;
+  color: #1a1a2e !important;
+  font-size: 1.35rem !important;
+  letter-spacing: -0.3px;
+}
+
+.login-subheading {
+  display: block;
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+/* Form */
+.login-form .ant-form-item-label > label {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* Input fields */
 .login-card .ant-input,
 .login-card .ant-input-affix-wrapper {
   border-radius: 8px !important;
-  height: 34px !important; /* reduce overall input height */
-  padding: 4px 10px !important; /* tighter padding for a slimmer look */
+  height: 38px !important;
+  padding: 6px 12px !important;
+  border: 1px solid #e0e0e0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Ensure inner input inside affix wrapper (e.g., password) fits the wrapper height */
+.login-card .ant-input-affix-wrapper:focus,
+.login-card .ant-input-affix-wrapper-focused {
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12) !important;
+}
+
 .login-card .ant-input-affix-wrapper > input.ant-input {
   height: 100% !important;
 }
 
-/* Button */
-.ant-btn-primary {
-  border-radius: 8px !important;
-  font-weight: 500;
-  transition: all 0.3s ease;
+/* Forgot password link */
+.login-forgot-row {
+  text-align: right;
+  margin-bottom: 16px;
 }
 
-.ant-btn-primary:hover {
-  background: #4096ff !important;
-  box-shadow: 0 4px 12px rgba(64, 150, 255, 0.3);
+.login-forgot-row a {
+  font-size: 13px;
+}
+
+/* Submit button */
+.login-submit-btn {
+  border-radius: 10px !important;
+  height: 42px !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  letter-spacing: 0.2px;
+  transition: all 0.25s ease;
+}
+
+.login-submit-btn:hover {
+  box-shadow: 0 4px 14px rgba(22, 119, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+/* Create account */
+.login-create-account {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+/* Copyright */
+.login-copyright {
+  display: block;
+  text-align: center;
+  margin-top: 16px;
+  font-size: 11px;
+  color: #bfbfbf;
 }
 
 /* Animation */
@@ -113,104 +208,302 @@ body,
   }
 }
 
-/* 📱 Responsive adjustments */
+/* ── Bulletin Panel (right side) ────────────────────────────────── */
+.login-bulletin {
+  flex: 1;
+  min-width: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  animation: fadeInUp 0.6s ease-out 0.15s both;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Collapse overrides */
+.login-bulletin-collapse .ant-collapse-item {
+  border: none !important;
+}
+
+.login-bulletin-collapse .ant-collapse-header {
+  padding: 14px 18px !important;
+  align-items: center !important;
+  background: linear-gradient(135deg, rgba(22, 119, 255, 0.06), rgba(22, 119, 255, 0.02));
+  border-bottom: 1px solid rgba(22, 119, 255, 0.08);
+  transition: background 0.2s ease;
+}
+
+.login-bulletin-collapse .ant-collapse-header:hover {
+  background: linear-gradient(135deg, rgba(22, 119, 255, 0.10), rgba(22, 119, 255, 0.04));
+}
+
+.login-bulletin-collapse .ant-collapse-content-box {
+  padding: 0 !important;
+}
+
+/* Trigger layout */
+.login-bulletin-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-bulletin-icon {
+  font-size: 15px;
+  color: #1677ff;
+}
+
+.login-bulletin-label {
+  font-weight: 700;
+  font-size: 13px;
+  color: #1a1a2e;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
+/* Bulletin list */
+.login-bulletin-list {
+  flex: 1;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.login-bulletin-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.login-bulletin-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+/* Individual item */
+.login-bulletin-item {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  transition: background 0.15s ease;
+}
+
+.login-bulletin-item:last-child {
+  border-bottom: none;
+}
+
+.login-bulletin-item:hover {
+  background: rgba(22, 119, 255, 0.02);
+}
+
+.login-bulletin-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.login-bulletin-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.login-bulletin-item-dot {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.login-bulletin-item-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1a1a2e;
+  line-height: 1.4;
+}
+
+.login-bulletin-priority-tag {
+  font-size: 10px !important;
+  line-height: 16px !important;
+  padding: 0 6px !important;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Body */
+.login-bulletin-item-body {
+  padding-left: 22px;
+  margin-bottom: 8px;
+}
+
+.login-bulletin-paragraph {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.login-bulletin-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12.5px;
+  color: #555;
+}
+
+.login-bulletin-bullet-icon {
+  color: #1677ff;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+/* Meta footer */
+.login-bulletin-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #999;
+  padding-left: 22px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.login-bulletin-author {
+  color: #777;
+  font-weight: 500;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .login-card {
-    padding: 20px 15px;
-    border-radius: 12px;
+  .login-container {
+    padding: 16px;
+  }
+
+  .login-main-wrapper {
+    flex-direction: column;
     max-width: 100%;
+    gap: 12px;
   }
 
-  .login-title {
-    font-size: 18px !important;
+  .login-card {
+    width: 100%;
+    min-width: 0;
+    padding: 24px 18px 20px;
+    border-radius: 12px;
   }
 
-  .ant-btn-primary {
-    height: 38px !important;
-    font-size: 14px;
+  .login-logo {
+    height: 56px;
+  }
+
+  .login-heading {
+    font-size: 1.15rem !important;
+  }
+
+  .login-submit-btn {
+    height: 40px !important;
+    font-size: 14px !important;
+  }
+
+  .login-bulletin {
+    border-radius: 10px;
+  }
+
+  .login-bulletin-collapse .ant-collapse-header {
+    padding: 12px 14px !important;
+  }
+
+  .login-bulletin-item {
+    padding: 12px 14px;
+  }
+
+  .login-bulletin-label {
+    font-size: 12px;
   }
 }
 
-/* Tablets: improve spacing and sizing for devices between small phones and desktops */
+/* Tablets — stack vertically */
 @media (min-width: 481px) and (max-width: 1080px) {
   .login-container {
-    padding: 24px; /* slightly reduced breathing room on tablets */
-    background-position: center center;
-    background-size: cover;
+    padding: 24px;
+  }
+
+  .login-container::before {
+    opacity: 0.85;
+  }
+
+  .login-main-wrapper {
+    flex-direction: column;
+    max-width: 460px;
   }
 
   .login-card {
-    /* Make the card responsive but constrained. Provide fallbacks if global CSS variables
-     aren't loaded so the card doesn't expand to full viewport width. */
     width: 100%;
-    max-width: var(--card-max-width, 450px);
-    padding: var(--card-padding, 10px 20px);
-    border-radius: var(--card-border-radius, 12px);
-    box-sizing: border-box;
-    margin: 0 12px; /* breathing room on very small screens */
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    background: rgba(255, 255, 255, 0.9);
-    animation: fadeInUp 0.6s ease-out;
-    z-index: 2;
-    position: relative;
-  }
-
-  .login-title {
-    font-size: 16px !important;
-    margin-bottom: 12px !important;
+    min-width: 0;
+    padding: 28px 22px 20px;
   }
 
   .login-card .ant-input,
   .login-card .ant-input-affix-wrapper {
-    height: 30px !important;
-    padding: 2px 8px !important;
+    height: 34px !important;
+    padding: 4px 10px !important;
   }
 
-  .ant-btn-primary {
-    
+  .login-heading {
+    font-size: 1.15rem !important;
+  }
+
+  .login-submit-btn {
+    height: 38px !important;
     font-size: 14px !important;
-    padding: 0 12px !important;
+  }
+}
+
+/* iPad specific */
+@media (min-width: 768px) and (max-width: 834px) {
+  .login-container {
+    padding: 20px;
   }
 
-  /* Make sure animated gradient doesn't overpower the small card on tablets */
+  .login-main-wrapper {
+    flex-direction: column;
+    max-width: 430px;
+  }
+
+  .login-card {
+    width: 100%;
+    min-width: 0;
+    padding: 24px 20px 18px;
+    border-radius: 12px;
+  }
+
+  .login-heading {
+    font-size: 1.1rem !important;
+  }
+
   .login-container::before {
     opacity: 0.8;
   }
 }
 
-/* iPad 9th gen & similar iPads (portrait and landscape narrow range)
-   Target common CSS viewport widths used by iPads (≈768–834px) */
-@media (min-width: 768px) and (max-width: 834px) {
-  .login-container {
-    padding: 20px; /* tighter container padding on iPad */
+/* Wide desktop */
+@media (min-width: 1441px) {
+  .login-main-wrapper {
+    max-width: 1000px;
   }
 
   .login-card {
-    max-width: var(--card-max-width-ipad);
-    padding: var(--card-padding-ipad);
-    border-radius: 10px;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+    width: 460px;
+    min-width: 460px;
+    padding: 36px 32px 28px;
   }
 
-  .login-title {
-    font-size: 16px !important;
-    margin-bottom: 12px !important;
-  }
-
-  .login-card .ant-input,
-  .login-card .ant-input-affix-wrapper {
-    font-size: 13px !important;
-    height: 32px !important;
-    padding: 3px 9px !important;
-  }
-
-  .ant-btn-primary {
-    height: var(--button-height-tablet) !important;
-    font-size: 13px !important;
-    padding: 0 10px !important;
-  }
-
-  .login-container::before {
-    opacity: 0.75;
+  .login-heading {
+    font-size: 1.5rem !important;
   }
 }

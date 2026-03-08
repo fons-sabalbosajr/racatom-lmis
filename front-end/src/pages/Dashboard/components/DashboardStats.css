@@ -1,15 +1,71 @@
 /* Styles for DashboardStats component
-   Compact typography and paddings for tablet / iPad breakpoints
+   Corporate gradient stat cards with responsive breakpoints
 */
 
 .dashboard-card {
-  /* ensure card uses slightly tighter font-family fallback and spacing base */
   font-family: inherit;
   color: inherit;
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
 .dashboard-card .ant-card-body {
   transition: padding 150ms ease, font-size 150ms ease;
+}
+
+/* Gradient stat card variants */
+.stat-gradient {
+  color: #fff !important;
+}
+
+.stat-gradient .ant-statistic-title {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.stat-gradient .ant-statistic-content-prefix,
+.stat-gradient .ant-statistic-content-suffix {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.stat-gradient-blue {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+}
+
+.stat-gradient-red {
+  background: linear-gradient(135deg, #f5222d 0%, #cf1322 100%);
+}
+
+.stat-gradient-orange {
+  background: linear-gradient(135deg, #faad14 0%, #d48806 100%);
+}
+
+.stat-gradient-cyan {
+  background: linear-gradient(135deg, #13c2c2 0%, #006d75 100%);
+}
+
+/* Secondary stat cards (white bg, colored values) */
+.stat-card-secondary {
+  background: #fff;
+  border-left: 4px solid #1890ff;
+}
+
+.stat-card-secondary .ant-statistic-title {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
 }
 
 /* Tablet screens (general tablets) */
@@ -18,8 +74,6 @@
     padding: 13px !important;
   }
 
-
-  /* Statistic title and value — make selectors specific to Ant structure */
   .dashboard-card .ant-statistic .ant-statistic-title,
   .dashboard-card .ant-statistic-title {
     font-size: 11px !important;
@@ -36,12 +90,10 @@
     font-size: 12px !important;
   }
 
-  /* Make icon prefixes slightly smaller so totals don't wrap */
   .dashboard-card .anticon {
     font-size: 16px !important;
   }
 
-  /* Compact inline buttons inside cards */
   .dashboard-card .ant-btn {
     padding: 2px 6px !important;
     font-size: 12px !important;
@@ -49,7 +101,6 @@
     line-height: 24px !important;
   }
 
-  /* Ensure card header (if any) uses compact font */
   .dashboard-card .ant-card-head {
     padding: 8px 12px !important;
     font-size: 13px !important;
@@ -81,6 +132,16 @@
 
   .dashboard-card .ant-card-head {
     font-size: 12px !important;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .dashboard-card .ant-card-body {
+    padding: 12px !important;
+  }
+  .stat-card-secondary {
+    border-left-width: 3px;
   }
 }
 

@@ -16,6 +16,7 @@ import Reports from "./pages/Reports/Reports";
 import SOA from "./pages/Reports/components/StatementofAccounts";
 import CollectionsList from "./pages/Reports/components/CollectionList";
 import AccountVouchers from "./pages/Reports/components/AccountVouchers";
+import DemandLetter from "./pages/Reports/components/DemandLetter";
 
 // Settings subpages
 import LoanRates from "./pages/Settings/LoanRateConfig/LoanRateConfig";
@@ -62,6 +63,7 @@ function App() {
         <Route path="reports/statement-of-accounts" element={<SOA />} />
         <Route path="reports/collections-list" element={<CollectionsList />} />
         <Route path="reports/account-vouchers" element={<AccountVouchers />} />
+        <Route path="reports/demand-letters" element={<DemandLetter />} />
 
         {/* Settings subpages */}
         <Route path="settings/loan-rates" element={<LoanRates />} />

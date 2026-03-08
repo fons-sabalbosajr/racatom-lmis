@@ -30,13 +30,25 @@ export const canUpdateUser = async (req, res, next) => {
 
     // Non-developer can only edit their own profile
     if (String(loggedInUser._id) === String(targetUserId)) {
-      // Block changing Position to Developer
-      if (req.body.Position && req.body.Position === "Developer") {
-        return res.status(403).json({
-          success: false,
-          message: "Only administrators can assign Developer role.",
-        });
+      // SECURITY: Whitelist fields that non-developers can self-update
+      const SELF_EDITABLE_FIELDS = new Set([
+        "FullName",
+        "Email",
+        "Photo",
+        "ContactNumber",
+        "Address",
+      ]);
+
+      // Strip any fields that are NOT in the whitelist
+      const safeBody = {};
+      for (const [key, value] of Object.entries(req.body || {})) {
+        if (SELF_EDITABLE_FIELDS.has(key)) {
+          safeBody[key] = value;
+        }
       }
+
+      // Replace req.body with sanitized version
+      req.body = safeBody;
       return next();
     }
 
@@ -87,4 +99,55 @@ export const developerOnly = async (req, res, next) => {
     console.error("developerOnly error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
+};
+
+/**
+ * Generic action permission checker.
+ * Verifies that the logged-in user has the specified permission in their `permissions.actions` object.
+ * Developers always pass. Non-developers are checked against the permission path.
+ *
+ * Usage: checkActionPermission("loans", "canEdit")
+ *        checkActionPermission("collections", "canDelete")
+ *
+ * Permission paths checked against user.permissions.actions:
+ *   user.permissions.actions[module][action] === true
+ *
+ * @param {string} module - The module name (e.g., "loans", "collections", "disbursements")
+ * @param {string} action - The action name (e.g., "canView", "canEdit", "canDelete", "canCreate")
+ */
+export const checkActionPermission = (module, action) => {
+  return async (req, res, next) => {
+    try {
+      const loggedInUser = await getLoggedInUser(req);
+      if (!loggedInUser) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const role = String(loggedInUser.Position || "").trim().toLowerCase();
+
+      // Developers and Administrators always have full access
+      if (role === "developer" || role === "administrator") {
+        return next();
+      }
+
+      // Check permissions.actions[module][action]
+      const actions = loggedInUser?.permissions?.actions;
+      if (actions && actions[module] && actions[module][action] === true) {
+        return next();
+      }
+
+      // Also check flat permission flags (e.g., permissions.actions.canEdit)
+      if (actions && actions[action] === true) {
+        return next();
+      }
+
+      return res.status(403).json({
+        success: false,
+        message: `You do not have permission to ${action.replace("can", "").toLowerCase()} ${module}.`,
+      });
+    } catch (err) {
+      console.error("checkActionPermission error:", err);
+      return res.status(500).json({ success: false, message: "Server error" });
+    }
+  };
 };

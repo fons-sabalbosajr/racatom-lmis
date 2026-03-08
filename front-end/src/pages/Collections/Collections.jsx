@@ -152,13 +152,12 @@ const Collections = ({ loan, onAfterChange }) => {
       .then(async (response) => {
         if (response.data.success) {
           const raw = response.data.data || [];
-          // Always de-duplicate automatically for a cleaner UI
-          const deduped = dedupeCollections(raw);
-          const processed = deduped;
+          // De-duplicate based on dev setting (default: true)
+          const processed = settings.collectionsDedupeOnFetch !== false ? dedupeCollections(raw) : sortCollections(raw);
           // If duplicates were found and we know the cycle, request backend cleanup silently
           try {
             const lc = loan?.loanInfo?.loanNo;
-            if (lc && deduped.length < raw.length) {
+            if (lc && settings.collectionsDedupeOnFetch !== false && processed.length < raw.length) {
               await api.post("/loan-collections/dedupe", {
                 loanCycleNo: lc,
                 dryRun: false,
@@ -273,9 +272,9 @@ const Collections = ({ loan, onAfterChange }) => {
       if (commit.data?.success) {
         message.success("Collections imported successfully!");
         setIsPreviewModalVisible(false);
-        try {
-          await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } });
-        } catch {}
+        if (settings.enableCollectionStatusCheck !== false) {
+          try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } }); } catch {}
+        }
         fetchCollections();
         if (onAfterChange) onAfterChange();
       } else {
@@ -295,9 +294,9 @@ const Collections = ({ loan, onAfterChange }) => {
       );
       if (res.data.success) {
         message.success("Collections imported successfully!");
-        try {
-          await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } });
-        } catch {}
+        if (settings.enableCollectionStatusCheck !== false) {
+          try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } }); } catch {}
+        }
         fetchCollections();
         if (onAfterChange) onAfterChange();
       } else {
@@ -321,9 +320,9 @@ const Collections = ({ loan, onAfterChange }) => {
         const ins = res.data?.data?.inserted || 0;
         const skipped = res.data?.data?.skipped || 0;
         message.success(`Imported ${ins} from database${skipped ? `, skipped ${skipped}` : ""}.`);
-        try {
-          await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
-        } catch {}
+        if (settings.enableCollectionStatusCheck !== false) {
+          try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } }); } catch {}
+        }
         fetchCollections();
         if (onAfterChange) onAfterChange();
       } else {
@@ -339,9 +338,9 @@ const Collections = ({ loan, onAfterChange }) => {
     try {
       await api.delete(`/loan-collections/${record._id}`);
       message.success("Collection deleted successfully.");
-      try {
-        await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
-      } catch {}
+      if (settings.enableCollectionStatusCheck !== false) {
+        try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } }); } catch {}
+      }
       fetchCollections(); // Refresh data
       if (onAfterChange) onAfterChange();
     } catch (error) {
@@ -931,9 +930,9 @@ const Collections = ({ loan, onAfterChange }) => {
         onSuccess={() => {
           setIsAddModalVisible(false);
           (async () => {
-            try {
-              await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
-            } catch {}
+            if (settings.enableCollectionStatusCheck !== false) {
+              try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } }); } catch {}
+            }
             fetchCollections();
             if (onAfterChange) onAfterChange();
           })();
@@ -953,9 +952,9 @@ const Collections = ({ loan, onAfterChange }) => {
             setIsEditModalVisible(false);
             setEditingCollection(null);
             (async () => {
-              try {
-                await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } });
-              } catch {}
+              if (settings.enableCollectionStatusCheck !== false) {
+                try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } }); } catch {}
+              }
               fetchCollections();
               if (onAfterChange) onAfterChange();
             })();

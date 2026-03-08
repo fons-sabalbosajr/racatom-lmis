@@ -703,9 +703,6 @@ export default function LoanDetailsModal({
           RunningBalance: latestCollection
             ? toNumber(latestCollection.RunningBalance)
             : l.loanInfo?.balance,
-          // Debug helpers to trace amortization source
-          __DebugCycleAmort: l.loanInfo?.amortization ?? null,
-          __DebugLastAmort: lastAmort,
         };
       }) || [];
 
@@ -782,15 +779,10 @@ export default function LoanDetailsModal({
             RunningBalance: latestCollection
               ? toNumber(latestCollection.RunningBalance)
               : d.LoanBalance,
-            // Debug helpers to trace amortization source
-            __DebugCycleAmort: d.LoanAmortization ?? null,
-            __DebugLastAmort: lastAmort,
           };
         }) || [];
 
     const merged = [...clientLoans, ...disbursedLoans];
-
-    // Console debug removed
 
     setMergedLoans(merged);
   }, [loan, loanDisbursed, loanCollections]);

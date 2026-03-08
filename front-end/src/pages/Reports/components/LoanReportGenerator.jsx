@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, Select, DatePicker, Button, Space, Typography, Table, message } from "antd";
 import api, { API_BASE_URL } from "../../../utils/axios";
-import moment from "moment";
+import dayjs from "dayjs";
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -113,7 +113,7 @@ const LoanReportGenerator = () => {
   const getReportColumns = () => {
     if (reportType === "statementOfAccount") {
       return [
-        { title: "Payment Date", dataIndex: "paymentDate", key: "paymentDate", render: (text) => text ? moment(text).format("YYYY-MM-DD") : "" },
+        { title: "Payment Date", dataIndex: "paymentDate", key: "paymentDate", render: (text) => text ? dayjs(text).format("YYYY-MM-DD") : "" },
         { title: "Description", dataIndex: "description", key: "description" },
         { title: "Principal Paid", dataIndex: "principalPaid", key: "principalPaid", render: (text) => parseFloat(text).toFixed(2) },
         { title: "Interest Paid", dataIndex: "interestPaid", key: "interestPaid", render: (text) => parseFloat(text).toFixed(2) },
@@ -123,7 +123,7 @@ const LoanReportGenerator = () => {
       ];
     } else if (reportType === "ledger") {
       return [
-        { title: "Date", dataIndex: "date", key: "date", render: (text) => text ? moment(text).format("YYYY-MM-DD") : "" },
+        { title: "Date", dataIndex: "date", key: "date", render: (text) => text ? dayjs(text).format("YYYY-MM-DD") : "" },
         { title: "Description", dataIndex: "description", key: "description" },
         { title: "Debit", dataIndex: "debit", key: "debit", render: (text) => parseFloat(text).toFixed(2) },
         { title: "Credit", dataIndex: "credit", key: "credit", render: (text) => parseFloat(text).toFixed(2) },
@@ -202,8 +202,8 @@ const LoanReportGenerator = () => {
             <Text>Loan Type: {reportData.loanInfo.loanType}</Text><br/>
             <Text>Loan Amount: {parseFloat(reportData.loanInfo.loanAmount).toFixed(2)}</Text><br/>
             <Text>Current Balance: {parseFloat(reportData.loanInfo.currentBalance).toFixed(2)}</Text><br/>
-            <Text>Start Payment Date: {moment(reportData.loanInfo.startPaymentDate).format("YYYY-MM-DD")}</Text><br/>
-            <Text>Maturity Date: {moment(reportData.loanInfo.maturityDate).format("YYYY-MM-DD")}</Text><br/>
+            <Text>Start Payment Date: {dayjs(reportData.loanInfo.startPaymentDate).format("YYYY-MM-DD")}</Text><br/>
+            <Text>Maturity Date: {dayjs(reportData.loanInfo.maturityDate).format("YYYY-MM-DD")}</Text><br/>
           </Card>
         )}
 

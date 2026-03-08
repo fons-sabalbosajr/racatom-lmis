@@ -5,8 +5,10 @@ import LoanCycle from '../models/LoanCycle.js';
 // Get all users
 export const getUsers = async (req, res) => {
   try {
-  const users = await User.find({}, "-verificationToken -resetPasswordToken -resetPasswordExpires");
+    const users = await User.find({}, "-verificationToken -resetPasswordToken -resetPasswordExpires -Password");
     const meId = String(req.user?._id || "");
+    const requesterRole = String(req.user?.Position || "").trim().toLowerCase();
+    const isDeveloperOrAdmin = requesterRole === "developer" || requesterRole === "administrator";
 
     const usersWithPhoto = users.map(user => {
       const obj = user.toObject();
@@ -26,8 +28,14 @@ export const getUsers = async (req, res) => {
       }
       obj.isOnline = isOnline;
 
-  // Do NOT override isVerified; respect the DB value. Provide diagnostics only.
-  obj.passwordHashed = !!(obj.Password && obj.Password.startsWith("$2b$"));
+      // Remove password hash from response (already excluded via projection, but double-check)
+      delete obj.Password;
+
+      // For non-developer/admin users viewing other users, strip sensitive fields
+      if (!isDeveloperOrAdmin && String(obj._id) !== meId) {
+        delete obj.permissions;
+        delete obj.Email;
+      }
 
       return obj;
     });

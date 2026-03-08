@@ -52,6 +52,12 @@ const LoanClientApplicationSchema = new mongoose.Schema(
     "Doc Rate": { type: Number },
     "Misc. Rate": { type: Number },
 
+    // Computed loan fields from Step 3
+    LoanType: { type: String },
+    "Loan to be Disbursed": { type: Number },
+    Amortization: { type: Number },
+    "Total Loan to be Paid": { type: Number },
+
     // 🧾 Additional Loan Details
     LoanBalance: { type: Number },
     LoanCycle: { type: String },

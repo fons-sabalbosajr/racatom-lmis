@@ -9,6 +9,7 @@ import LoanCollection from "../models/LoanCollection.js"; // New import
 import LoanDocument from "../models/LoanDocument.js";
 import ExcelJS from "exceljs";
 import LoanClientApplication from "../models/LoanClientApplication.js";
+import { escapeRegex, sanitizeMongoFilter } from "../middleware/validateFinancial.js";
 // Helper: normalize a value that may be an array (from formidable)
 const lastVal = (v) => (Array.isArray(v) ? v[v.length - 1] : v);
 
@@ -340,6 +341,7 @@ export const getLoans = async (req, res) => {
       limit = 20,
       q = "",
       loanStatus,
+      loanType,
       paymentMode,
       year,
       needsUpdate = false,
@@ -365,6 +367,7 @@ export const getLoans = async (req, res) => {
       }
     }
     if (paymentMode) matchQuery.PaymentMode = paymentMode;
+    if (loanType) matchQuery.LoanType = loanType;
     if (year) matchQuery.AccountId = { $regex: `^RCT-${year}`, $options: "i" };
     if (needsUpdate === "true") {
       // Only match loan numbers that end with '-R' (no numeric suffix yet)
@@ -390,7 +393,7 @@ export const getLoans = async (req, res) => {
 
     // ✅ MODIFIED: Expanded search to include client's name from the joined collection.
     if (q) {
-      const regex = new RegExp(q, "i");
+      const regex = new RegExp(escapeRegex(q), "i");
       matchQuery.$or = [
         // Fields from LoanCycle collection
         { AccountId: regex },
@@ -758,11 +761,14 @@ export const applyAutomatedStatuses = async (req, res) => {
       ...(body.thresholds || {}),
     };
 
+    // Sanitize the filter to prevent MongoDB operator injection
+    const safeFilter = sanitizeMongoFilter(body.filter);
+
     // Aggregate minimal fields + last collection date and last running balance per loan
     const pipeline = [
       // Optional scope filter (e.g., { AccountId, ClientNo, LoanCycleNo })
-      ...(body.filter && Object.keys(body.filter).length > 0
-        ? [{ $match: body.filter }]
+      ...(safeFilter && Object.keys(safeFilter).length > 0
+        ? [{ $match: safeFilter }]
         : []),
       {
         $lookup: {
@@ -2346,7 +2352,6 @@ export const exportLoansExcel = async (req, res) => {
       success: false,
       message: "Failed to export loans",
       error: error.message,
-      stack: error.stack,
     });
   }
 };

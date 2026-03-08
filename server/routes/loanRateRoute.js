@@ -6,8 +6,12 @@ import {
   updateLoanRate,
   deleteLoanRate,
 } from "../controllers/loanRateController.js";
+import requireAuth from "../middleware/requireAuth.js";
 
 const router = express.Router();
+
+// Protect all loan rate routes
+router.use(requireAuth);
 
 // CRUD endpoints
 router.get("/", getLoanRates);           // GET /api/loan_rates

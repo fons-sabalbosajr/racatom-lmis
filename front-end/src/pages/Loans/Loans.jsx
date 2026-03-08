@@ -1,6 +1,7 @@
 // src/pages/Loans.jsx
 import React, { useEffect, useState } from "react";
-import { Card, Table, Typography, message, Pagination, Select, Alert } from "antd";
+import { Card, Table, Typography, message, Pagination, Select, Alert, Segmented, Row, Col, Tag, Button, Empty, Spin } from "antd";
+import { TableOutlined, AppstoreOutlined, EyeOutlined, DollarOutlined, UserOutlined, EnvironmentOutlined } from "@ant-design/icons";
 import api from "../../utils/axios";
 import { getCache, setCache } from "../../utils/simpleCache";
 import { lsGet, lsGetSession, lsSetSession } from "../../utils/storage";
@@ -15,8 +16,9 @@ import "./loan.css";
 import UpdateStatusSummaryModal from "./components/UpdateStatusSummaryModal";
 import { useRef } from "react";
 import { useDevSettings } from "../../context/DevSettingsContext";
+import { getLoanStatusColor } from "../../utils/statusColors";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function Loans() {
   const { settings } = useDevSettings();
@@ -28,6 +30,7 @@ export default function Loans() {
   const [data, setData] = useState([]); // Holds the loans for the current page
   const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0 });
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState("table"); // "table" | "card"
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   const [singleLoanToUpdate, setSingleLoanToUpdate] = useState(null);
 
@@ -650,9 +653,20 @@ export default function Loans() {
 
   return (
     <Card className="loan-card">
-      <Title level={3} style={{ marginTop: -10 }}>
-        Loan Account Management
-      </Title>
+      <div className="loan-header-row">
+        <Title level={3} style={{ marginTop: -10, flex: 1 }}>
+          Loan Account Management
+        </Title>
+        <Segmented
+          value={viewMode}
+          onChange={setViewMode}
+          options={[
+            { value: "table", icon: <TableOutlined />, label: "Table" },
+            { value: "card", icon: <AppstoreOutlined />, label: "Cards" },
+          ]}
+          className="loan-view-toggle"
+        />
+      </div>
       {settings.autoLoanStatus && isDeveloper && (
         <div style={{ marginBottom: 8 }}>
           <Alert
@@ -689,6 +703,7 @@ export default function Loans() {
         exportExcel={exportExcel}
       />
 
+      {viewMode === "table" ? (
       <Table
         rowKey={(r) => r._id}
         columns={columns}
@@ -741,6 +756,88 @@ export default function Loans() {
           </div>
         )}
       />
+      ) : (
+        /* ── Card View ──────────────────────────────────────────── */
+        <Spin spinning={loading}>
+          {data.length === 0 ? (
+            <Empty description="No loans found" style={{ padding: 48 }} />
+          ) : (
+            <>
+              <Row gutter={[16, 16]} className="loan-card-grid">
+                {data.map((record) => {
+                  const info = record.displayLoanInfo || record.loanInfo || {};
+                  const statusText = info.status || "N/A";
+                  const statusClr = getLoanStatusColor(statusText);
+                  const fullName = record.fullName || `${record.person?.firstName || ""} ${record.person?.lastName || ""}`.trim() || "—";
+                  const location = [record.address?.barangay, record.address?.city, record.address?.province].filter(Boolean).join(", ") || "—";
+                  const amount = Number(info.amount || 0);
+                  const balance = Number(info.balance || 0);
+                  return (
+                    <Col xs={24} sm={12} lg={8} xl={6} key={record._id}>
+                      <Card
+                        className="loan-card-item"
+                        hoverable
+                        onClick={() => viewLoan(record)}
+                        actions={[
+                          <Button type="link" icon={<EyeOutlined />} key="view" onClick={(e) => { e.stopPropagation(); viewLoan(record); }}>View</Button>,
+                        ]}
+                      >
+                        <div className="loan-card-item-header">
+                          <Tag color={statusClr} className="loan-card-status-tag">{statusText}</Tag>
+                          <Text type="secondary" className="loan-card-acct">{record.accountId || "—"}</Text>
+                        </div>
+                        <div className="loan-card-item-name">
+                          <UserOutlined style={{ marginRight: 6, color: "#1677ff" }} />
+                          <Text strong ellipsis>{fullName}</Text>
+                        </div>
+                        <div className="loan-card-item-location">
+                          <EnvironmentOutlined style={{ marginRight: 6, color: "#999" }} />
+                          <Text type="secondary" ellipsis style={{ fontSize: 12 }}>{location}</Text>
+                        </div>
+                        <div className="loan-card-item-financials">
+                          <div>
+                            <Text type="secondary" style={{ fontSize: 11 }}>Loan Amount</Text>
+                            <div className="loan-card-amount">₱{amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                          </div>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: 11 }}>Balance</Text>
+                            <div className="loan-card-balance" style={{ color: balance > 0 ? "#cf1322" : "#3f8600" }}>
+                              ₱{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        </div>
+                        {info.paymentMode && info.paymentMode !== "N/A" && (
+                          <Tag color="blue" style={{ marginTop: 8, fontSize: 11 }}>{info.paymentMode}</Tag>
+                        )}
+                      </Card>
+                    </Col>
+                  );
+                })}
+              </Row>
+              <div className="loan-card-footer">
+                <Text italic>Total Loan Accounts: {meta.total}</Text>
+                <Pagination
+                  current={meta.page}
+                  pageSize={meta.limit}
+                  total={meta.total}
+                  onChange={(page, pageSize) => handleTableChange({ current: page, pageSize }, {}, {})}
+                  showSizeChanger={false}
+                />
+                <Select
+                  value={meta.limit}
+                  onChange={(value) => handleTableChange({ current: 1, pageSize: value }, {}, {})}
+                  style={{ width: 120 }}
+                >
+                  <Select.Option value={10}>10 / page</Select.Option>
+                  <Select.Option value={20}>20 / page</Select.Option>
+                  <Select.Option value={50}>50 / page</Select.Option>
+                  <Select.Option value={100}>100 / page</Select.Option>
+                </Select>
+              </div>
+            </>
+          )}
+        </Spin>
+      )}
 
       <LoanDetailsModal
         visible={modalVisible}

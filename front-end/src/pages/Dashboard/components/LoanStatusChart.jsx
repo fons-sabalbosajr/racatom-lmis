@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./LoanStatusChart.css";
-import { Card, Popover, Button, Tag } from "antd";
+import { Card, Popover, Tag } from "antd";
 import {
   BarChart,
   Bar,

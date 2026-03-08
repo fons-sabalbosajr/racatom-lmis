@@ -1,45 +1,28 @@
 .accounting-center-container {
   display: flex;
   flex-direction: column;
+  padding: 16px;
+  background-color: #f5f6fa;
+  border-radius: 10px;
 }
 
-/* Accounting look-and-feel */
-.stat-card .ant-statistic-title {
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-.stat-card .ant-statistic-content {
-  font-variant-numeric: tabular-nums; /* monospaced digits for amounts */
+.accounting-center-container .ant-typography h2 {
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: -0.3px;
 }
 
-/* Table: numeric alignment and compact look */
-.accounting-center-container .ant-table {
-  border-radius: 8px;
-}
-.accounting-center-container .ant-table-thead > tr > th {
-  background: #fafafa !important;
-  text-transform: uppercase;
-  font-size: 12px;
-}
-.accounting-center-container .ant-table-tbody > tr > td:nth-child(6) {
-  text-align: right; /* Amount column */
-  font-variant-numeric: tabular-nums;
+/* Stat cards corporate look */
+.stat-card {
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Charts spacing */
-.accounting-center-container .ant-card + .ant-card {
-  margin-top: 12px;
-}
-
-.full-page-spin {
-  width: 100%;
-  margin: 48px 0;
-}
-.accounting-center-container {
-  padding: 10px;
-  background-color: #f0f2f5;
-  border-radius: 8px;
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card .ant-card-body {
@@ -47,27 +30,120 @@
 }
 
 .stat-card .ant-statistic-title {
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.45);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.5);
 }
 
 .stat-card .ant-statistic-content {
-  font-size: 24px;
-  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
 }
 
 .stat-card .ant-statistic-content-prefix {
-    font-size: 20px;
-    margin-right: 4px;
+  font-size: 18px;
+  margin-right: 4px;
+}
+
+/* Table corporate look */
+.accounting-center-container .ant-table {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.accounting-center-container .ant-table-thead > tr > th {
+  background: #fafafa !important;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.accounting-center-container .ant-table-tbody > tr > td:nth-child(7) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* Charts corporate */
+.accounting-center-container .ant-card {
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.accounting-center-container .ant-card .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.accounting-center-container .ant-card + .ant-card {
+  margin-top: 12px;
+}
+
+/* Tabs styling */
+.accounting-center-container .ant-tabs-tab {
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .full-page-spin {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 60vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+  width: 100%;
 }
 
-.ant-tabs-tab {
-    font-size: 16px;
+/* Responsive: Mobile */
+@media (max-width: 480px) {
+  .accounting-center-container {
+    padding: 8px;
+  }
+  .stat-card .ant-card-body {
+    padding: 12px;
+  }
+  .stat-card .ant-statistic-content {
+    font-size: 18px;
+  }
+  .stat-card .ant-statistic-content-prefix {
+    font-size: 14px;
+  }
+  .accounting-center-container .ant-tabs-tab {
+    font-size: 13px;
+  }
+}
+
+/* Responsive: Tablet */
+@media (min-width: 481px) and (max-width: 1080px) {
+  .accounting-center-container {
+    padding: 12px;
+  }
+  .stat-card .ant-card-body {
+    padding: 14px;
+  }
+  .stat-card .ant-statistic-title {
+    font-size: 11px;
+  }
+  .stat-card .ant-statistic-content {
+    font-size: 18px;
+  }
+  .stat-card .ant-statistic-content-prefix {
+    font-size: 15px;
+  }
+}
+
+/* Responsive: Wide desktop */
+@media (min-width: 1441px) {
+  .accounting-center-container {
+    padding: 24px;
+  }
+  .stat-card .ant-statistic-content {
+    font-size: 26px;
+  }
 }

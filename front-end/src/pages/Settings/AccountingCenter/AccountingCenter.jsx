@@ -174,6 +174,36 @@ const CollectionBreakdownChart = React.memo(({ data }) => {
 });
 
 const RecentTransactions = React.memo(({ transactions, loading, onOpen }) => {
+  // Auto-generate remarks based on transaction data
+  const generateRemarks = (record) => {
+    const parts = [];
+    if (record.CollectionPayment > 0) {
+      parts.push(`Payment of ₱${Number(record.CollectionPayment).toLocaleString("en-US", { minimumFractionDigits: 2 })} received`);
+    }
+    if (record.AccountId) {
+      parts.push(`for Account ${record.AccountId}`);
+    }
+    if (record.PaymentMode) {
+      parts.push(`via ${record.PaymentMode}`);
+    }
+    if (record.CollectorName) {
+      parts.push(`collected by ${record.CollectorName}`);
+    }
+    if (record.PrincipalPaid > 0 || record.CollectedInterest > 0) {
+      const breakdown = [];
+      if (record.PrincipalPaid > 0) breakdown.push(`Principal: ₱${Number(record.PrincipalPaid).toLocaleString("en-US", { minimumFractionDigits: 2 })}`);
+      if (record.CollectedInterest > 0) breakdown.push(`Interest: ₱${Number(record.CollectedInterest).toLocaleString("en-US", { minimumFractionDigits: 2 })}`);
+      if (record.Penalty > 0) breakdown.push(`Penalty: ₱${Number(record.Penalty).toLocaleString("en-US", { minimumFractionDigits: 2 })}`);
+      parts.push(`(${breakdown.join(", ")})`);
+    }
+    if (record.CollectionReferenceNo) {
+      parts.push(`Ref: ${record.CollectionReferenceNo}`);
+    }
+    // Use custom remarks if set, otherwise auto-generate
+    if (record.Remarks) return record.Remarks;
+    return parts.length > 0 ? parts.join(" ") : "—";
+  };
+
   const columns = [
     {
       title: "Date",
@@ -183,18 +213,40 @@ const RecentTransactions = React.memo(({ transactions, loading, onOpen }) => {
       sorter: (a, b) =>
         dayjs(a.PaymentDate).unix() - dayjs(b.PaymentDate).unix(),
       defaultSortOrder: "descend",
+      width: 110,
     },
-    { title: "Account Id", dataIndex: "AccountId", key: "accountId" },
-    { title: "Client No", dataIndex: "ClientNo", key: "clientNo" },
-    { title: "Loan Cycle No", dataIndex: "LoanCycleNo", key: "loanCycleNo" },
-    { title: "Collector", dataIndex: "CollectorName", key: "collector" },
-    { title: "Payment Mode", dataIndex: "PaymentMode", key: "paymentMode" },
+    { title: "Account Id", dataIndex: "AccountId", key: "accountId", width: 110 },
+    { title: "Client No", dataIndex: "ClientNo", key: "clientNo", width: 100 },
+    { title: "Loan Cycle", dataIndex: "LoanCycleNo", key: "loanCycleNo", width: 100 },
+    { title: "Collector", dataIndex: "CollectorName", key: "collector", width: 120 },
+    { title: "Mode", dataIndex: "PaymentMode", key: "paymentMode", width: 100 },
     {
       title: "Amount",
       dataIndex: "CollectionPayment",
       key: "amount",
       render: (text) => formatCurrency(text),
       sorter: (a, b) => a.CollectionPayment - b.CollectionPayment,
+      width: 120,
+    },
+    {
+      title: "Remarks",
+      key: "remarks",
+      render: (_, rec) => (
+        <Tooltip title={generateRemarks(rec)}>
+          <span style={{
+            display: "inline-block",
+            maxWidth: 220,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontSize: 12,
+            color: rec.Remarks ? "#1890ff" : "#666",
+          }}>
+            {generateRemarks(rec)}
+          </span>
+        </Tooltip>
+      ),
+      width: 240,
     },
     {
       title: "Actions",
@@ -405,7 +457,10 @@ const AccountingCenter = () => {
         tip="Loading Accounting Center..."
         size="large"
         className="full-page-spin"
-      />
+        spinning
+      >
+        <div style={{ minHeight: 200 }} />
+      </Spin>
     );
   }
 
@@ -467,6 +522,7 @@ const AccountingCenter = () => {
               Bank: rec?.Bank || undefined,
               Branch: rec?.Branch || undefined,
               RunningBalance: Number(rec?.RunningBalance || 0),
+              Remarks: rec?.Remarks || "",
             });
             setDetailsOpen(true);
           }}
@@ -544,6 +600,7 @@ const AccountingCenter = () => {
               Bank: vals.Bank ?? selectedTx.Bank,
               Branch: vals.Branch ?? selectedTx.Branch,
               RunningBalance: Number((vals.RunningBalance ?? selectedTx.RunningBalance) || 0),
+              Remarks: vals.Remarks ?? selectedTx.Remarks ?? "",
             };
             const res = await api.put(`/loan-collections/${selectedTx._id}`, payload);
             if (res.data?.success) {
@@ -640,6 +697,14 @@ const AccountingCenter = () => {
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="Remarks" label="Remarks">
+            <Input.TextArea
+              rows={3}
+              placeholder="Add custom remarks for this transaction (optional — auto-generated if left empty)"
+              showCount
+              maxLength={500}
+            />
+          </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={detailsSaving}>
               {detailsSaving ? "Updating..." : "Update"}

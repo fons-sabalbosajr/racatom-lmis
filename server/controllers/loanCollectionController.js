@@ -1,4 +1,5 @@
 import LoanCollection from "../models/LoanCollection.js";
+import { escapeRegex } from "../middleware/validateFinancial.js";
 
 // Get all collections with optional filters/pagination
 export const getAllCollections = async (req, res) => {
@@ -25,28 +26,21 @@ export const getAllCollections = async (req, res) => {
     const summaryMode = String(summary).toLowerCase() === "1" || String(summary).toLowerCase() === "true";
     const query = {};
 
-    // Optional simple equality filters
-    const useRegex = (val) => typeof val === "string" && /[.*+?^${}()|[\]\\]/.test(val);
+    // Use escaped regex for case-insensitive search (prevent ReDoS)
     if (loanCycleNo) {
-      query.LoanCycleNo = useRegex(loanCycleNo)
-        ? { $regex: loanCycleNo, $options: "i" }
-        : loanCycleNo;
+      query.LoanCycleNo = { $regex: escapeRegex(loanCycleNo), $options: "i" };
     }
     if (accountId) {
-      query.AccountId = useRegex(accountId)
-        ? { $regex: accountId, $options: "i" }
-        : accountId;
+      query.AccountId = { $regex: escapeRegex(accountId), $options: "i" };
     }
     if (clientNo) {
-      query.ClientNo = useRegex(clientNo)
-        ? { $regex: clientNo, $options: "i" }
-        : clientNo;
+      query.ClientNo = { $regex: escapeRegex(clientNo), $options: "i" };
     }
     if (collectorName) {
-      query.CollectorName = { $regex: collectorName, $options: "i" };
+      query.CollectorName = { $regex: escapeRegex(collectorName), $options: "i" };
     }
     if (paymentMode) {
-      query.PaymentMode = { $regex: paymentMode, $options: "i" };
+      query.PaymentMode = { $regex: escapeRegex(paymentMode), $options: "i" };
     }
 
     // Date filters: either specific day (paymentDate) or range (startDate/endDate)
@@ -441,9 +435,22 @@ export const bulkUpdateCollector = async (req, res) => {
         .json({ success: false, message: "No IDs provided" });
     }
 
+    // Whitelist: only allow collector-related fields in bulk update
+    const ALLOWED_BULK_FIELDS = new Set(["CollectorName", "PaymentMode", "CollectorCode"]);
+    const safeUpdates = {};
+    for (const [key, value] of Object.entries(updates || {})) {
+      if (ALLOWED_BULK_FIELDS.has(key)) {
+        safeUpdates[key] = value;
+      }
+    }
+
+    if (Object.keys(safeUpdates).length === 0) {
+      return res.status(400).json({ success: false, message: "No valid fields to update" });
+    }
+
     await LoanCollection.updateMany(
       { _id: { $in: ids } },
-      { $set: updates }
+      { $set: safeUpdates }
     );
 
     res.json({ success: true, message: "Collections updated successfully" });

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./LoanCollectorChart.css";
-import { Card, Popover, Button, Tag } from "antd";
+import { Card, Popover, Tag } from "antd";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 const COLORS = ["#FF8042", "#00C49F", "#0088FE", "#FFBB28", "#AF19FF", "#848484"];
@@ -26,8 +26,6 @@ const nameMap = {
   "RELLY": "Relly De Jesus Mercado Jr.",
   "SESE ALVIN": "Alvin Sese",
   "ALVIN": "Alvin Sese",
-  "Relly De Jesus Mercado Jr.": "RELLY",
-
 };
 
 // Function to get a canonical name for a collector
