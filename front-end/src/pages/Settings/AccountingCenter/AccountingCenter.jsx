@@ -49,7 +49,7 @@ import dayjs from "dayjs";
 import isBetween from "dayjs/plugin/isBetween";
 import api from "../../../utils/axios";
 import { swalMessage } from "../../../utils/swal";
-import "./accountingCenter.css";
+import "./accountingcenter.css";
 
 dayjs.extend(isBetween);
 

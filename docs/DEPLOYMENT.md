@@ -100,10 +100,10 @@ apt install -y certbot python3-certbot-nginx
 
 In Hostinger DNS zone for `racatom-lmis.cloud`:
 
-| Type  | Name | Value            | TTL  |
-|-------|------|------------------|------|
-| A     | @    | 72.61.125.232    | 3600 |
-| A     | www  | 72.61.125.232    | 3600 |
+| Type  | Name | Value              | TTL  |
+|-------|------|--------------------|------|
+| A     | @    | 72.61.125.232      | 3600 |
+| CNAME | www  | racatom-lmis.cloud | 300  |
 
 Wait for DNS propagation (check with `dig racatom-lmis.cloud`).
 

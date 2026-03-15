@@ -13,7 +13,7 @@ import {
 } from "antd";
 import api from "../../../../utils/axios";
 import dayjs from "dayjs";
-import "./pendingApplication.css";
+import "./pendingapplication.css";
 import LoanApplication from "../LoanApplication/LoanApplication";
 import { swalMessage, swalConfirm } from "../../../../utils/swal";
 
