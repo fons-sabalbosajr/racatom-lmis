@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import LoanCollectorDocument from "../models/LoanCollectorDocument.js";
 import LoanCollector from "../models/LoanCollector.js";
-import { uploadToDrive, moveToTrash } from "../utils/googleDrive.js";
+import { uploadToDrive, moveToTrash, resolveDriveFolder } from "../utils/googleDrive.js";
 
 const extractErrorMessage = (e) => {
   // googleapis style
@@ -23,12 +23,7 @@ const inferTypeFromName = (name = "") => {
 };
 
 const pickCollectorFolders = (mimeType, filename) => {
-  const isImage = /^image\//i.test(mimeType) || inferTypeFromName(filename) === "image";
-  const imgId = process.env.DRIVE_COLLECTORS_IMAGES_ID || process.env.DRIVE_FOLDER_IMAGES_ID || process.env.DRIVE_FOLDER_ID;
-  const docId = process.env.DRIVE_COLLECTORS_DOCS_ID || process.env.DRIVE_FOLDER_DOCS_ID || process.env.DRIVE_FOLDER_ID;
-  const folderId = isImage ? imgId : docId;
-  const parents = folderId ? [folderId] : undefined;
-  return parents;
+  return resolveDriveFolder("collector");
 };
 
 export async function listCollectorDocuments(req, res) {

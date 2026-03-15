@@ -141,6 +141,13 @@ a:hover {
   .ant-card-body { padding: 10px !important; }
   .ant-table-thead > tr > th { font-size: 11px !important; padding: 4px 6px !important; }
   .ant-table-tbody > tr > td { font-size: 11px !important; padding: 4px 6px !important; }
+  /* Allow horizontal scroll for tables on mobile */
+  .ant-table-wrapper { overflow-x: auto; }
+  .ant-modal { max-width: calc(100vw - 16px) !important; }
+  .ant-modal .ant-modal-content { padding: 12px !important; }
+  .ant-modal .ant-modal-header { padding: 10px 12px; }
+  .ant-modal .ant-modal-body { padding: 10px 12px; }
+  .ant-modal .ant-modal-footer { padding: 8px 12px; }
 }
 
 /* --- Small tablet / large phone (481–768px) --- */

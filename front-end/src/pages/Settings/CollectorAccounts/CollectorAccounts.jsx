@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   Select,
-  message,
   Pagination,
   Upload,
   Tabs,
@@ -19,6 +18,7 @@ import {
 } from "antd";
 import { UploadOutlined, LinkOutlined, DeleteOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
+import { swalMessage } from "../../../utils/swal";
 import "./collectoraccounts.css";
 
 const { Option } = Select;
@@ -56,10 +56,10 @@ const CollectorAccounts = () => {
     try {
       const res = await api.get(`/collectors/${collector._id}/documents`);
       if (res.data.success) setCollectorDocs(res.data.data || []);
-      else message.error(res.data.message || "Failed to load documents");
+      else swalMessage.error(res.data.message || "Failed to load documents");
     } catch (e) {
       console.error(e);
-      message.error("Failed to load documents");
+      swalMessage.error("Failed to load documents");
     } finally {
       setDocsLoading(false);
     }
@@ -81,7 +81,7 @@ const CollectorAccounts = () => {
       .map((fi) => fi?.originFileObj || fi?.file || fi?.file?.originFileObj)
       .filter(Boolean);
     if (!originFiles.length) {
-      return message.warning("Select file(s)");
+      return swalMessage.warning("Select file(s)");
     }
     try {
       setUploading(true);
@@ -101,15 +101,15 @@ const CollectorAccounts = () => {
         },
       });
       if (res.data.success) {
-        message.success("Uploaded");
+        swalMessage.success("Uploaded");
         fetchCollectorDocs(activeCollector);
         uploadForm.resetFields();
         setDocsActiveTab("files");
-      } else message.error(res.data.message || "Upload failed");
+      } else swalMessage.error(res.data.message || "Upload failed");
     } catch (e) {
       console.error(e);
       const msg = e?.response?.data?.message || e?.message || "Upload error";
-      message.error(msg);
+      swalMessage.error(msg);
     }
     finally {
       setUploading(false);
@@ -122,14 +122,14 @@ const CollectorAccounts = () => {
     try {
       const res = await api.post(`/collectors/${activeCollector._id}/documents/link`, vals);
       if (res.data.success) {
-        message.success("Link saved");
+        swalMessage.success("Link saved");
         fetchCollectorDocs(activeCollector);
         setDocsActiveTab("files");
-      } else message.error(res.data.message || "Failed to save link");
+      } else swalMessage.error(res.data.message || "Failed to save link");
     } catch (e) {
       console.error(e);
       const msg = e?.response?.data?.message || e?.message || "Save link error";
-      message.error(msg);
+      swalMessage.error(msg);
     }
   };
 
@@ -138,13 +138,13 @@ const CollectorAccounts = () => {
       setDeletingDocId(doc._id);
       const res = await api.delete(`/collectors/documents/${doc._id}`);
       if (res.data.success) {
-        message.success("Deleted");
+        swalMessage.success("Deleted");
         fetchCollectorDocs(activeCollector);
-      } else message.error(res.data.message || "Delete failed");
+      } else swalMessage.error(res.data.message || "Delete failed");
     } catch (e) {
       console.error(e);
       const msg = e?.response?.data?.message || e?.message || "Delete error";
-      message.error(msg);
+      swalMessage.error(msg);
     } finally {
       setDeletingDocId(null);
     }
@@ -181,7 +181,7 @@ const CollectorAccounts = () => {
       setCollectors(sortedCollectors);
     } catch (err) {
       console.error(err);
-      message.error("Failed to load collectors");
+      swalMessage.error("Failed to load collectors");
     }
     setLoading(false);
   };
@@ -334,7 +334,7 @@ const CollectorAccounts = () => {
 
       if (editingCollector) {
         await api.put(`/collectors/${editingCollector._id}`, values);
-        message.success("Collector updated");
+        swalMessage.success("Collector updated");
       } else {
         // Try creating with retry on duplicate GeneratedIDNumber (up to 5 attempts)
         const maxAttempts = 5;
@@ -347,7 +347,7 @@ const CollectorAccounts = () => {
           const payload = { ...values, GeneratedIDNumber: candidate };
           try {
             await api.post("/collectors", payload);
-            message.success("Collector added");
+            swalMessage.success("Collector added");
             lastErr = null;
             break;
           } catch (e) {
@@ -371,18 +371,18 @@ const CollectorAccounts = () => {
       fetchCollectors();
     } catch (err) {
       console.error(err);
-      message.error(err.response?.data?.message || "Failed to save collector");
+      swalMessage.error(err.response?.data?.message || "Failed to save collector");
     }
   };
 
   const handleDelete = async (id) => {
     try {
       await api.delete(`/collectors/${id}`);
-      message.success("Collector deleted");
+      swalMessage.success("Collector deleted");
       fetchCollectors();
     } catch (err) {
       console.error(err);
-      message.error("Failed to delete collector");
+      swalMessage.error("Failed to delete collector");
     }
   };
 

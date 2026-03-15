@@ -8,7 +8,6 @@ import {
   Modal,
   Form,
   Input,
-  message,
   Upload,
   Dropdown,
   Progress,
@@ -16,6 +15,7 @@ import {
 } from "antd";
 import { PlusOutlined, UploadOutlined, EyeOutlined, MoreOutlined, LoadingOutlined } from "@ant-design/icons";
 import api, { API_BASE_URL } from "../../../utils/axios";
+import { swalMessage, swalConfirm } from "../../../utils/swal";
 
 const { Text } = Typography;
 
@@ -108,11 +108,11 @@ export default function LoanDocumentsTab({
       if (res.data.success) {
         setDocs(res.data.data || []);
       } else {
-        message.warning(res.data.message || "Could not load documents");
+        swalMessage.warning(res.data.message || "Could not load documents");
       }
     } catch (err) {
       console.error(err);
-      message.error("Error fetching documents");
+      swalMessage.error("Error fetching documents");
     } finally {
       setLoading(false);
     }
@@ -132,7 +132,7 @@ export default function LoanDocumentsTab({
     try {
       const values = await form.validateFields();
       if (!accountId || !effectiveLoanCycleNo)
-        return message.warning("Missing account or cycle");
+        return swalMessage.warning("Missing account or cycle");
       const payload = {
         name: values.name,
         link: values.link,
@@ -142,14 +142,14 @@ export default function LoanDocumentsTab({
       };
       const res = await api.post(`/loans/account/${accountId}/documents/link`, payload);
       if (res.data.success) {
-        message.success("Link saved");
+        swalMessage.success("Link saved");
         setShowAdd(false);
         fetchDocs();
         try {
           onDocumentsChanged && onDocumentsChanged();
         } catch {}
       } else {
-        message.error(res.data.message || "Failed to save");
+        swalMessage.error(res.data.message || "Failed to save");
       }
     } catch (err) {
       // ignore validation
@@ -164,23 +164,23 @@ export default function LoanDocumentsTab({
   };
 
   const handleDelete = async (record) => {
-    Modal.confirm({
+    swalConfirm({
       title: `Delete ${record.name}?`,
-      okType: "danger",
+      confirmButtonColor: "#ff4d4f",
       onOk: async () => {
         try {
           const res = await api.delete(`/loans/documents/${record._id}`);
           if (res.data.success) {
-            message.success("Deleted");
+            swalMessage.success("Deleted");
             fetchDocs();
             try {
               onDocumentsChanged && onDocumentsChanged();
             } catch {}
           } else {
-            message.error(res.data.message || "Delete failed");
+            swalMessage.error(res.data.message || "Delete failed");
           }
         } catch (e) {
-          message.error("Delete error");
+          swalMessage.error("Delete error");
         }
       },
     });
@@ -235,7 +235,7 @@ export default function LoanDocumentsTab({
             onClick: () => {
               const url = resolveUrl(record.link || record.url);
               if (url) window.open(url, "_blank", "noopener");
-              else message.info("No URL available");
+              else swalMessage.info("No URL available");
             },
           },
           {
@@ -243,10 +243,10 @@ export default function LoanDocumentsTab({
             label: "Copy Link",
             onClick: async () => {
               const url = resolveUrl(record.link || record.url);
-              if (!url) return message.info("No URL available");
+              if (!url) return swalMessage.info("No URL available");
               const ok = await copyToClipboard(url);
-              if (ok) message.success("Link copied");
-              else message.error("Copy failed. You can copy manually from the Open link.");
+              if (ok) swalMessage.success("Link copied");
+              else swalMessage.error("Copy failed. You can copy manually from the Open link.");
             },
           },
           null,
@@ -292,7 +292,7 @@ export default function LoanDocumentsTab({
           icon={<PlusOutlined />}
           onClick={() => {
             if (!accountId) {
-              message.warning("No AccountId detected yet – select a loan first.");
+              swalMessage.warning("No AccountId detected yet – select a loan first.");
               return;
             }
             handleAdd();
@@ -305,7 +305,7 @@ export default function LoanDocumentsTab({
           loading={uploading}
           onClick={() => {
             if (!accountId) {
-              message.warning("No account selected yet – open a loan first.");
+              swalMessage.warning("No account selected yet – open a loan first.");
               return;
             }
             uploadForm.resetFields();
@@ -394,11 +394,11 @@ export default function LoanDocumentsTab({
               .map((fi) => fi?.originFileObj || fi?.file || fi?.file?.originFileObj)
               .filter(Boolean);
             if (!originFiles.length) {
-              return message.warning("Please choose at least one file");
+              return swalMessage.warning("Please choose at least one file");
             }
             const chosenLoanNo = vals.loanNo || effectiveLoanCycleNo;
             if (!chosenLoanNo) {
-              return message.warning("Please choose a Loan No to attach these files to");
+              return swalMessage.warning("Please choose a Loan No to attach these files to");
             }
             try {
               setUploading(true);
@@ -419,7 +419,7 @@ export default function LoanDocumentsTab({
                 },
               });
               if (res.data.success) {
-                message.success("Upload complete");
+                swalMessage.success("Upload complete");
                 setShowUpload(false);
                 setUploadProgress(0);
                 fetchDocs();
@@ -427,11 +427,11 @@ export default function LoanDocumentsTab({
                   onDocumentsChanged && onDocumentsChanged();
                 } catch {}
               } else {
-                message.error(res.data.message || "Upload failed");
+                swalMessage.error(res.data.message || "Upload failed");
               }
             } catch (err) {
               console.error(err);
-              message.error("Upload error");
+              swalMessage.error("Upload error");
             } finally {
               setUploading(false);
             }

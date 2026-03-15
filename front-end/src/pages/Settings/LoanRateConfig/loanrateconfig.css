@@ -69,3 +69,59 @@
   height: 24px;
   line-height: 22px;
 }
+
+/* Tablet */
+@media (max-width: 1080px) {
+  .loanrateconfig-container {
+    padding: 4px;
+  }
+  .loanrateconfig-table .ant-table-thead > tr > th {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  .loanrateconfig-table .ant-table-tbody > tr > td {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+  .loanrateconfig-form-grid {
+    gap: 10px 16px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .loanrateconfig-container {
+    padding: 2px;
+  }
+  .loanrateconfig-add-btn {
+    float: none;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  .loanrateconfig-form-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .loanrateconfig-table {
+    overflow-x: auto;
+  }
+  .loanrateconfig-table .ant-table {
+    min-width: 500px;
+  }
+  .loanrateconfig-table .ant-table-thead > tr > th {
+    font-size: 11px;
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .loanrateconfig-table .ant-table-tbody > tr > td {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+  .loanrateconfig-filterbar {
+    flex-direction: column;
+  }
+  .loanrateconfig-filterbar .ant-select,
+  .loanrateconfig-filterbar .ant-input-search {
+    width: 100% !important;
+  }
+}

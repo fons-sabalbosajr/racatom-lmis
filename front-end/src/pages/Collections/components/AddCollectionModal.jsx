@@ -7,7 +7,6 @@ import {
   DatePicker,
   Select,
   Button,
-  message,
   Row,
   Col,
   Card,
@@ -28,6 +27,7 @@ import {
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
 import AdvancePaymentModal from "./AdvancePaymentModal";
+import { swalMessage } from "../../../utils/swal";
 
 const { Option } = Select;
 const { Panel } = Collapse;
@@ -37,7 +37,6 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
   const [loading, setLoading] = useState(false);
   const [collectors, setCollectors] = useState([]);
   const [paymentVia, setPaymentVia] = useState("Cash");
-  //console.log("LOAN OBJECT:", JSON.stringify(loan, null, 2));
   const [collectionRefNo, setCollectionRefNo] = useState("");
   const [onlinePlatform, setOnlinePlatform] = useState("");
   const [bankName, setBankName] = useState("");
@@ -202,12 +201,12 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
           if (res.data.success) {
             setCollectors(res.data.data);
           } else {
-            message.error("Failed to fetch collector names.");
+            swalMessage.error("Failed to fetch collector names.");
           }
         })
         .catch((err) => {
           console.error("Error fetching collector names:", err);
-          message.error("Error fetching collector names.");
+          swalMessage.error("Error fetching collector names.");
         });
     }
   }, [visible, loan, form]);
@@ -264,7 +263,7 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
         !payload.CollectionReferenceNo ||
         String(payload.CollectionReferenceNo).trim().length === 0
       ) {
-        message.error(
+        swalMessage.error(
           "Reference No. is required. Click the edit icon near Ref No to set a value."
         );
         setLoading(false);
@@ -273,17 +272,17 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
 
       const res = await api.post("/loan-collections", payload);
       if (res.data.success) {
-        message.success("Collection added successfully!");
+        swalMessage.success("Collection added successfully!");
         onSuccess();
         onCancel();
       } else {
-        message.error(res.data.message || "Failed to add collection.");
+        swalMessage.error(res.data.message || "Failed to add collection.");
       }
     } catch (error) {
       const errorMessage =
         error.response?.data?.message || "An unexpected error occurred.";
       console.error("Error adding collection:", errorMessage);
-      message.error(errorMessage);
+      swalMessage.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -294,7 +293,7 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
       if (!collectionRefNo) return;
       if (navigator?.clipboard?.writeText)
         await navigator.clipboard.writeText(collectionRefNo);
-      message.success("Reference No. copied");
+      swalMessage.success("Reference No. copied");
     } catch {}
   };
 
@@ -681,7 +680,7 @@ const AddCollectionModal = ({ visible, onCancel, onSuccess, loan }) => {
             DateProcessed: startDate,
             Remarks: remarks,
           });
-          message.success(
+          swalMessage.success(
             `Advance payment applied: ₱${amount.toLocaleString()}`
           );
         }}

@@ -19,9 +19,19 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   verificationToken: String,
 
+  // Account approval workflow
+  accountStatus: { type: String, enum: ["pending", "approved", "active", "resigned"], default: "pending" },
+  resignedAt: { type: Date },
+  mustChangePassword: { type: Boolean, default: false },
+  verificationCode: String,
+  verificationCodeExpires: Date,
+
   // Needed for password reset
   resetPasswordToken: String,
   resetPasswordExpires: Date,
+  // Forgot-password rate limiting (3 attempts → 1hr lockout)
+  resetAttempts: { type: Number, default: 0 },
+  resetLockedUntil: { type: Date },
   // Access control for non-developers
   permissions: {
     type: Object,

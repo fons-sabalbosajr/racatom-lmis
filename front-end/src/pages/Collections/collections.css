@@ -105,3 +105,35 @@
     font-size: 12px;
   }
 }
+
+/* Mobile */
+@media (max-width: 480px) {
+  .collections-filters {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .collections-filters .ant-input-search,
+  .collections-filters .ant-select,
+  .collections-filters .ant-picker-range,
+  .collections-filters .ant-btn {
+    width: 100% !important;
+  }
+  .collections-summary .summary-label {
+    min-width: 100px;
+    font-size: 11px;
+  }
+  .collections-summary .summary-value {
+    font-size: 11px;
+  }
+  .compact-modal .ant-modal-content {
+    padding: 8px 8px 6px 8px;
+  }
+  .compact-modal .ant-form-item-label > label {
+    font-size: 11px;
+  }
+  .compact-modal .ant-input,
+  .compact-modal .ant-input-number-input,
+  .compact-modal .ant-select-selector {
+    font-size: 11px;
+  }
+}

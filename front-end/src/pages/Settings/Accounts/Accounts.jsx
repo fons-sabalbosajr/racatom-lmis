@@ -6,7 +6,6 @@ import {
   Avatar,
   Badge,
   Spin,
-  message,
   Modal,
   Form,
   Input,
@@ -18,8 +17,9 @@ import {
   Table,
   Popconfirm,
 } from "antd";
-import { UserOutlined, UploadOutlined, DeleteOutlined } from "@ant-design/icons";
+import { UserOutlined, UploadOutlined, DeleteOutlined, StopOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
+import { swalMessage, swalConfirm } from "../../../utils/swal";
 import { lsGet, lsGetSession, lsSet, lsSetSession } from "../../../utils/storage";
 import "./accounts.css";
 import { useDevSettings } from "../../../context/DevSettingsContext";
@@ -133,7 +133,7 @@ const Accounts = () => {
 
       // Restrict non-developers from editing others
       if (!isDev && editingUser?.Username !== currentUser?.Username) {
-        message.error("You are not allowed to edit this account.");
+        swalMessage.error("You are not allowed to edit this account.");
         return;
       }
 
@@ -152,24 +152,44 @@ const Accounts = () => {
         setCurrentUser(updatedUser);
       }
 
-      message.success("User updated successfully");
+      swalMessage.success("User updated successfully");
       setModalVisible(false);
       fetchUsers();
     } catch (err) {
       console.error(err);
-      message.error("Failed to update user");
+      swalMessage.error("Failed to update user");
     }
   };
 
   const handleDelete = async (userId) => {
     try {
       await api.delete(`/users/${userId}`);
-      message.success("User deleted successfully");
+      swalMessage.success("User deleted successfully");
       fetchUsers();
     } catch (err) {
       console.error(err);
-      message.error("Failed to delete user");
+      swalMessage.error("Failed to delete user");
     }
+  };
+
+  const handleMarkResigned = (userId, fullName) => {
+    swalConfirm({
+      title: "Mark as Resigned?",
+      text: `Are you sure you want to mark ${fullName} as resigned? Their account will be scheduled for deletion in 30 days.`,
+      icon: "warning",
+      confirmButtonText: "Yes, mark resigned",
+      confirmButtonColor: "#ff4d4f",
+      onOk: async () => {
+        try {
+          await api.post(`/users/${userId}/mark-resigned`);
+          swalMessage.success(`${fullName} has been marked as resigned.`);
+          fetchUsers();
+        } catch (err) {
+          console.error(err);
+          swalMessage.error(err.response?.data?.message || "Failed to mark as resigned");
+        }
+      },
+    });
   };
 
   const toBase64 = (file) =>
@@ -180,8 +200,11 @@ const Accounts = () => {
       reader.onerror = (error) => reject(error);
     });
 
+  // Filter out resigned users from active list
+  const activeUsers = users.filter((u) => u.accountStatus !== "resigned");
+
   // Group users by Position
-  const groupedByPosition = users.reduce((acc, user) => {
+  const groupedByPosition = activeUsers.reduce((acc, user) => {
     const pos = user.Position || "Uncategorized";
     if (!acc[pos]) acc[pos] = [];
     acc[pos].push(user);
@@ -280,6 +303,17 @@ const Accounts = () => {
               </Button>
             </Popconfirm>
           )}
+
+          {isDev && (
+            <Button
+              type="link"
+              icon={<StopOutlined />}
+              style={{ color: "#faad14" }}
+              onClick={() => handleMarkResigned(record._id, record.FullName)}
+            >
+              Mark Resigned
+            </Button>
+          )}
         </>
       ),
     },
@@ -357,6 +391,16 @@ const Accounts = () => {
                                 </Button>
                               </Popconfirm>
                             ),
+                            isDev && (
+                              <Button
+                                size="small"
+                                icon={<StopOutlined />}
+                                style={{ color: "#faad14", fontSize: "14px" }}
+                                onClick={() => handleMarkResigned(user._id, user.FullName)}
+                              >
+                                Resign
+                              </Button>
+                            ),
                           ]}
                         >
                           <Card.Meta
@@ -417,7 +461,7 @@ const Accounts = () => {
       ) : (
         <Table
           columns={columns}
-          dataSource={users}
+          dataSource={activeUsers}
           rowKey="_id"
           pagination={{ pageSize: 6 }}
         />

@@ -1,0 +1,68 @@
+.resigned-container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.resigned-title {
+  margin-bottom: 20px;
+}
+
+.resigned-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+
+.resigned-empty {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 16px;
+}
+
+/* Tablet */
+@media (max-width: 1080px) {
+  .resigned-container {
+    padding: 12px;
+  }
+  .resigned-container .ant-table-thead > tr > th {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  .resigned-container .ant-table-tbody > tr > td {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .resigned-container {
+    padding: 6px;
+  }
+  .resigned-title {
+    font-size: 16px !important;
+    margin-bottom: 12px;
+  }
+  .resigned-empty {
+    padding: 20px;
+    font-size: 14px;
+  }
+  .resigned-container .ant-table {
+    overflow-x: auto;
+  }
+  .resigned-container .ant-table table {
+    min-width: 500px;
+  }
+  .resigned-container .ant-table-thead > tr > th {
+    font-size: 11px;
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .resigned-container .ant-table-tbody > tr > td {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+}

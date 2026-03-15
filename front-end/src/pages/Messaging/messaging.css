@@ -1,0 +1,256 @@
+/* Messaging page styles */
+.messaging-layout {
+  display: flex;
+  height: calc(100vh - 120px);
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #f0f0f0;
+}
+
+.messaging-sidebar {
+  width: 220px;
+  min-width: 220px;
+  border-right: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+}
+
+.messaging-sidebar-menu {
+  flex: 1;
+  padding: 8px 0;
+}
+
+.messaging-sidebar .ant-menu {
+  background: transparent;
+  border-right: none;
+}
+
+.messaging-sidebar .ant-menu-item {
+  margin: 2px 8px;
+  border-radius: 6px;
+}
+
+.messaging-compose-btn {
+  margin: 12px;
+}
+
+.messaging-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.messaging-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.messaging-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.messaging-list .ant-list-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.messaging-list .ant-list-item:hover {
+  background: #f0f7ff;
+}
+
+.messaging-list .ant-list-item.unread {
+  background: #f6ffed;
+  font-weight: 600;
+}
+
+.messaging-list .ant-list-item.unread:hover {
+  background: #e8f5e0;
+}
+
+.message-item-subject {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.message-item-body-preview {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.message-item-date {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+}
+
+.message-item-routing-badge {
+  margin-left: 6px;
+}
+
+/* Message detail view */
+.message-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.message-detail-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.message-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.message-detail-body p {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-detail-attachments {
+  padding: 12px 20px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.message-detail-actions {
+  padding: 12px 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  gap: 8px;
+}
+
+/* Compose modal */
+.compose-recipients-select {
+  width: 100%;
+}
+
+/* Messaging settings */
+.messaging-settings-card {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Empty state */
+.messaging-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #bbb;
+  gap: 12px;
+}
+
+.messaging-empty .anticon {
+  font-size: 48px;
+}
+
+/* Deleted countdown badge */
+.deleted-countdown {
+  font-size: 11px;
+  color: #ff4d4f;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .messaging-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 120px);
+  }
+  .messaging-sidebar {
+    width: 100%;
+    min-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .messaging-sidebar-menu {
+    max-height: 140px;
+    overflow-y: auto;
+  }
+  .message-item-subject,
+  .message-item-body-preview {
+    max-width: 200px;
+  }
+  .messaging-toolbar {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .message-detail-header {
+    padding: 12px 14px;
+  }
+  .message-detail-body {
+    padding: 14px;
+  }
+  .message-detail-actions {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+}
+
+/* Mobile small */
+@media (max-width: 480px) {
+  .messaging-layout {
+    border-radius: 4px;
+  }
+  .messaging-compose-btn {
+    margin: 8px;
+  }
+  .messaging-list .ant-list-item {
+    padding: 8px 10px;
+  }
+  .message-item-subject {
+    font-size: 13px;
+    max-width: 180px;
+  }
+  .message-item-body-preview {
+    font-size: 11px;
+    max-width: 180px;
+  }
+  .message-detail-header {
+    padding: 10px 12px;
+  }
+  .message-detail-body {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Tablet */
+@media (min-width: 481px) and (max-width: 1080px) {
+  .messaging-sidebar {
+    width: 180px;
+    min-width: 180px;
+  }
+  .message-item-subject,
+  .message-item-body-preview {
+    max-width: 280px;
+  }
+  .messaging-list .ant-list-item {
+    padding: 10px 12px;
+  }
+}

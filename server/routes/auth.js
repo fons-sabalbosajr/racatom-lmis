@@ -9,6 +9,8 @@ import runtimeFlags from "../utils/runtimeFlags.js";
 import {
   sendVerificationEmail,
   sendResetPasswordEmail,
+  sendVerificationCode,
+  sendCredentialChangeNotification,
 } from "../utils/email.js";
 
 const router = express.Router();
@@ -30,7 +32,7 @@ const RESTRICTED_DESIGNATIONS = ["Administrator", "Developer"];
 
 // Helpers to sign tokens
 function signAccessToken(userId) {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "15m" });
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "8h" });
 }
 function signRefreshToken(userId) {
   const secret = process.env.REFRESH_SECRET || process.env.JWT_SECRET;
@@ -49,15 +51,14 @@ function setRefreshCookie(res, token) {
   } catch {}
 }
 
-// ---------- Register ----------
+// ---------- Register (request-only, no username/password) ----------
 router.post("/register", async (req, res) => {
   try {
-    const { FullName, Email, Username, Password, Designation, Position } =
-      req.body;
+    const { FullName, Email, Designation } = req.body;
 
     // Validate required fields
-    if (!FullName || !Email || !Username || !Password || !Designation) {
-      return res.status(400).json({ success: false, message: "All required fields must be provided." });
+    if (!FullName || !Email || !Designation) {
+      return res.status(400).json({ success: false, message: "Full name, email, and designation are required." });
     }
 
     // Block privilege escalation: prevent self-registration as Administrator/Developer
@@ -68,21 +69,12 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Validate password complexity
-    const pwError = validatePasswordComplexity(Password);
-    if (pwError) {
-      return res.status(400).json({ success: false, message: pwError });
-    }
-
-    const existingUser = await User.findOne({ $or: [{ Username }, { Email }] });
+    const existingUser = await User.findOne({ Email });
     if (existingUser) {
       return res
         .status(400)
-        .json({ success: false, message: "An account with these credentials already exists." });
+        .json({ success: false, message: "An account request with this email already exists." });
     }
-
-    const hashedPassword = await bcrypt.hash(Password, 10);
-    const verificationToken = crypto.randomBytes(32).toString("hex");
 
     // --- designation code mapping ---
     const designationCodes = {
@@ -112,20 +104,16 @@ router.post("/register", async (req, res) => {
       SystemID: systemID,
       FullName,
       Email,
-      Username,
-      Password: hashedPassword,
       Designation,
-      Position,
       isVerified: false,
-      verificationToken,
+      accountStatus: "pending",
     });
 
     await newUser.save();
-    await sendVerificationEmail(Email, newUser);
 
     res.status(201).json({
       success: true,
-      message: "Registration successful. Please verify your email.",
+      message: "Account request submitted. A developer will review and set up your credentials.",
       data: { SystemID: systemID },
     });
   } catch (err) {
@@ -165,23 +153,12 @@ router.get("/verify-token/:token", async (req, res) => {
     }
 
     // Check if already verified (but token cleared)
-    user = await User.findOne({
-      isVerified: true,
-      verificationToken: { $exists: false },
-    });
-
-    if (user) {
-      return res.status(200).json({
-        success: true,
-        code: "ALREADY_VERIFIED",
-      });
-    }
-
-    // Otherwise: invalid / expired
+    // Since the token was cleared after first verification, we can't match by token.
+    // Return a generic message so the user knows the link was already used.
     return res.status(400).json({
       success: false,
       code: "INVALID_OR_EXPIRED",
-      message: "Invalid or expired verification link.",
+      message: "This verification link is invalid or has already been used. If you already verified, please log in.",
     });
   } catch (err) {
     console.error("Verification error:", err.message);
@@ -210,11 +187,12 @@ router.post("/login", async (req, res) => {
   const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   try {
-    // Allow login by Username OR Email (case-insensitive)
+    // Allow login by Username, Email, or SystemID (case-insensitive)
     const query = {
       $or: [
         { Username: new RegExp(`^${escapeRegExp(loginId)}$`, "i") },
         { Email: new RegExp(`^${escapeRegExp(loginId)}$`, "i") },
+        { SystemID: new RegExp(`^${escapeRegExp(loginId)}$`, "i") },
       ],
     };
 
@@ -242,7 +220,13 @@ router.post("/login", async (req, res) => {
         .status(401)
         .json({ success: false, message: "Invalid username or password." });
 
-    if (!user.isVerified)
+    // Check account status
+    if (user.accountStatus === "pending")
+      return res
+        .status(403)
+        .json({ success: false, message: "Your account is still pending approval." });
+
+    if (!user.isVerified && user.accountStatus !== "approved")
       return res
         .status(403)
         .json({ success: false, message: "Account not verified." });
@@ -265,13 +249,13 @@ router.post("/login", async (req, res) => {
       });
     } catch {}
 
-    const { Password: _, verificationToken, ...userData } = user.toObject();
+    const { Password: _, verificationToken, verificationCode, verificationCodeExpires, ...userData } = user.toObject();
 
-    // Return user data and token; token is also in HTTP-only cookie for backward compatibility
+    // Return user data and token; include mustChangePassword flag for first-time login redirect
     res.json({
       success: true,
       message: "Login successful.",
-      data: { user: userData, token },
+      data: { user: userData, token, mustChangePassword: !!user.mustChangePassword },
     });
   } catch (err) {
     console.error("Login error:", err.message);
@@ -351,6 +335,15 @@ router.post("/resend-verification", async (req, res) => {
   }
 });
 
+// Helper: mask email for display — e.g. "jo***@gmail.com"
+function maskEmail(email) {
+  if (!email) return "";
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  const visible = local.length <= 2 ? local[0] : local.slice(0, 2);
+  return `${visible}***@${domain}`;
+}
+
 router.post("/forgot-password", async (req, res) => {
   try {
     const { Email } = req.body;
@@ -364,27 +357,113 @@ router.post("/forgot-password", async (req, res) => {
     const user = await User.findOne({ Email });
     if (!user) {
       // Return generic success even if email not found (prevent enumeration)
-      return res.json({ success: true, message: "If an account exists with that email, a reset link has been sent." });
+      return res.json({ success: true, maskedEmail: maskEmail(Email), message: "If an account exists with that email, a verification code has been sent." });
     }
 
-    // Generate raw + hashed token
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(rawToken)
-      .digest("hex");
+    // Check 1-hour lockout
+    if (user.resetLockedUntil && new Date() < user.resetLockedUntil) {
+      const minsLeft = Math.ceil((user.resetLockedUntil - Date.now()) / 60000);
+      return res.status(429).json({ success: false, locked: true, message: `Too many attempts. Password reset is locked for ${minsLeft} more minute(s).` });
+    }
 
-    // Save hashed token in DB
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpires = Date.now() + 1000 * 60 * 60; // 1 hour expiry
+    // Generate 6-digit code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    user.verificationCode = code;
+    user.verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    // Reset attempt counter on new code request
+    user.resetAttempts = 0;
+    user.resetLockedUntil = undefined;
     await user.save();
 
-    // Send reset email with RAW token
-    await sendResetPasswordEmail(Email, rawToken);
+    await sendVerificationCode(user.Email, user, code);
 
-    return res.json({ success: true, message: "If an account exists with that email, a reset link has been sent." });
+    return res.json({ success: true, maskedEmail: maskEmail(user.Email), message: "If an account exists with that email, a verification code has been sent." });
   } catch (err) {
     console.error("Forgot password error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ---------- Verify Reset Code (unauthenticated) ----------
+router.post("/verify-reset-code", async (req, res) => {
+  try {
+    const { Email, code } = req.body;
+    if (!Email || !code) {
+      return res.status(400).json({ success: false, message: "Email and code are required" });
+    }
+
+    const user = await User.findOne({ Email });
+    if (!user || !user.verificationCode || !user.verificationCodeExpires) {
+      return res.status(400).json({ success: false, message: "Invalid or expired code." });
+    }
+
+    if (new Date() > user.verificationCodeExpires) {
+      user.verificationCode = undefined;
+      user.verificationCodeExpires = undefined;
+      await user.save();
+      return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
+    }
+
+    if (user.verificationCode !== String(code).trim()) {
+      // Increment failed attempts
+      user.resetAttempts = (user.resetAttempts || 0) + 1;
+      if (user.resetAttempts >= 3) {
+        user.resetLockedUntil = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        user.verificationCode = undefined;
+        user.verificationCodeExpires = undefined;
+        await user.save();
+        return res.status(429).json({ success: false, locked: true, message: "Too many failed attempts. Password reset is locked for 1 hour." });
+      }
+      await user.save();
+      return res.status(400).json({ success: false, attemptsLeft: 3 - user.resetAttempts, message: `Invalid verification code. ${3 - user.resetAttempts} attempt(s) remaining.` });
+    }
+
+    // Code is valid — generate a short-lived reset token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 1000 * 60 * 15; // 15 min
+    user.verificationCode = undefined;
+    user.verificationCodeExpires = undefined;
+    await user.save();
+
+    return res.json({ success: true, message: "Code verified.", resetToken: rawToken });
+  } catch (err) {
+    console.error("Verify reset code error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ---------- Resend Forgot-Password Code (unauthenticated) ----------
+router.post("/resend-forgot-code", async (req, res) => {
+  try {
+    const { Email } = req.body;
+    if (!Email) return res.status(400).json({ success: false, message: "Email is required" });
+
+    const user = await User.findOne({ Email });
+    if (!user) {
+      return res.json({ success: true, message: "If an account exists, a new code has been sent." });
+    }
+
+    // Check 1-hour lockout
+    if (user.resetLockedUntil && new Date() < user.resetLockedUntil) {
+      const minsLeft = Math.ceil((user.resetLockedUntil - Date.now()) / 60000);
+      return res.status(429).json({ success: false, locked: true, message: `Too many attempts. Password reset is locked for ${minsLeft} more minute(s).` });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    user.verificationCode = code;
+    user.verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+    // Reset attempt counter on new code
+    user.resetAttempts = 0;
+    user.resetLockedUntil = undefined;
+    await user.save();
+
+    await sendVerificationCode(user.Email, user, code);
+
+    return res.json({ success: true, message: "If an account exists, a new code has been sent." });
+  } catch (err) {
+    console.error("Resend forgot code error:", err.message);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 });
@@ -432,6 +511,9 @@ router.post("/reset-password/:token", async (req, res) => {
 
     await user.save();
 
+    // Send credential change notification
+    sendCredentialChangeNotification(user.Email, user, "password-reset").catch(() => {});
+
     return res.json({
       success: true,
       message: "Password reset successful. You may now log in.",
@@ -475,9 +557,123 @@ router.put("/change-password", requireAuth, async (req, res) => {
     const hashed = await bcrypt.hash(newPassword, 10);
     user.Password = hashed;
     await user.save();
+
+    // Send credential change notification
+    sendCredentialChangeNotification(user.Email, user, "password").catch(() => {});
+
     return res.json({ success: true, message: "Password updated successfully" });
   } catch (err) {
     console.error("Change password error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ---------- First-Time Password Change (authenticated, for mustChangePassword users) ----------
+router.put("/first-login-change-password", requireAuth, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: "New password is required" });
+    }
+
+    const pwError = validatePasswordComplexity(newPassword);
+    if (pwError) {
+      return res.status(400).json({ success: false, message: pwError });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (!user.mustChangePassword) {
+      return res.status(400).json({ success: false, message: "Password change is not required for this account." });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.Password = hashed;
+    user.mustChangePassword = false;
+    await user.save();
+
+    // Send credential change notification
+    sendCredentialChangeNotification(user.Email, user, "first-login-password").catch(() => {});
+
+    // Send verification code to email
+    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit code
+    user.verificationCode = code;
+    user.verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    await sendVerificationCode(user.Email, user, code);
+
+    return res.json({
+      success: true,
+      message: "Password changed. A verification code has been sent to your email.",
+    });
+  } catch (err) {
+    console.error("First-login change password error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ---------- Verify Code (authenticated) ----------
+router.post("/verify-code", requireAuth, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: "Verification code is required" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (!user.verificationCode || !user.verificationCodeExpires) {
+      return res.status(400).json({ success: false, message: "No verification code pending. Request a new one." });
+    }
+
+    if (new Date() > user.verificationCodeExpires) {
+      user.verificationCode = undefined;
+      user.verificationCodeExpires = undefined;
+      await user.save();
+      return res.status(400).json({ success: false, message: "Verification code has expired. Request a new one." });
+    }
+
+    if (user.verificationCode !== String(code).trim()) {
+      return res.status(400).json({ success: false, message: "Invalid verification code." });
+    }
+
+    // Mark as verified and active
+    user.isVerified = true;
+    user.accountStatus = "active";
+    user.verificationCode = undefined;
+    user.verificationCodeExpires = undefined;
+    await user.save();
+
+    return res.json({ success: true, message: "Account verified successfully. Welcome!" });
+  } catch (err) {
+    console.error("Verify code error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// ---------- Resend Verification Code (authenticated) ----------
+router.post("/resend-code", requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (user.isVerified && user.accountStatus === "active") {
+      return res.status(400).json({ success: false, message: "Account is already verified." });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    user.verificationCode = code;
+    user.verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendVerificationCode(user.Email, user, code);
+
+    return res.json({ success: true, message: "Verification code sent to your email." });
+  } catch (err) {
+    console.error("Resend code error:", err.message);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 });

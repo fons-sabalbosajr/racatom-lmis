@@ -9,3 +9,40 @@
 .db-settings .danger-zone .ant-card-head-title {
 	color: #c0392b;
 }
+
+/* Tablet */
+@media (max-width: 1080px) {
+  .db-settings {
+    padding: 6px;
+  }
+  .db-settings .ant-card-body {
+    padding: 12px !important;
+  }
+  .db-settings .ant-btn {
+    font-size: 12px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .db-settings {
+    padding: 4px;
+  }
+  .db-settings .ant-card-body {
+    padding: 10px !important;
+  }
+  .db-settings .ant-card-head-title {
+    font-size: 14px;
+  }
+  .db-settings .ant-btn {
+    font-size: 12px;
+    width: 100%;
+  }
+  .db-settings .ant-space {
+    flex-direction: column;
+    width: 100%;
+  }
+  .db-settings .ant-space-item {
+    width: 100%;
+  }
+}

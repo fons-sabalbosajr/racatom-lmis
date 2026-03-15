@@ -117,6 +117,21 @@
   .accounting-center-container .ant-tabs-tab {
     font-size: 13px;
   }
+  .accounting-center-container .ant-table-wrapper {
+    overflow-x: auto;
+  }
+  .accounting-center-container .ant-table {
+    min-width: 500px;
+  }
+  .accounting-center-container .ant-table-thead > tr > th {
+    font-size: 10px;
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .accounting-center-container .ant-table-tbody > tr > td {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
 }
 
 /* Responsive: Tablet */

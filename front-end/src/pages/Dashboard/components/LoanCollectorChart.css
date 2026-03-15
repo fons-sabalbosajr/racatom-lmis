@@ -244,9 +244,8 @@
   }
 }
 
-/* Align chart surface to take available space and pull legend upward slightly so
-   cards appear equal height across the dashboard. This nudges the legend closer
-   to the chart on desktop where there is extra vertical space. */
+/* Align chart surface to take available space so
+   cards appear equal height across the dashboard. */
 @media (min-width: 1081px) {
   .chart-card.chart-collector .recharts-wrapper,
   .chart-card.chart-collector .recharts-surface,
@@ -255,16 +254,8 @@
     flex: 1 1 auto;
   }
 
-  /* Reduce the extra bottom padding and move legend upward */
+  /* Keep legend compact at the bottom */
   .chart-collector-legend {
-    padding-bottom: 2px;
-    margin-top: -10px;
+    padding-bottom: 4px;
   }
-
-  /* Slight negative offset to visually raise the tags/values closer to the chart */
-  .chart-collector-legend .legend-items {
-    transform: translateY(-20px);
-  }
-
-  /* Remove custom deviation to keep equal height with others */
 }

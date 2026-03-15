@@ -40,8 +40,10 @@ export default async function requireAuth(req, res, next) {
     req.user = user; // full mongoose document (has Position, _id, Username, etc.)
     return next();
   } catch (err) {
-    console.error("requireAuth error:", err.message);
-    // Use 401 so clients treat it as an authentication failure and re-login
+    // TokenExpiredError is expected — the client will silently refresh via the HttpOnly cookie
+    if (err.name !== "TokenExpiredError") {
+      console.error("requireAuth error:", err.message);
+    }
     return res.status(401).json({ success: false, message: "Unauthorized: Invalid or expired token" });
   }
 }

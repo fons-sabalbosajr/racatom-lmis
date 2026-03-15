@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Form, Input, Button, Typography, message, Card, Divider, Spin, Tag, Badge, Collapse } from "antd";
+import { Form, Input, Button, Typography, Card, Divider, Spin, Tag, Badge, Collapse } from "antd";
 import {
   LockOutlined,
   UserOutlined,
@@ -9,9 +9,9 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import api, { setRuntimeToken } from "../../utils/axios";
+import { swalMessage } from "../../utils/swal";
 import { useDevSettings } from "../../context/DevSettingsContext";
 import { lsSet, lsSetSession } from "../../utils/storage";
-import axios from "axios";
 import dayjs from "dayjs";
 import "./login.css";
 
@@ -31,8 +31,7 @@ function Login() {
   useEffect(() => {
     const fetchPublic = async () => {
       try {
-        const base = import.meta.env.VITE_API_URL || "";
-        const { data } = await axios.get(`${base}/api/announcements/public`);
+        const { data } = await api.get(`/announcements/public`);
         if (data?.announcements) setAnnouncements(data.announcements);
       } catch {}
     };
@@ -45,17 +44,17 @@ function Login() {
     const verified = params.get("verified");
 
     if (verified === "success") {
-      message.success("Email verified successfully. You can now log in.");
+      swalMessage.success("Email verified successfully. You can now log in.");
     } else if (verified === "failed") {
-      message.error("Verification link is invalid or expired.");
+      swalMessage.error("Verification link is invalid or expired.");
     } else if (verified === "error") {
-      message.error("Something went wrong during verification.");
+      swalMessage.error("Something went wrong during verification.");
     }
 
     // Show idle-timeout message if redirected from auto-logout
     const reason = params.get("reason");
     if (reason === "idle") {
-      message.info("You were logged out due to inactivity.");
+      swalMessage.info("You were logged out due to inactivity.");
     }
   }, [location]);
 
@@ -64,12 +63,13 @@ function Login() {
 
     try {
       const res = await api.post(`/auth/login`, {
-  identifier: values.Username?.trim(),
+        identifier: values.Username?.trim(),
         Password: values.Password?.trim(),
       });
 
       const user = res.data?.data?.user;
       const token = res.data?.data?.token;
+      const mustChangePassword = res.data?.data?.mustChangePassword;
       if (!user) throw new Error("Invalid server response.");
 
       // Store user and token in sessionStorage via our storage utils by scoping to this window
@@ -81,15 +81,20 @@ function Login() {
           const { lsSetSession } = await import("../../utils/storage");
           lsSetSession("token", token);
         } catch {}
-  // Do not keep a plain sessionStorage token; rely on encrypted storage + runtime header
         // Also set axios runtime header immediately so follow-up calls carry the token
         try { setRuntimeToken(token, "session"); } catch {}
       }
-  // Store per tab/window to isolate multiple users on same machine/browser
-  lsSetSession("user", user);
+      // Store per tab/window to isolate multiple users on same machine/browser
+      lsSetSession("user", user);
       // mark user as online
       lsSet("onlineUser", user.Username);
-      //message.success(`Welcome, ${user.FullName || values.Username}`);
+
+      // First-time login: redirect to password change page
+      if (mustChangePassword) {
+        navigate("/first-login");
+        return;
+      }
+
       // Pull and apply theme immediately (no flash) before routing; show a small overlay while doing so
       try {
         setPostAuthLoading(true);
@@ -103,12 +108,14 @@ function Login() {
       const serverMsg = err?.response?.data?.message || "Login failed.";
 
       if (status === 403 && serverMsg.toLowerCase().includes("not verified")) {
-        message.warning("Account not verified. Check your email.");
+        swalMessage.warning("Account not verified. Check your email.");
         navigate("/verify-email", { state: { identifier: values.Username } });
+      } else if (status === 403 && serverMsg.toLowerCase().includes("pending")) {
+        swalMessage.info("Your account is still pending approval by a developer.");
       } else if (status === 401) {
-        message.error("Invalid username or password.");
+        swalMessage.error("Invalid username or password.");
       } else {
-        message.error(serverMsg);
+        swalMessage.error(serverMsg);
       }
     } finally {
       setLoading(false);
@@ -127,73 +134,7 @@ function Login() {
       )}
 
       <div className="login-main-wrapper">
-        <Card className="login-card">
-          <div className="login-logo-wrapper">
-            <img src={lmisLogo} alt="LMIS Logo" className="login-logo" />
-          </div>
-          <Title level={3} className="login-heading">
-            RCT Loan Management System
-          </Title>
-          <Text type="secondary" className="login-subheading">
-            Secure access to your account
-          </Text>
-
-          <Form name="login" layout="vertical" onFinish={onFinish} className="login-form">
-            <Form.Item
-              label="Username or Email"
-              name="Username"
-              rules={[{ required: true, message: "Please enter your username" }]}
-            >
-              <Input
-                prefix={<UserOutlined />}
-                placeholder="Username or Email"
-                size="middle"
-              />
-            </Form.Item>
-
-            <Form.Item
-              label="Password"
-              name="Password"
-              rules={[{ required: true, message: "Please enter your password" }]}
-            >
-              <Input.Password
-                prefix={<LockOutlined />}
-                placeholder="Password"
-                size="middle"
-              />
-            </Form.Item>
-
-            <div className="login-forgot-row">
-              <Link to="/forgot-password">Forgot Password?</Link>
-            </div>
-
-            <Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
-                size="large"
-                loading={loading}
-                className="login-submit-btn"
-              >
-                {loading ? "Logging in..." : "Login"}
-              </Button>
-            </Form.Item>
-          </Form>
-
-          <Divider plain>or</Divider>
-
-          <div className="login-create-account">
-            <Text>Don't have an account? </Text>
-            <Link to="/create-account">Create one</Link>
-          </div>
-
-          <Text type="secondary" className="login-copyright">
-            © {new Date().getFullYear()} RCT Loan Management System
-          </Text>
-        </Card>
-
-      {/* Bulletin Dropdown — System Announcements */}
+      {/* Bulletin Dropdown — System Announcements (above login card) */}
       {announcements.length > 0 && (
         <div className="login-bulletin">
           <Collapse
@@ -281,6 +222,72 @@ function Login() {
           />
         </div>
       )}
+
+        <Card className="login-card">
+          <div className="login-logo-wrapper">
+            <img src={lmisLogo} alt="LMIS Logo" className="login-logo" />
+          </div>
+          <Title level={3} className="login-heading">
+            RCT Loan Management Information System
+          </Title>
+          <Text type="secondary" className="login-subheading">
+            Secure access to your account
+          </Text>
+
+          <Form name="login" layout="vertical" onFinish={onFinish} className="login-form">
+            <Form.Item
+              label="Username or Email"
+              name="Username"
+              rules={[{ required: true, message: "Please enter your username" }]}
+            >
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="Username or Email"
+                size="middle"
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Password"
+              name="Password"
+              rules={[{ required: true, message: "Please enter your password" }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="Password"
+                size="middle"
+              />
+            </Form.Item>
+
+            <div className="login-forgot-row">
+              <Link to="/forgot-password">Forgot Password?</Link>
+            </div>
+
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                size="large"
+                loading={loading}
+                className="login-submit-btn"
+              >
+                {loading ? "Logging in..." : "Login"}
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <Divider plain>or</Divider>
+
+          <div className="login-create-account">
+            <Text>Don't have an account? </Text>
+            <Link to="/create-account">Create one</Link>
+          </div>
+
+          <Text type="secondary" className="login-copyright">
+            © {new Date().getFullYear()} RCT Loan Management Information System
+          </Text>
+        </Card>
       </div>
     </div>
   );

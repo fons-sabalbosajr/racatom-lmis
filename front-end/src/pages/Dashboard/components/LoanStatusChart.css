@@ -8,6 +8,12 @@
   box-sizing: border-box;
 }
 
+/* Ensure consistent internal layout */
+.chart-card.chart-status .ant-card-body {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Ensure consistent card heights to match other dashboard charts */
 @media (min-width: 1081px) {
   .chart-card.chart-status {
@@ -51,6 +57,7 @@
 @media (max-width: 1080px) {
   .chart-card.chart-status .ant-card-body {
     padding: 8px 10px !important;
+    height: 295px !important; /* enforce equal card body height on tablets */
   }
 
   .chart-card.chart-status .ant-card-head {

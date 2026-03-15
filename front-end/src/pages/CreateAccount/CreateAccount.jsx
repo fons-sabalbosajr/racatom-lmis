@@ -1,39 +1,20 @@
 // src/pages/CreateAccount/CreateAccount.jsx
 import React, { useState } from "react";
-import { Form, Input, Button, Card, Typography, message, Select } from "antd";
+import { Form, Input, Button, Card, Typography, Select, Result } from "antd";
+import { UserOutlined, MailOutlined } from "@ant-design/icons";
 import api from "../../utils/axios";
 import { useNavigate, Link } from "react-router-dom";
 import "./createaccount.css";
 
 import lmisLogo from "../../assets/lmis.svg";
+import { swalMessage } from "../../utils/swal";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// Password complexity: min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special char
-const PASSWORD_RULES = [
-  { required: true, message: "Enter password" },
-  { min: 8, message: "Password must be at least 8 characters" },
-  {
-    pattern: /[A-Z]/,
-    message: "Must contain at least one uppercase letter",
-  },
-  {
-    pattern: /[a-z]/,
-    message: "Must contain at least one lowercase letter",
-  },
-  {
-    pattern: /\d/,
-    message: "Must contain at least one number",
-  },
-  {
-    pattern: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/,
-    message: "Must contain at least one special character",
-  },
-];
-
 function CreateAccount() {
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
 
   const onFinish = async (values) => {
@@ -41,25 +22,39 @@ function CreateAccount() {
     const payload = {
       FullName: values.FullName?.trim(),
       Email: values.Email?.trim(),
-      Username: values.Username?.trim(),
-      Password: values.Password?.trim(),
       Designation: values.Designation,
     };
 
     try {
       await api.post(`/auth/register`, payload);
-      message.success(
-        "Account created! Check your email to verify your account."
-      );
-      navigate("/login");
+      setSubmitted(true);
     } catch (err) {
       const serverMsg =
-        err.response?.data?.message || "Account creation failed. Try again.";
-      message.error(serverMsg);
+        err.response?.data?.message || "Registration request failed. Try again.";
+      swalMessage.error(serverMsg);
     } finally {
       setLoading(false);
     }
   };
+
+  if (submitted) {
+    return (
+      <div className="login-container">
+        <Card className="create-card">
+          <Result
+            status="success"
+            title="Request Submitted!"
+            subTitle="Your account request has been submitted for review. The developer will create your credentials and notify you via email once approved."
+            extra={[
+              <Button type="primary" key="login" onClick={() => navigate("/login")}>
+                Back to Login
+              </Button>,
+            ]}
+          />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">
@@ -72,13 +67,13 @@ function CreateAccount() {
           style={{ textAlign: "center", marginTop: 0 }}
           className="create-title"
         >
-          Create Account
+          Request Account
         </Title>
         <Text
           type="secondary"
           style={{ display: "block", textAlign: "center", marginBottom: 24 }}
         >
-          Register for a new account
+          Submit a request to create your account. A developer will review and set up your credentials.
         </Text>
 
         <Form layout="vertical" onFinish={onFinish}>
@@ -87,7 +82,7 @@ function CreateAccount() {
             name="FullName"
             rules={[{ required: true, message: "Enter full name" }]}
           >
-            <Input placeholder="Full Name" />
+            <Input prefix={<UserOutlined />} placeholder="Full Name" />
           </Form.Item>
 
           <Form.Item
@@ -98,48 +93,7 @@ function CreateAccount() {
               { type: "email", message: "Invalid email" },
             ]}
           >
-            <Input placeholder="Email Address" />
-          </Form.Item>
-
-          <Form.Item
-            label="Username"
-            name="Username"
-            rules={[
-              { required: true, message: "Enter username" },
-              { min: 3, message: "Username must be at least 3 characters" },
-              { pattern: /^[a-zA-Z0-9_.-]+$/, message: "Only letters, numbers, dots, hyphens, and underscores" },
-            ]}
-          >
-            <Input placeholder="Username" />
-          </Form.Item>
-
-          <Form.Item
-            label="Password"
-            name="Password"
-            rules={PASSWORD_RULES}
-            hasFeedback
-          >
-            <Input.Password placeholder="Password" className="input-password" />
-          </Form.Item>
-
-          <Form.Item
-            label="Confirm Password"
-            name="ConfirmPassword"
-            dependencies={["Password"]}
-            hasFeedback
-            rules={[
-              { required: true, message: "Please confirm your password" },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue("Password") === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error("Passwords do not match"));
-                },
-              }),
-            ]}
-          >
-            <Input.Password placeholder="Re-enter password" />
+            <Input prefix={<MailOutlined />} placeholder="Email Address" />
           </Form.Item>
 
           <Form.Item
@@ -156,7 +110,7 @@ function CreateAccount() {
 
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={loading}>
-              {loading ? "Creating..." : "Create Account"}
+              {loading ? "Submitting..." : "Submit Request"}
             </Button>
           </Form.Item>
         </Form>
@@ -170,7 +124,7 @@ function CreateAccount() {
           type="secondary"
           style={{ display: "block", textAlign: "center", marginTop: 16 }}
         >
-          © {new Date().getFullYear()} RCT Loan Management System
+          © {new Date().getFullYear()} RCT Loan Management Information System
         </Text>
       </Card>
     </div>

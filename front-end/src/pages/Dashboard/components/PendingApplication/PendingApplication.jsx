@@ -5,7 +5,6 @@ import {
   Tag,
   Space,
   Button,
-  message,
   Typography,
   Descriptions,
   Divider,
@@ -16,10 +15,9 @@ import api from "../../../../utils/axios";
 import dayjs from "dayjs";
 import "./pendingApplication.css";
 import LoanApplication from "../LoanApplication/LoanApplication";
+import { swalMessage, swalConfirm } from "../../../../utils/swal";
 
 const { Text, Title } = Typography;
-const { confirm } = Modal;
-
 const statusColors = {
   "FOR REVIEW": "gold",
   APPROVED: "green",
@@ -46,11 +44,11 @@ const PendingApplication = ({ visible, onClose, onCountChange }) => {
         setPendingApplications(res.data.data);
         if (onCountChange) onCountChange(res.data.data.length); // ✅ send count to Dashboard
       } else {
-        message.error("Failed to load pending applications");
+        swalMessage.error("Failed to load pending applications");
       }
     } catch (err) {
       console.error(err);
-      message.error("Error fetching pending applications");
+      swalMessage.error("Error fetching pending applications");
     } finally {
       setLoading(false);
     }
@@ -60,8 +58,7 @@ const PendingApplication = ({ visible, onClose, onCountChange }) => {
     const fetchLoanRates = async () => {
       try {
         const res = await api.get("/loan_rates");
-        const data = Array.isArray(res.data) ? res.data : res.data.data || []; // ✅ Extract correct array
-        //console.log("✅ loanRates fetched:", data);
+        const data = Array.isArray(res.data) ? res.data : res.data.data || [];
         setLoanRates(data);
       } catch (err) {
         console.error("Error fetching loan rates", err);
@@ -81,26 +78,15 @@ const PendingApplication = ({ visible, onClose, onCountChange }) => {
     if (action === "reject") {
       let reason = "";
 
-      confirm({
+      swalConfirm({
         title: "Reject Loan Application",
-        content: (
-          <div>
-            <p>Are you sure you want to reject this loan application?</p>
-            <Input.TextArea
-              placeholder="Please provide a reason for rejection..."
-              rows={3}
-              onChange={(e) => {
-                reason = e.target.value;
-              }}
-            />
-          </div>
-        ),
-        okText: "Reject",
-        okType: "danger",
-        cancelText: "Cancel",
+        text: "Are you sure you want to reject this loan application?",
+        confirmButtonText: "Reject",
+        confirmButtonColor: "#ff4d4f",
+        cancelButtonText: "Cancel",
         onOk: async () => {
           if (!reason.trim()) {
-            message.warning("Please provide a rejection reason.");
+            swalMessage.warning("Please provide a rejection reason.");
             return Promise.reject();
           }
           try {
@@ -109,35 +95,35 @@ const PendingApplication = ({ visible, onClose, onCountChange }) => {
               { reason }
             );
             if (res.data.success) {
-              message.success("Application rejected successfully");
+              swalMessage.success("Application rejected successfully");
               fetchPendingApplications();
               setSelected(null);
             }
           } catch (err) {
             console.error(err);
-            message.error("Failed to reject application");
+            swalMessage.error("Failed to reject application");
           }
         },
       });
     } else if (action === "approve") {
       // existing approve logic
-      Modal.confirm({
+      swalConfirm({
         title: "Approve Loan Application",
-        content: "Are you sure you want to approve this application?",
-        okText: "Approve",
+        text: "Are you sure you want to approve this application?",
+        confirmButtonText: "Approve",
         onOk: async () => {
           try {
             const res = await api.patch(
               `/loan_clients_application/${id}/approve`
             );
             if (res.data.success) {
-              message.success("Application approved");
+              swalMessage.success("Application approved");
               fetchPendingApplications();
               setSelected(null);
             }
           } catch (err) {
             console.error(err);
-            message.error("Failed to approve");
+            swalMessage.error("Failed to approve");
           }
         },
       });

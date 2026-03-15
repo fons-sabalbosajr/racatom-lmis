@@ -3,7 +3,6 @@ import {
   Card,
   Table,
   Typography,
-  message,
   Pagination,
   Select,
   Input,
@@ -22,6 +21,7 @@ import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 import EditCollectionModal from "./EditCollectionModal";
 import "./collectionList.css";
+import { swalMessage } from "../../../utils/swal";
 
 const { Title } = Typography;
 const { Search } = Input;
@@ -72,11 +72,11 @@ export default function CollectionList() {
         setData(collections);
         setMeta(res.data.meta);
       } else {
-        message.error("Failed to load collections");
+        swalMessage.error("Failed to load collections");
       }
     } catch (err) {
       console.error(err);
-      message.error("Error loading collections");
+      swalMessage.error("Error loading collections");
     } finally {
       setLoading(false);
     }
@@ -111,7 +111,7 @@ export default function CollectionList() {
 
   const handleGenerateVoucher = (record) => {
     // Placeholder for voucher generation
-    message.info("Voucher generation coming soon!");
+    swalMessage.info("Voucher generation coming soon!");
   };
 
   const columns = [

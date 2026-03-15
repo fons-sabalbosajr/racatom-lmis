@@ -33,6 +33,11 @@ import fs from "fs";
 import parseCollectionRoutes from "./routes/parseCollectionRoutes.js";
 import loanClientApplicationRoute from "./routes/loanClientApplicationRoute.js";
 import databaseRoutes from "./routes/databaseRoutes.js";
+import messagingRoutes from "./routes/messagingRoutes.js";
+import activityLogRoutes from "./routes/activityLogRoutes.js";
+import accountingTermRoutes from "./routes/accountingTermRoutes.js";
+import groupChatRoutes from "./routes/groupChatRoutes.js";
+import { activityLogger } from "./controllers/activityLogController.js";
 import runtimeFlags from "./utils/runtimeFlags.js";
 import User from "./models/UserAccount.js";
 
@@ -129,7 +134,10 @@ app.use(async (req, res, next) => {
 });
 
 // Routes
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", activityLogger, authRoutes);
+
+// Activity logging middleware for all other API routes
+app.use("/api", activityLogger);
 
 // Public announcement endpoint (no auth required – used on login page)
 import { getPublicAnnouncements } from "./controllers/announcementController.js";
@@ -150,6 +158,14 @@ app.use("/api/loan_clients_application", loanClientApplicationRoute);
 app.use("/api/database", databaseRoutes);
 // Theme preferences per user
 app.use("/api/theme", themeRoutes);
+// Messaging / Routing
+app.use("/api/messages", messagingRoutes);
+// Activity Logs
+app.use("/api/activity-logs", activityLogRoutes);
+// Accounting Terms
+app.use("/api/accounting-terms", accountingTermRoutes);
+// Group Chats
+app.use("/api/group-chats", groupChatRoutes);
 
 // Lightweight health check: confirms server is up and whether Drive config looks present
 app.get("/api/health", (req, res) => {

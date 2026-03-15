@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Card, Select, DatePicker, Button, Space, Typography, Table, message } from "antd";
+import { Card, Select, DatePicker, Button, Space, Typography, Table } from "antd";
 import api, { API_BASE_URL } from "../../../utils/axios";
 import dayjs from "dayjs";
+import { swalMessage } from "../../../utils/swal";
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -25,11 +26,11 @@ const LoanReportGenerator = () => {
         if (res.data.success) {
           setAllLoans(res.data.data);
         } else {
-          message.error("Failed to load loan accounts.");
+          swalMessage.error("Failed to load loan accounts.");
         }
       } catch (err) {
         console.error("Error fetching all loans:", err);
-        message.error("Error fetching loan accounts.");
+        swalMessage.error("Error fetching loan accounts.");
       } finally {
         setLoadingLoans(false);
       }
@@ -53,7 +54,7 @@ const LoanReportGenerator = () => {
 
   const generateReport = async (type) => {
     if (!selectedLoanAccountId || !selectedLoanCycle) {
-      message.warning("Please select a loan account first.");
+      swalMessage.warning("Please select a loan account first.");
       return;
     }
 
@@ -73,13 +74,13 @@ const LoanReportGenerator = () => {
 
       if (res.data.success) {
         setReportData(res.data.data);
-        message.success(`${type === 'statementOfAccount' ? 'Statement of Account' : 'Ledger'} generated successfully.`);
+        swalMessage.success(`${type === 'statementOfAccount' ? 'Statement of Account' : 'Ledger'} generated successfully.`);
       } else {
-        message.error(`Failed to generate ${type === 'statementOfAccount' ? 'Statement of Account' : 'Ledger'}.`);
+        swalMessage.error(`Failed to generate ${type === 'statementOfAccount' ? 'Statement of Account' : 'Ledger'}.`);
       }
     } catch (err) {
       console.error(`Error generating ${type} report:`, err);
-      message.error(`Error generating ${type === 'statementOfAccount' ? 'Statement of Account' : 'Ledger'}.`);
+      swalMessage.error(`Error generating ${type === 'statementOfAccount' ? 'Statement of Account' : 'Ledger'}.`);
     } finally {
       setReportLoading(false);
     }
@@ -87,7 +88,7 @@ const LoanReportGenerator = () => {
 
   const exportReportToExcel = (type) => {
     if (!selectedLoanAccountId || !selectedLoanCycle) {
-      message.warning("Please select a loan account first.");
+      swalMessage.warning("Please select a loan account first.");
       return;
     }
 

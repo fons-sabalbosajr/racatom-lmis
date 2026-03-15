@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Modal, Button, Table, Input, Form, Typography, message } from "antd";
+import { Modal, Button, Table, Input, Form, Typography } from "antd";
 const { TextArea } = Input;
 import api from "../../../utils/axios";
+import { swalMessage } from "../../../utils/swal";
 
 const { Text } = Typography;
 
@@ -32,7 +33,7 @@ export default function UpdateLoanNoModal({
       const newLoanNo = (newLoanNoRaw ?? "").toString().trim();
 
       if (!newLoanNo) {
-        message.error("Loan No. cannot be empty");
+        swalMessage.error("Loan No. cannot be empty");
         return;
       }
 
@@ -42,14 +43,14 @@ export default function UpdateLoanNoModal({
       });
 
       if (res.data.success) {
-        message.success(`Loan No. for ${record.accountId} updated successfully!`);
+        swalMessage.success(`Loan No. for ${record.accountId} updated successfully!`);
         onLoanUpdated(); // Notify parent to refresh data
       } else {
-        message.error("Failed to update Loan No.");
+        swalMessage.error("Failed to update Loan No.");
       }
     } catch (error) {
       console.error("Error updating loan number:", error);
-      message.error("Error updating Loan No.");
+      swalMessage.error("Error updating Loan No.");
     } finally {
       setLoading(false);
     }

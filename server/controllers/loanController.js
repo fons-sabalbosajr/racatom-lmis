@@ -1,8 +1,7 @@
 import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
-import { uploadToDrive } from "../utils/googleDrive.js";
-import { moveToTrash } from "../utils/googleDrive.js";
+import { uploadToDrive, moveToTrash, pickFolderByMime } from "../utils/googleDrive.js";
 import LoanClient from "../models/LoanClient.js";
 import LoanCycle from "../models/LoanCycle.js";
 import LoanCollection from "../models/LoanCollection.js"; // New import
@@ -1448,15 +1447,6 @@ export const uploadDocumentFile = async (req, res) => {
     }
     // Decide storage: Google Drive if configured; else local file server
   const useDrive = !!(process.env.DRIVE_FOLDER_ID || process.env.DRIVE_FOLDER_IMAGES_ID || process.env.DRIVE_FOLDER_DOCS_ID);
-    const chooseParents = (file) => {
-      const isImage = (file.mimetype || "").startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalFilename || "");
-      const imgId = (process.env.DRIVE_FOLDER_IMAGES_ID || "").trim();
-      const docId = (process.env.DRIVE_FOLDER_DOCS_ID || "").trim();
-      const generic = (process.env.DRIVE_FOLDER_ID || "").trim();
-      const target = isImage ? (imgId || generic) : (docId || generic);
-      const arr = target ? target.split(",").map((s) => s.trim()).filter(Boolean) : [];
-      return arr;
-    };
 
     const results = [];
     for (const file of files) {
@@ -1478,7 +1468,7 @@ export const uploadDocumentFile = async (req, res) => {
           : undefined,
       };
       if (useDrive) {
-        const parents = chooseParents(file);
+        const parents = pickFolderByMime(file.mimetype, file.originalFilename);
         const driveRes = await uploadToDrive({
           filepath: file.filepath,
           name: payload.name,
@@ -1562,15 +1552,6 @@ export const uploadDocumentFileByAccountId = async (req, res) => {
     const safeType = Array.isArray(rawType) ? rawType[rawType.length - 1] : rawType;
     const safeSource = Array.isArray(rawSource) ? rawSource[rawSource.length - 1] : rawSource;
   const useDrive = !!(process.env.DRIVE_FOLDER_ID || process.env.DRIVE_FOLDER_IMAGES_ID || process.env.DRIVE_FOLDER_DOCS_ID);
-    const chooseParents2 = (file) => {
-      const isImage = (file.mimetype || "").startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.originalFilename || "");
-      const imgId = (process.env.DRIVE_FOLDER_IMAGES_ID || "").trim();
-      const docId = (process.env.DRIVE_FOLDER_DOCS_ID || "").trim();
-      const generic = (process.env.DRIVE_FOLDER_ID || "").trim();
-      const target = isImage ? (imgId || generic) : (docId || generic);
-      const arr = target ? target.split(",").map((s) => s.trim()).filter(Boolean) : [];
-      return arr;
-    };
     const created = [];
     for (const file of files) {
       let payload = {
@@ -1592,7 +1573,7 @@ export const uploadDocumentFileByAccountId = async (req, res) => {
           : undefined,
       };
       if (useDrive) {
-        const parents = chooseParents2(file);
+        const parents = pickFolderByMime(file.mimetype, file.originalFilename);
         const driveRes = await uploadToDrive({
           filepath: file.filepath,
           name: payload.name,
@@ -2238,8 +2219,6 @@ export const getApprovedClients = async (req, res) => {
 
 export const exportLoansExcel = async (req, res) => {
   try {
-    //console.log("🟢 Export request received:", req.query);
-
     const {
       q = "",
       loanStatus,
@@ -2265,10 +2244,7 @@ export const exportLoansExcel = async (req, res) => {
 
     const sort = { [sortBy]: sortDir === "desc" ? -1 : 1 };
 
-    // console.log("📄 Match:", match);
-    // console.log("📄 Sort:", sort);
-
-    // 🧭 Query DB
+    // Query DB
     const loans = await LoanCycle.aggregate([
       { $match: match },
       {
@@ -2283,9 +2259,7 @@ export const exportLoansExcel = async (req, res) => {
       { $sort: sort },
     ]);
 
-    //console.log(`✅ Found ${loans.length} loans`);
-
-    // 🧾 Create workbook
+    // Create workbook
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Loans Export");
 

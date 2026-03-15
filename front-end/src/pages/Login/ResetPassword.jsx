@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Form, Input, Button, Card, message, Typography } from "antd";
+import { Form, Input, Button, Card, Typography } from "antd";
 import { LockOutlined } from "@ant-design/icons";
+import { swalMessage } from "../../utils/swal";
 import api from "../../utils/axios";
 import { useNavigate, useParams, Link } from "react-router-dom";
 
@@ -39,10 +40,10 @@ function ResetPassword() {
     setLoading(true);
     try {
       await api.post(`/auth/reset-password/${token}`, { Password: values.Password });
-      message.success("Password reset successful. You can now login.");
+      swalMessage.success("Password reset successful. You can now login.");
       navigate("/login");
     } catch (err) {
-      message.error(err.response?.data?.message || "Reset failed. The link may be invalid or expired.");
+      swalMessage.error(err.response?.data?.message || "Reset failed. The link may be invalid or expired.");
     } finally {
       setLoading(false);
     }
@@ -115,7 +116,7 @@ function ResetPassword() {
           type="secondary"
           style={{ display: "block", textAlign: "center", marginTop: 16 }}
         >
-          © {new Date().getFullYear()} RCT Loan Management System
+          © {new Date().getFullYear()} RCT Loan Management Information System
         </Text>
       </Card>
     </div>

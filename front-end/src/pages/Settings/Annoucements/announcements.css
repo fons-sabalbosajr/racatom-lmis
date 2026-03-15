@@ -134,4 +134,22 @@
   .announcement-stats {
     grid-template-columns: repeat(2, 1fr);
   }
+  .announcement-manager .ant-table-wrapper {
+    overflow-x: auto;
+  }
+  .announcement-manager .ant-table {
+    min-width: 500px;
+  }
+  .announcement-manager .ant-table-thead > tr > th {
+    font-size: 11px;
+    padding: 4px 6px;
+    white-space: nowrap;
+  }
+  .announcement-manager .ant-table-tbody > tr > td {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+  .announcement-manager .page-header h2 {
+    font-size: 16px;
+  }
 }

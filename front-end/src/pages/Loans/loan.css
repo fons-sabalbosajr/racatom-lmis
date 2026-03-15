@@ -89,6 +89,28 @@
   .loan-header-row { flex-direction: column; align-items: stretch; }
   .loan-card-item-financials { flex-direction: column; gap: 6px; }
   .loan-card-footer { flex-direction: column; align-items: center; }
+  .loan-card .ant-card-body {
+    padding: 8px !important;
+  }
+  .loan-table {
+    overflow-x: auto;
+  }
+  .loan-table .ant-table {
+    min-width: 700px;
+  }
+  .loan-view-toggle {
+    align-self: flex-end;
+  }
+  .loan-card-item .ant-card-body {
+    padding: 12px !important;
+  }
+  .loan-card-item-name {
+    font-size: 13px;
+  }
+  .loan-card-amount,
+  .loan-card-balance {
+    font-size: 13px;
+  }
 }
 
 .loan-filters {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Table,
   Tag,
@@ -31,10 +31,6 @@ function RecentLoansTable({
   sort,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
-
-  useEffect(() => {
-    // console.log(`Total rows loaded in table: ${recentLoans.length}`);
-  }, [recentLoans]);
 
   const columns = [
     {

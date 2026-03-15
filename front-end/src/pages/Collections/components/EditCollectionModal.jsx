@@ -7,7 +7,6 @@ import {
   DatePicker,
   Select,
   Button,
-  message,
   Row,
   Col,
   Card,
@@ -21,6 +20,7 @@ import { InfoCircleOutlined, EditOutlined, CopyOutlined } from "@ant-design/icon
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
 import AdvancePaymentModal from "./AdvancePaymentModal";
+import { swalMessage } from "../../../utils/swal";
 
 const { Option } = Select;
 const { Panel } = Collapse;
@@ -102,7 +102,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
         if (res.data.success) {
           setCollectors(res.data.data);
         } else {
-          message.error("Failed to fetch collector names.");
+          swalMessage.error("Failed to fetch collector names.");
         }
       });
     }
@@ -143,7 +143,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
         payload.CollectionReferenceNo = payload.OnlineRefNo || payload.BankRefNo || '';
       }
       if (!payload.CollectionReferenceNo || String(payload.CollectionReferenceNo).trim().length === 0) {
-        message.error('Reference No. is required. Click the edit icon near Ref No to set a value.');
+        swalMessage.error('Reference No. is required. Click the edit icon near Ref No to set a value.');
         setLoading(false);
         return;
       }
@@ -151,16 +151,16 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
       const res = await api.put(`/loan-collections/${collectionData._id}`, payload);
 
       if (res.data.success) {
-        message.success("Collection updated successfully!");
+        swalMessage.success("Collection updated successfully!");
         onSuccess();
         onCancel();
       } else {
-        message.error(res.data.message || "Failed to update collection.");
+        swalMessage.error(res.data.message || "Failed to update collection.");
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || "An unexpected error occurred.";
       console.error("Error updating collection:", errorMessage);
-      message.error(errorMessage);
+      swalMessage.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -177,7 +177,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => { setCustomRefDraft(collectionRefNo); setCustomRefOpen(true); }} />
         </Tooltip>
         <Tooltip title="Copy to clipboard">
-          <Button type="link" size="small" icon={<CopyOutlined />} onClick={async () => { try { if (collectionRefNo && navigator?.clipboard?.writeText) await navigator.clipboard.writeText(collectionRefNo); message.success('Reference No. copied'); } catch {} }} disabled={!collectionRefNo} />
+          <Button type="link" size="small" icon={<CopyOutlined />} onClick={async () => { try { if (collectionRefNo && navigator?.clipboard?.writeText) await navigator.clipboard.writeText(collectionRefNo); swalMessage.success('Reference No. copied'); } catch {} }} disabled={!collectionRefNo} />
         </Tooltip>
       </span>
     </div>
@@ -372,7 +372,7 @@ const EditCollectionModal = ({ visible, onCancel, onSuccess, collectionData, loa
             DateProcessed: startDate,
             Remarks: remarks,
           });
-          message.success(`Advance payment applied: ₱${amount.toLocaleString()}`);
+          swalMessage.success(`Advance payment applied: ₱${amount.toLocaleString()}`);
         }}
         paymentMode={loan?.loanInfo?.paymentMode}
         amortizationPrincipal={computeAmortizationPrincipal()}

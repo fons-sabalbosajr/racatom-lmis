@@ -55,7 +55,7 @@ NODE_ENV=development
 PORT=5000
 EMAIL_USER=<your-gmail>@gmail.com
 EMAIL_PASS=<gmail-app-password>
-APP_NAME=RCT Loan Management System
+APP_NAME=RCT Loan Management Information System
 FRONTEND_URL=http://localhost:5173
 ```
 

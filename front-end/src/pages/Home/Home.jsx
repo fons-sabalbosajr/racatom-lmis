@@ -11,7 +11,6 @@ import {
   List,
   Collapse,
   Popover,
-  Modal,
 } from "antd";
 import {
   LogoutOutlined,
@@ -26,7 +25,7 @@ import {
   CalendarOutlined,
   MessageOutlined, // ✅ Message icon
   CodeOutlined,
-  ClockCircleOutlined,
+  StopOutlined,
 } from "@ant-design/icons";
 import { lsGet, lsGetSession, lsClearAllApp } from "../../utils/storage";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
@@ -37,6 +36,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import api, { setRuntimeToken } from "../../utils/axios";
 import { useDevSettings } from "../../context/DevSettingsContext";
 import useIdleTimeout from "../../utils/useIdleTimeout";
+import { swalWarning } from "../../utils/swal";
 // Tooltip no longer used
 
 dayjs.extend(relativeTime);
@@ -51,6 +51,8 @@ function Home() {
   const [user, setUser] = useState(() => lsGetSession("user") || lsGet("user"));
 
   const [notifications, setNotifications] = useState([]);
+  const [msgUnreadCount, setMsgUnreadCount] = useState(0);
+  const [recentMessages, setRecentMessages] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,12 +69,9 @@ function Home() {
   }, []);
 
   const handleIdleWarning = useCallback(() => {
-    Modal.warning({
+    swalWarning({
       title: "Session Expiring Soon",
-      content: "You have been idle for a while. Your session will expire in 1 minute unless you interact with the page.",
-      icon: <ClockCircleOutlined />,
-      okText: "I'm still here",
-      centered: true,
+      text: "You have been idle for a while. Your session will expire in 1 minute unless you interact with the page.",
     });
   }, []);
 
@@ -136,6 +135,23 @@ function Home() {
 
     fetchAnnouncements();
     const interval = setInterval(fetchAnnouncements, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch message unread count + recent messages
+  useEffect(() => {
+    const fetchMsgData = async () => {
+      try {
+        const [unreadRes, recentRes] = await Promise.all([
+          api.get("/messages/unread-count"),
+          api.get("/messages?folder=inbox&limit=5"),
+        ]);
+        setMsgUnreadCount(unreadRes.data.count || 0);
+        setRecentMessages(recentRes.data.messages || []);
+      } catch {}
+    };
+    fetchMsgData();
+    const interval = setInterval(fetchMsgData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -390,6 +406,13 @@ function Home() {
               : [{ key: "/settings/accounting", label: "Accounting Center" }]),
             { key: "/settings/loan-rates", label: "Loan Rates Config" },
           ];
+          if (isDev) {
+            settingsChildren.push({
+              key: "/settings/resigned-employees",
+              label: "Resigned Employees",
+              icon: <StopOutlined />,
+            });
+          }
           if (isDev || perms.developerSettings) {
             settingsChildren.push({
               key: "/settings/developer",
@@ -408,6 +431,11 @@ function Home() {
                     icon: <DashboardOutlined />,
                   },
                 ]),
+            {
+              key: "/messaging",
+              label: "Messages",
+              icon: <MessageOutlined />,
+            },
             ...(perms.loans === false && !isDev
               ? []
               : [
@@ -509,35 +537,61 @@ function Home() {
               </span>
             </div>
 
-            {/* ✅ Messages Popover */}
-            {/* <Popover
+            {/* ✅ Messages Popover — shows recent messages */}
+            <Popover
               placement="bottomRight"
-              title="Messages"
               trigger="click"
+              overlayClassName="msg-popover"
               content={
-                <List
-                  size="small"
-                  dataSource={[
-                    { text: "New loan request pending", link: "/loans" },
-                    {
-                      text: "Reminder: Update employee info",
-                      link: "/settings/employees",
-                    },
-                  ]}
-                  renderItem={(item) => (
-                    <List.Item
-                      style={{ cursor: "pointer" }}
-                      onClick={() => {
-                        navigate(item.link);
-                      }}
-                    >
-                      {item.text}
-                    </List.Item>
-                  )}
-                />
+                <div style={{ width: 320 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #f0f0f0" }}>
+                    <Text strong style={{ fontSize: 14 }}>Recent Messages</Text>
+                    {msgUnreadCount > 0 && (
+                      <Badge count={msgUnreadCount} style={{ backgroundColor: "#1677ff" }} />
+                    )}
+                  </div>
+                  <List
+                    size="small"
+                    dataSource={recentMessages}
+                    locale={{ emptyText: <div style={{ padding: 16, textAlign: "center", color: "#999" }}>No messages yet</div> }}
+                    renderItem={(msg) => (
+                      <List.Item
+                        key={msg._id}
+                        style={{
+                          padding: "10px 12px",
+                          cursor: "pointer",
+                          background: msg.isRead ? "transparent" : "#f0f5ff",
+                        }}
+                        onClick={() => navigate("/messaging")}
+                      >
+                        <div style={{ width: "100%" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Text strong={!msg.isRead} style={{ fontSize: 13 }}>
+                              {msg.sender?.FullName || msg.sender?.Username || "Unknown"}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              {msg.createdAt ? dayjs(msg.createdAt).fromNow() : ""}
+                            </Text>
+                          </div>
+                          <div style={{ fontSize: 12, color: "#595959", marginTop: 2 }}>
+                            {msg.subject || "(No subject)"}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#999", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {msg.body ? (msg.body.length > 60 ? msg.body.slice(0, 60) + "…" : msg.body) : ""}
+                          </div>
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+                  <div style={{ textAlign: "center", padding: "8px 0", borderTop: "1px solid #f0f0f0" }}>
+                    <Button type="link" onClick={() => navigate("/messaging")}>
+                      Open Messages
+                    </Button>
+                  </div>
+                </div>
               }
             >
-              <Badge count={2} size="small">
+              <Badge count={msgUnreadCount} size="small">
                 <MessageOutlined
                   style={{
                     fontSize: "18px",
@@ -546,7 +600,7 @@ function Home() {
                   }}
                 />
               </Badge>
-            </Popover> */}
+            </Popover>
 
             {/* ✅ Notifications Popover — Corporate Design */}
             <Popover

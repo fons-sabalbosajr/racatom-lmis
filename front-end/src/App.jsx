@@ -6,8 +6,9 @@ import Home from "./pages/Home/Home";
 import CreateAccount from "./pages/CreateAccount/CreateAccount";
 import VerifyEmail from "./pages/Login/VerifyEmail";
 import ForgotPassword from "./pages/Login/ForgotPassword";
-import ResetPassword from "./pages/Login/ResetPassword";
 import Verify from "./pages/Home/Verify";
+import FirstLoginChangePassword from "./pages/Login/FirstLoginChangePassword";
+import VerifyCode from "./pages/Login/VerifyCode";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Maintenance from "./pages/Maintenance/Maintenance";
 import Dashboard from "./pages/Dashboard/Dashboard";
@@ -26,6 +27,8 @@ import Announcements from "./pages/Settings/Annoucements/Announcements";
 import CollectorAccounts from "./pages/Settings/CollectorAccounts/CollectorAccounts";
 import Accounting from "./pages/Settings/AccountingCenter/AccountingCenter";
 import DeveloperSettings from "./pages/Settings/Developer/DeveloperSettings";
+import ResignedEmployees from "./pages/Settings/ResignedEmployees/ResignedEmployees";
+import Messaging from "./pages/Messaging/Messaging";
 
 function App() {
   return (
@@ -40,7 +43,8 @@ function App() {
       <Route path="/verify/:token" element={<Verify />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password/:token" element={<ResetPassword />} />
+      <Route path="/first-login" element={<FirstLoginChangePassword />} />
+      <Route path="/verify-code" element={<VerifyCode />} />
 
       {/* Protected routes */}
       <Route
@@ -55,6 +59,7 @@ function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
 
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="messaging" element={<Messaging />} />
         <Route path="loans" element={<Loans />} />
         <Route
           path="loans/update-needed"
@@ -74,6 +79,7 @@ function App() {
         <Route path="settings/announcements" element={<Announcements />} />
         <Route path="settings/accounting" element={<Accounting />} />
   <Route path="settings/developer" element={<DeveloperSettings />} />
+        <Route path="settings/resigned-employees" element={<ResignedEmployees />} />
 
         {/* Default redirect inside settings */}
         <Route

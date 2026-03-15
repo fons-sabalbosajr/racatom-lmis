@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from "react";
-import { Modal, Form, Select, Button, message, Tag, Typography } from "antd";
+import { Modal, Form, Select, Button, Tag, Typography } from "antd";
 import axios from "../../../utils/axios";
+import { swalMessage } from "../../../utils/swal";
 
 const { Option } = Select;
 
@@ -56,11 +57,11 @@ const UpdateStatusSummaryModal = ({ visible, loan, onClose, onSuccess }) => {
           processStatus: values.processStatus,
         },
       });
-      message.success("Loan status updated successfully!");
+      swalMessage.success("Loan status updated successfully!");
       onSuccess();
       onClose();
     } catch (error) {
-      message.error("Failed to update loan status.");
+      swalMessage.error("Failed to update loan status.");
     } finally {
       setLoading(false);
     }

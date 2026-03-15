@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Col, Divider, Input, Modal, Row, Select, Space, Tag, message, Tabs, Table, Typography, Switch } from "antd";
+import { Alert, Button, Card, Col, Divider, Input, Row, Select, Space, Tag, Tabs, Table, Typography, Switch } from "antd";
 import { ExclamationCircleOutlined, DatabaseOutlined, DeleteOutlined, ReloadOutlined, SafetyOutlined, DisconnectOutlined, LinkOutlined } from "@ant-design/icons";
 import api from "../../../utils/axios";
+import { swalMessage, swalConfirm } from "../../../utils/swal";
 import { saveAs } from "file-saver";
 import "./database.css";
-
-const { confirm } = Modal;
 
 const Database = () => {
   const [health, setHealth] = useState(null);
@@ -42,7 +41,7 @@ const Database = () => {
   const { data } = await api.get(`/${apiBase}/health`);
       if (data.success) setHealth(data);
     } catch (e) {
-      message.error(e.response?.data?.message || "Failed to fetch DB health");
+      swalMessage.error(e.response?.data?.message || "Failed to fetch DB health");
     } finally {
       setLoadingHealth(false);
     }
@@ -54,7 +53,7 @@ const Database = () => {
   const { data } = await api.get(`/${apiBase}/collections`);
       if (data.success) setCollections(data.collections || []);
     } catch (e) {
-      message.error(e.response?.data?.message || "Failed to load collections");
+      swalMessage.error(e.response?.data?.message || "Failed to load collections");
     } finally {
       setCollectionsLoading(false);
     }
@@ -86,14 +85,14 @@ const Database = () => {
       const url = shouldConnect ? "connect" : "disconnect";
       const { data } = await api.post(`/${apiBase}/connection/${url}`);
       if (data.success) {
-        message.success(shouldConnect ? "Connected" : "Disconnected");
+        swalMessage.success(shouldConnect ? "Connected" : "Disconnected");
         await fetchHealth();
         await fetchConnectionState();
       } else {
-        message.error(data.message || "Operation failed");
+        swalMessage.error(data.message || "Operation failed");
       }
     } catch (e) {
-      message.error(e.response?.data?.message || "Operation failed");
+      swalMessage.error(e.response?.data?.message || "Operation failed");
     } finally {
       setConnLoading(false);
     }
@@ -105,7 +104,7 @@ const Database = () => {
       const { data } = await api.get(`/${apiBase}/accounts`, { params: { q: accountsQuery || undefined } });
       if (data.success) setAccounts(data.accounts || []);
     } catch (e) {
-      message.error(e.response?.data?.message || "Failed to load accounts");
+      swalMessage.error(e.response?.data?.message || "Failed to load accounts");
     } finally {
       setAccountsLoading(false);
     }
@@ -137,13 +136,13 @@ const Database = () => {
         try {
           const { data } = await api.delete(`/${apiBase}/account/${accountId}`);
           if (data.success) {
-            message.success(`Deleted ${data.totalDeleted} related docs.`);
+            swalMessage.success(`Deleted ${data.totalDeleted} related docs.`);
             fetchAccounts();
           } else {
-            message.error(data.message || "Delete failed");
+            swalMessage.error(data.message || "Delete failed");
           }
         } catch (e) {
-          message.error(e.response?.data?.message || "Delete failed");
+          swalMessage.error(e.response?.data?.message || "Delete failed");
         } finally {
           setDeleteLoadingId(null);
         }
@@ -164,19 +163,19 @@ const Database = () => {
       const { data } = await api.post(`/${apiBase}/maintenance`, { maintenance: !!val });
       if (data.success) {
         setMaintenance(!!data.maintenance);
-        message.success(`Maintenance ${val ? "enabled" : "disabled"}`);
+        swalMessage.success(`Maintenance ${val ? "enabled" : "disabled"}`);
       } else {
-        message.error(data.message || "Failed to update maintenance mode");
+        swalMessage.error(data.message || "Failed to update maintenance mode");
       }
     } catch (e) {
-      message.error(e.response?.data?.message || "Failed to update maintenance mode");
+      swalMessage.error(e.response?.data?.message || "Failed to update maintenance mode");
     } finally {
       setMaintenanceLoading(false);
     }
   };
 
   const exportCollection = async () => {
-    if (!selectedCollection) return message.warning("Select a collection first");
+    if (!selectedCollection) return swalMessage.warning("Select a collection first");
     setExportLoading(true);
     try {
       const resp = await api.get(`/${apiBase}/export`, {
@@ -187,9 +186,9 @@ const Database = () => {
       const stamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
       const filename = `${selectedCollection}_${stamp}.${exportFormat}`;
       saveAs(blob, filename);
-      message.success("Export started");
+      swalMessage.success("Export started");
     } catch (e) {
-      message.error(e.response?.data?.message || "Export failed");
+      swalMessage.error(e.response?.data?.message || "Export failed");
     } finally {
       setExportLoading(false);
     }
@@ -200,13 +199,13 @@ const Database = () => {
     try {
   const { data } = await api.post(`/${apiBase}/restore`, { sourceDir });
       if (data.success) {
-        message.success("Restore completed");
+        swalMessage.success("Restore completed");
         fetchHealth();
       } else {
-        message.error(data.message || "Restore failed");
+        swalMessage.error(data.message || "Restore failed");
       }
     } catch (e) {
-      message.error(e.response?.data?.message || "Restore failed");
+      swalMessage.error(e.response?.data?.message || "Restore failed");
     } finally {
       setRestoreLoading(false);
     }
@@ -216,17 +215,17 @@ const Database = () => {
     setCompactLoading(true);
     try {
   const { data } = await api.post(`/${apiBase}/compact`);
-      if (data.success) message.success("Maintenance successful");
-      else message.error(data.message || "Maintenance failed");
+      if (data.success) swalMessage.success("Maintenance successful");
+      else swalMessage.error(data.message || "Maintenance failed");
     } catch (e) {
-      message.error(e.response?.data?.message || "Maintenance failed");
+      swalMessage.error(e.response?.data?.message || "Maintenance failed");
     } finally {
       setCompactLoading(false);
     }
   };
 
   const runPurgeCollection = async () => {
-    if (!selectedCollection) return message.warning("Select a collection first");
+    if (!selectedCollection) return swalMessage.warning("Select a collection first");
     confirm({
       title: `Delete all documents in ${selectedCollection}?`,
       icon: <ExclamationCircleOutlined />,
@@ -238,10 +237,10 @@ const Database = () => {
         setPurgeColLoading(true);
         try {
           const { data } = await api.post(`/${apiBase}/purge-collection`, { collectionName: selectedCollection });
-          if (data.success) message.success(`Deleted ${data.deletedCount} docs in ${selectedCollection}`);
-          else message.error(data.message || "Purge failed");
+          if (data.success) swalMessage.success(`Deleted ${data.deletedCount} docs in ${selectedCollection}`);
+          else swalMessage.error(data.message || "Purge failed");
         } catch (e) {
-          message.error(e.response?.data?.message || "Purge failed");
+          swalMessage.error(e.response?.data?.message || "Purge failed");
         } finally {
           setPurgeColLoading(false);
         }
@@ -261,10 +260,10 @@ const Database = () => {
         setPurgeDbLoading(true);
         try {
           const { data } = await api.delete(`/${apiBase}/purge-db`);
-          if (data.success) message.success(`Purged database. Total deleted: ${data.totalDeleted}`);
-          else message.error(data.message || "Purge failed");
+          if (data.success) swalMessage.success(`Purged database. Total deleted: ${data.totalDeleted}`);
+          else swalMessage.error(data.message || "Purge failed");
         } catch (e) {
-          message.error(e.response?.data?.message || "Purge failed");
+          swalMessage.error(e.response?.data?.message || "Purge failed");
         } finally {
           setPurgeDbLoading(false);
         }
@@ -366,14 +365,13 @@ const Database = () => {
                     </Button>
                     <Button onClick={() => {
                       let inputVal = "";
-                      Modal.confirm({
+                      swalConfirm({
                         title: "Restore from backup directory",
-                        content: (
-                          <Input placeholder="Absolute path on server (e.g., /app/backups/db_2024-10-01_1200)"
-                                 onChange={(e) => { inputVal = e.target.value; }} />
-                        ),
-                        okText: "Restore",
-                        onOk: () => inputVal ? runRestore(inputVal) : message.warning("Please provide a directory path"),
+                        text: "Absolute path on server (e.g., /app/backups/db_2024-10-01_1200)",
+                        input: "text",
+                        inputPlaceholder: "Absolute path on server",
+                        confirmButtonText: "Restore",
+                        onOk: (value) => value ? runRestore(value) : swalMessage.warning("Please provide a directory path"),
                       });
                     }} loading={restoreLoading}>
                       Restore From Directory

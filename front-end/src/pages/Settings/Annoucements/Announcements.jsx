@@ -6,7 +6,6 @@ import {
   Drawer,
   Form,
   Input,
-  message,
   Switch,
   DatePicker,
   Tag,
@@ -32,6 +31,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../../../utils/axios";
+import { swalMessage } from "../../../utils/swal";
 import "./announcements.css";
 
 const { TextArea } = Input;
@@ -85,7 +85,7 @@ const Announcements = () => {
       setAnnouncements(announcementsRes.data.announcements || []);
       setStats(statsRes.data.stats || {});
     } catch {
-      message.error("Failed to load announcements");
+      swalMessage.error("Failed to load announcements");
     }
     setLoading(false);
   }, []);
@@ -159,16 +159,16 @@ const Announcements = () => {
 
       if (editing) {
         await api.put(`/announcements/${editing._id}`, payload);
-        message.success("Announcement updated");
+        swalMessage.success("Announcement updated");
       } else {
         await api.post("/announcements", payload);
-        message.success("Announcement created");
+        swalMessage.success("Announcement created");
       }
 
       closeDrawer();
       fetchAnnouncements();
     } catch {
-      message.error("Failed to save announcement");
+      swalMessage.error("Failed to save announcement");
     } finally {
       setSaving(false);
     }
@@ -179,12 +179,12 @@ const Announcements = () => {
     try {
       await api.patch(`/announcements/${record._id}/toggle`, { field });
       const label = field === "isActive" ? "status" : "login visibility";
-      message.success(
+      swalMessage.success(
         `${record.Title} — ${label} updated`
       );
       fetchAnnouncements();
     } catch {
-      message.error("Failed to update");
+      swalMessage.error("Failed to update");
     }
   };
 
@@ -192,10 +192,10 @@ const Announcements = () => {
   const handleDelete = async (id) => {
     try {
       await api.delete(`/announcements/${id}`);
-      message.success("Announcement deleted");
+      swalMessage.success("Announcement deleted");
       fetchAnnouncements();
     } catch {
-      message.error("Failed to delete");
+      swalMessage.error("Failed to delete");
     }
   };
 

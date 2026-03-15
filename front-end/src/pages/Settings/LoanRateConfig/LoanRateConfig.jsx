@@ -6,7 +6,6 @@ import {
   Form,
   InputNumber,
   Select,
-  message,
   Popconfirm,
   Input,
   Row,
@@ -14,6 +13,7 @@ import {
   Card,
 } from "antd";
 import api, { API_BASE_URL } from "../../../utils/axios";
+import { swalMessage } from "../../../utils/swal";
 import "./loanrateconfig.css";
 
 const { Option } = Select;
@@ -72,7 +72,7 @@ const LoanRateConfig = ({ isModal = false, onSelect }) => {
       setLoanRates(res.data.data || []);
     } catch (err) {
       console.error(err);
-      message.error("Failed to fetch loan rates");
+      swalMessage.error("Failed to fetch loan rates");
     }
     setLoading(false);
   };
@@ -90,25 +90,25 @@ const LoanRateConfig = ({ isModal = false, onSelect }) => {
       if (editingRate)
         await api.put(`${API_BASE.replace(API_BASE_URL, "")}/${editingRate._id}`, values);
       else await api.post(API_BASE.replace(API_BASE_URL, ""), values);
-      message.success(
+      swalMessage.success(
         editingRate ? "Updated successfully" : "Added successfully"
       );
       setModalVisible(false);
       fetchLoanRates();
     } catch (err) {
       console.error(err);
-      message.error("Failed to save loan rate");
+      swalMessage.error("Failed to save loan rate");
     }
   };
 
   const handleDelete = async (id) => {
     try {
   await api.delete(`${API_BASE.replace(API_BASE_URL, "")}/${id}`);
-      message.success("Deleted successfully");
+      swalMessage.success("Deleted successfully");
       fetchLoanRates();
     } catch (err) {
       console.error(err);
-      message.error("Delete failed");
+      swalMessage.error("Delete failed");
     }
   };
 

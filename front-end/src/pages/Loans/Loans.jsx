@@ -1,6 +1,6 @@
-// src/pages/Loans.jsx
+// src/pages/Loans/Loans.jsx
 import React, { useEffect, useState } from "react";
-import { Card, Table, Typography, message, Pagination, Select, Alert, Segmented, Row, Col, Tag, Button, Empty, Spin } from "antd";
+import { Card, Table, Typography, Pagination, Select, Alert, Segmented, Row, Col, Tag, Button, Empty, Spin } from "antd";
 import { TableOutlined, AppstoreOutlined, EyeOutlined, DollarOutlined, UserOutlined, EnvironmentOutlined } from "@ant-design/icons";
 import api from "../../utils/axios";
 import { getCache, setCache } from "../../utils/simpleCache";
@@ -17,6 +17,7 @@ import UpdateStatusSummaryModal from "./components/UpdateStatusSummaryModal";
 import { useRef } from "react";
 import { useDevSettings } from "../../context/DevSettingsContext";
 import { getLoanStatusColor } from "../../utils/statusColors";
+import { swalMessage } from "../../utils/swal";
 
 const { Title, Text } = Typography;
 
@@ -225,11 +226,11 @@ export default function Loans() {
           }
         } catch {}
       } else {
-        message.error("Failed to load loans");
+        swalMessage.error("Failed to load loans");
       }
     } catch (err) {
       console.error(err);
-      message.error("Error loading loans");
+      swalMessage.error("Error loading loans");
     } finally {
       setLoading(false);
     }
@@ -275,11 +276,11 @@ export default function Loans() {
         setAllLoansNeedingUpdate(loans);
         setTotalLoansNeedingUpdateCount(loans.length);
       } else {
-        message.error("Failed to fetch total loans needing update");
+        swalMessage.error("Failed to fetch total loans needing update");
       }
     } catch (err) {
       console.error("Error fetching total loans needing update:", err);
-      message.error("Error fetching total loans needing update");
+      swalMessage.error("Error fetching total loans needing update");
     } finally {
       setFetchingTotalLoansNeedingUpdate(false);
     }
@@ -300,7 +301,7 @@ export default function Loans() {
         setCache(cacheKey, options, 10 * 60 * 1000); // 10 minutes
       }
     } catch (err) {
-      message.error("Failed to load loan statuses");
+      swalMessage.error("Failed to load loan statuses");
     } finally {
       setStatusLoading(false);
     }
@@ -321,7 +322,7 @@ export default function Loans() {
         setCache(cacheKey, filteredPaymentModes, 10 * 60 * 1000); // 10 minutes
       }
     } catch (err) {
-      message.error("Failed to load payment modes");
+      swalMessage.error("Failed to load payment modes");
     } finally {
       setPaymentModeLoading(false);
     }
@@ -486,14 +487,14 @@ export default function Loans() {
           setSelectedLoan(combinedLoanData);
           setModalVisible(true);
         } else {
-          message.error("Loan details not found.");
+          swalMessage.error("Loan details not found.");
         }
       } else {
-        message.error("Failed to fetch loan details.");
+        swalMessage.error("Failed to fetch loan details.");
       }
     } catch (err) {
       console.error("Error fetching loan details:", err);
-      message.error("Error fetching loan details.");
+      swalMessage.error("Error fetching loan details.");
     } finally {
       setIsModalLoading(false);
     }
@@ -505,45 +506,34 @@ export default function Loans() {
 
   const generateStatementOfAccount = async (record) => {
     try {
-      message.loading({ content: "Generating PDF...", key: "pdf" });
+      swalMessage.info("Generating PDF...");
       const res = await api.get(`/loan-collections/${record.loanInfo.loanNo}`, {
         params: { limit: 0 },
       });
       if (res.data.success) {
         if (res.data.data && res.data.data.length > 0) {
           ExportCollectionPDF(record, res.data.data);
-          message.success({
-            content: "PDF Generated!",
-            key: "pdf",
-            duration: 2,
-          });
+          swalMessage.success("PDF Generated!");
         } else {
-          message.info({
-            content: "No collections found for this account.",
-            key: "pdf",
-            duration: 3,
-          });
+          swalMessage.info("No collections found for this account.");
         }
       } else {
-        message.error({
-          content: "Failed to fetch collection data.",
-          key: "pdf",
-        });
+        swalMessage.error("Failed to fetch collection data.");
       }
     } catch (error) {
       console.error("Error generating statement of account:", error);
-      message.error({ content: "Failed to generate PDF.", key: "pdf" });
+      swalMessage.error("Failed to generate PDF.");
     }
   };
 
   const generateLoanSummary = (record) => {
     try {
-      message.loading({ content: "Generating PDF...", key: "pdf" });
+      swalMessage.info("Generating PDF...");
       ExportLoanSummaryPDF(record);
-      message.success({ content: "PDF Generated!", key: "pdf", duration: 2 });
+      swalMessage.success("PDF Generated!");
     } catch (error) {
       console.error("Error generating loan summary:", error);
-      message.error({ content: "Failed to generate PDF.", key: "pdf" });
+      swalMessage.error("Failed to generate PDF.");
     }
   };
 
@@ -583,14 +573,14 @@ export default function Loans() {
                       };            setSelectedLoan(combinedLoanData);
           } else {
             setModalVisible(false);
-            message.info("The selected loan details may have been updated.");
+            swalMessage.info("The selected loan details may have been updated.");
           }
         } else {
-          message.error("Failed to refresh client data.");
+          swalMessage.error("Failed to refresh client data.");
         }
       } catch (err) {
         console.error("Error refreshing client data:", err);
-        message.error("Error refreshing client data.");
+        swalMessage.error("Error refreshing client data.");
       } finally {
         setIsModalLoading(false);
       }
@@ -642,10 +632,10 @@ export default function Loans() {
       link.click();
       document.body.removeChild(link);
 
-      message.success("Excel export completed!");
+      swalMessage.success("Excel export completed!");
     } catch (err) {
       console.error("Error exporting Excel:", err);
-      message.error("Failed to export Excel.");
+      swalMessage.error("Failed to export Excel.");
     } finally {
       setTableLoading(false);
     }

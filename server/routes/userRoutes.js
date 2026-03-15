@@ -16,6 +16,36 @@ router.get("/", getUsers);
 // GET /api/users/next-account-id
 router.get("/next-account-id", getNextAccountId);
 
+// GET /api/users/resigned — list resigned employees (Developer-only)
+router.get("/resigned", developerOnly, async (req, res) => {
+  try {
+    const resigned = await User.find({ accountStatus: "resigned" })
+      .select("-Password -verificationToken -resetPasswordToken -resetPasswordExpires")
+      .sort({ resignedAt: -1 });
+
+    // Add 30-day deletion info
+    const enriched = resigned.map((u) => {
+      const doc = u.toObject();
+      if (doc.resignedAt) {
+        const deleteDate = new Date(doc.resignedAt);
+        deleteDate.setDate(deleteDate.getDate() + 30);
+        doc.scheduledDeletion = deleteDate;
+        doc.daysRemaining = Math.max(0, Math.ceil((deleteDate - new Date()) / (1000 * 60 * 60 * 24)));
+      }
+      // Convert photo to base64 for frontend
+      if (doc.Photo && Buffer.isBuffer(doc.Photo)) {
+        doc.Photo = doc.Photo.toString("base64");
+      }
+      return doc;
+    });
+
+    res.json({ success: true, data: enriched });
+  } catch (err) {
+    console.error("get resigned users error:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch resigned employees" });
+  }
+});
+
 // PUT /api/users/:id
 router.put("/:id", canUpdateUser, async (req, res) => {
   try {
@@ -25,9 +55,21 @@ router.put("/:id", canUpdateUser, async (req, res) => {
       updateData.Photo = Buffer.from(updateData.Photo, "base64");
     }
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    if (!updatedUser) {
+    // Fetch old user to detect credential changes
+    const oldUser = await User.findById(req.params.id);
+    if (!oldUser) {
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    // Notify user if username changed
+    if (updateData.Username && updateData.Username !== oldUser.Username) {
+      const { sendCredentialChangeNotification } = await import("../utils/email.js");
+      sendCredentialChangeNotification(
+        updatedUser.Email, updatedUser, "username",
+        { oldUsername: oldUser.Username, newUsername: updateData.Username }
+      ).catch(() => {});
     }
 
     res.status(200).json(updatedUser);
@@ -45,6 +87,78 @@ router.delete("/:id", canDeleteUser, async (req, res) => {
   } catch (err) {
     console.error("delete user error:", err);
     res.status(500).json({ success: false, message: "Failed to delete user" });
+  }
+});
+
+// GET /api/users/pending — list pending account requests (Developer-only)
+router.get("/pending", developerOnly, async (req, res) => {
+  try {
+    const pending = await User.find({ accountStatus: "pending" })
+      .select("-Password -verificationToken -resetPasswordToken -resetPasswordExpires")
+      .sort({ _id: -1 });
+    res.json({ success: true, data: pending });
+  } catch (err) {
+    console.error("get pending users error:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch pending users" });
+  }
+});
+
+// POST /api/users/:id/approve — developer approves and sets credentials (Developer-only)
+router.post("/:id/approve", developerOnly, async (req, res) => {
+  try {
+    const { Username, Password } = req.body;
+    if (!Username || !Password) {
+      return res.status(400).json({ success: false, message: "Username and password are required" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (user.accountStatus !== "pending") {
+      return res.status(400).json({ success: false, message: "This account is not pending approval." });
+    }
+
+    // Check for duplicate username
+    const existing = await User.findOne({ Username, _id: { $ne: user._id } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: "Username is already taken." });
+    }
+
+    const bcrypt = (await import("bcryptjs")).default;
+    const hashedPassword = await bcrypt.hash(Password, 10);
+
+    user.Username = Username;
+    user.Password = hashedPassword;
+    user.accountStatus = "approved";
+    user.mustChangePassword = true;
+    await user.save();
+
+    // Send credentials email
+    const { sendApprovalEmail } = await import("../utils/email.js");
+    await sendApprovalEmail(user.Email, user, Password);
+
+    return res.json({ success: true, message: "Account approved. Credentials sent to user's email." });
+  } catch (err) {
+    console.error("approve user error:", err);
+    return res.status(500).json({ success: false, message: "Failed to approve account" });
+  }
+});
+
+// POST /api/users/:id/reject-account — developer rejects pending request (Developer-only)
+router.post("/:id/reject-account", developerOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (user.accountStatus !== "pending") {
+      return res.status(400).json({ success: false, message: "This account is not pending." });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    return res.json({ success: true, message: "Account request rejected and removed." });
+  } catch (err) {
+    console.error("reject account error:", err);
+    return res.status(500).json({ success: false, message: "Failed to reject account" });
   }
 });
 
@@ -92,7 +206,7 @@ router.post("/:id/set-temp-password", developerOnly, async (req, res) => {
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
     });
 
-    const APP_NAME = process.env.APP_NAME || "RCT Loan Management System";
+    const APP_NAME = process.env.APP_NAME || "RCT Loan Management Information System";
     const html = `
       <!doctype html>
       <html>
@@ -148,6 +262,47 @@ router.post("/:id/set-temp-password", developerOnly, async (req, res) => {
   } catch (err) {
     console.error("set-temp-password error:", err);
     return res.status(500).json({ success: false, message: "Failed to set temporary password" });
+  }
+});
+
+// POST /api/users/:id/mark-resigned — mark employee as resigned (Developer-only)
+router.post("/:id/mark-resigned", developerOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (user.accountStatus === "resigned") {
+      return res.status(400).json({ success: false, message: "Account is already marked as resigned." });
+    }
+
+    user.accountStatus = "resigned";
+    user.resignedAt = new Date();
+    await user.save();
+
+    return res.json({ success: true, message: "Account marked as resigned." });
+  } catch (err) {
+    console.error("mark-resigned error:", err);
+    return res.status(500).json({ success: false, message: "Failed to mark account as resigned" });
+  }
+});
+
+// POST /api/users/:id/send-resignation-reminder — send 30-day deletion reminder email (Developer-only)
+router.post("/:id/send-resignation-reminder", developerOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (user.accountStatus !== "resigned") {
+      return res.status(400).json({ success: false, message: "Account is not resigned." });
+    }
+
+    const { sendResignationReminderEmail } = await import("../utils/email.js");
+    await sendResignationReminderEmail(user.Email, user);
+
+    return res.json({ success: true, message: "Resignation reminder email sent." });
+  } catch (err) {
+    console.error("send-resignation-reminder error:", err);
+    return res.status(500).json({ success: false, message: "Failed to send reminder email" });
   }
 });
 

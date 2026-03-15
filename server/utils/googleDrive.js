@@ -2,6 +2,56 @@ import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
 
+/**
+ * Supported upload categories and their corresponding env var keys.
+ * Each category maps a file to the correct Google Drive shared folder.
+ *
+ * Categories:
+ *   "client-image"    → client media/photos        (DRIVE_FOLDER_IMAGES_ID)
+ *   "client-doc"      → client documents            (DRIVE_FOLDER_DOCS_ID)
+ *   "voucher"         → client vouchers              (DRIVE_FOLDER_VOUCHERS_ID)
+ *   "staff"           → staff/user files             (DRIVE_FOLDER_STAFF_ID)
+ *   "collector"       → collector files              (DRIVE_COLLECTORS_FOLDER_ID)
+ */
+const FOLDER_MAP = {
+  "client-image": "DRIVE_FOLDER_IMAGES_ID",
+  "client-doc":   "DRIVE_FOLDER_DOCS_ID",
+  voucher:        "DRIVE_FOLDER_VOUCHERS_ID",
+  staff:          "DRIVE_FOLDER_STAFF_ID",
+  collector:      "DRIVE_COLLECTORS_FOLDER_ID",
+};
+
+/**
+ * Resolve the Drive folder ID(s) for a given upload category.
+ * Falls back to DRIVE_FOLDER_ID if the specific env var is empty.
+ * @param {string} category - one of the FOLDER_MAP keys, or a raw folder ID
+ * @returns {string[]} parent folder IDs array (may be empty)
+ */
+export function resolveDriveFolder(category) {
+  const envKey = FOLDER_MAP[category];
+  const raw = envKey
+    ? (process.env[envKey] || "").trim()
+    : (category || "").trim();          // treat unknown category as a raw ID
+  const fallback = (process.env.DRIVE_FOLDER_ID || "").trim();
+  const id = raw || fallback;
+  return id ? id.split(",").map((s) => s.trim()).filter(Boolean) : [];
+}
+
+/**
+ * Pick the correct Drive folder based on MIME type / filename.
+ * Images → "client-image", everything else → "client-doc".
+ * Callers can override with an explicit category.
+ */
+export function pickFolderByMime(mimeType, filename, explicitCategory) {
+  if (explicitCategory && FOLDER_MAP[explicitCategory]) {
+    return resolveDriveFolder(explicitCategory);
+  }
+  const isImage =
+    /^image\//i.test(mimeType) ||
+    /\.(jpg|jpeg|png|gif|webp)$/i.test(filename || "");
+  return resolveDriveFolder(isImage ? "client-image" : "client-doc");
+}
+
 function buildAuth() {
   const keyFileEnv = process.env.DRIVE_KEY_FILE;
   const base64 = process.env.DRIVE_SA_KEY_BASE64;

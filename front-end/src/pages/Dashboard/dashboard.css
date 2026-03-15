@@ -60,6 +60,7 @@
   border-radius: 10px;
   border: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  height: 100%; /* stretch to fill row so all cards in the same row share equal height */
 }
 
 .chart-card .ant-card-head {

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, message, Spin, Form, Input, Modal, ColorPicker, Radio, Card, Checkbox, Result } from "antd";
+import { Typography, Divider, Switch, Space, Alert, Collapse, Button, Table, Select, Spin, Form, Input, Modal, ColorPicker, Radio, Card, Checkbox, Result, Tag, Popconfirm, Badge, DatePicker, Pagination } from "antd";
 import { useDevSettings } from "../../../context/DevSettingsContext";
 import api from "../../../utils/axios";
+import { swalMessage, swalConfirm } from "../../../utils/swal";
 import { lsGet, lsGetSession } from "../../../utils/storage";
 import "./devsettings.css";
 
@@ -20,6 +21,23 @@ export default function DeveloperSettings() {
   const [tempPwdSubmitting, setTempPwdSubmitting] = useState(false);
   const [permModal, setPermModal] = useState({ open: false, user: null });
   const [permState, setPermState] = useState(null);
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [approveModal, setApproveModal] = useState({ open: false, user: null });
+  const [approveForm] = Form.useForm();
+  const [approving, setApproving] = useState(false);
+
+  // ─── Activity Logs state ────────────────────────────────────
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsLimit] = useState(20);
+  const [logModuleFilter, setLogModuleFilter] = useState(undefined);
+  const [logActionFilter, setLogActionFilter] = useState(undefined);
+  const [logSearch, setLogSearch] = useState("");
+  const [logModules, setLogModules] = useState([]);
+  const [logActions, setLogActions] = useState([]);
 
   // ─── Access guard: only developers can use this page ───────
   const currentUser = lsGetSession("user") || lsGet("user");
@@ -54,14 +72,27 @@ export default function DeveloperSettings() {
       setUsers(unique);
     } catch (err) {
       console.error(err);
-      message.error("Failed to load users");
+      swalMessage.error("Failed to load users");
     } finally {
       setLoadingUsers(false);
     }
   };
 
+  const fetchPendingUsers = async () => {
+    try {
+      setLoadingPending(true);
+      const res = await api.get("/users/pending");
+      setPendingUsers(res.data?.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchPendingUsers();
   }, []);
 
   const roleDefaults = [
@@ -91,10 +122,10 @@ export default function DeveloperSettings() {
     try {
       setPositionUpdating((prev) => ({ ...prev, [user._id]: true }));
       await api.put(`/users/${user._id}`, { Position: newPos });
-      message.success(`Updated ${user.FullName}'s position to ${newPos}`);
+      swalMessage.success(`Updated ${user.FullName}'s position to ${newPos}`);
     } catch (err) {
       console.error(err);
-      message.error("Failed to update position");
+      swalMessage.error("Failed to update position");
       // rollback
       setUsers((prev) => prev.map((u) => (u._id === user._id ? { ...u, Position: old } : u)));
     } finally {
@@ -108,10 +139,10 @@ export default function DeveloperSettings() {
     try {
       setVerifying((prev) => ({ ...prev, [user._id]: true }));
       await api.put(`/users/${user._id}`, { isVerified: newVal });
-      message.success(`${user.FullName} is now ${newVal ? "verified" : "unverified"}`);
+      swalMessage.success(`${user.FullName} is now ${newVal ? "verified" : "unverified"}`);
     } catch (err) {
       console.error(err);
-      message.error("Failed to update verification status");
+      swalMessage.error("Failed to update verification status");
       setUsers((prev) => prev.map((u) => (u._id === user._id ? { ...u, isVerified: old } : u)));
     } finally {
       setVerifying((prev) => ({ ...prev, [user._id]: false }));
@@ -211,17 +242,17 @@ export default function DeveloperSettings() {
     const onFinish = async (values) => {
       const { oldPassword, newPassword, confirmPassword } = values;
       if (newPassword !== confirmPassword) {
-        message.error("New passwords do not match");
+        swalMessage.error("New passwords do not match");
         return;
       }
       try {
         setSubmitting(true);
         await api.put("/auth/change-password", { oldPassword, newPassword });
-        message.success("Password updated successfully");
+        swalMessage.success("Password updated successfully");
         form.resetFields();
       } catch (err) {
         const msg = err?.response?.data?.message || "Failed to update password";
-        message.error(msg);
+        swalMessage.error(msg);
       } finally {
         setSubmitting(false);
       }
@@ -248,10 +279,10 @@ export default function DeveloperSettings() {
     try {
       setSendingReset((prev) => ({ ...prev, [user._id]: true }));
       await api.post(`/users/${user._id}/reset-password-email`);
-      message.success(`Reset link sent to ${user.Email}`);
+      swalMessage.success(`Reset link sent to ${user.Email}`);
     } catch (err) {
       const msg = err?.response?.data?.message || "Failed to send reset email";
-      message.error(msg);
+      swalMessage.error(msg);
     } finally {
       setSendingReset((prev) => ({ ...prev, [user._id]: false }));
     }
@@ -309,30 +340,30 @@ export default function DeveloperSettings() {
     try {
       if (!permModal.user || !permState) return;
       await api.put(`/users/${permModal.user._id}`, { permissions: permState });
-      message.success("Permissions updated");
+      swalMessage.success("Permissions updated");
       setPermModal({ open: false, user: null });
       setPermState(null);
       fetchUsers();
     } catch (err) {
       const msg = err?.response?.data?.message || "Failed to update permissions";
-      message.error(msg);
+      swalMessage.error(msg);
     }
   };
 
   const submitTempPwd = async () => {
     if (!tempPwdValue || tempPwdValue.length < 6) {
-      message.error("Temporary password must be at least 6 characters");
+      swalMessage.error("Temporary password must be at least 6 characters");
       return;
     }
     try {
       setTempPwdSubmitting(true);
       await api.post(`/users/${tempPwdModal.user._id}/set-temp-password`, { tempPassword: tempPwdValue });
-      message.success("Temporary password set and emailed");
+      swalMessage.success("Temporary password set and emailed");
       setTempPwdModal({ open: false, user: null });
       setTempPwdValue("");
     } catch (err) {
       const msg = err?.response?.data?.message || "Failed to set temporary password";
-      message.error(msg);
+      swalMessage.error(msg);
     } finally {
       setTempPwdSubmitting(false);
     }
@@ -357,7 +388,294 @@ export default function DeveloperSettings() {
     setTempPwdValue(pwd);
   };
 
+  const handleApprove = async () => {
+    try {
+      const values = await approveForm.validateFields();
+      setApproving(true);
+      await api.post(`/users/${approveModal.user._id}/approve`, {
+        Username: values.Username,
+        Password: values.Password,
+      });
+      swalMessage.success("Account approved and credentials sent to user's email.");
+      setApproveModal({ open: false, user: null });
+      approveForm.resetFields();
+      fetchPendingUsers();
+      fetchUsers();
+    } catch (err) {
+      if (err?.errorFields) return; // form validation error
+      const msg = err?.response?.data?.message || "Failed to approve account";
+      swalMessage.error(msg);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleRejectAccount = async (userId) => {
+    try {
+      await api.post(`/users/${userId}/reject-account`);
+      swalMessage.success("Account request rejected.");
+      fetchPendingUsers();
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to reject account";
+      swalMessage.error(msg);
+    }
+  };
+
+  const pendingAccountsPanel = {
+    key: "pending-accounts",
+    label: (
+      <Space>
+        <span>Pending Account Requests</span>
+        {pendingUsers.length > 0 && (
+          <Badge count={pendingUsers.length} style={{ backgroundColor: "#fa8c16" }} />
+        )}
+      </Space>
+    ),
+    children: (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <Text type="secondary">Review and approve new account requests.</Text>
+          <Button onClick={fetchPendingUsers} size="small">Refresh</Button>
+        </div>
+        {loadingPending ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Spin size="small" /> <span>Loading pending requests…</span>
+          </div>
+        ) : pendingUsers.length === 0 ? (
+          <Alert type="info" showIcon message="No pending account requests." />
+        ) : (
+          <Table
+            size="small"
+            rowKey="_id"
+            pagination={false}
+            dataSource={pendingUsers}
+            columns={[
+              { title: "System ID", dataIndex: "SystemID", key: "SystemID", width: 140 },
+              { title: "Full Name", dataIndex: "FullName", key: "FullName" },
+              { title: "Email", dataIndex: "Email", key: "Email" },
+              { title: "Designation", dataIndex: "Designation", key: "Designation", width: 110 },
+              {
+                title: "Status",
+                key: "status",
+                width: 90,
+                render: () => <Tag color="orange">PENDING</Tag>,
+              },
+              {
+                title: "Actions",
+                key: "actions",
+                width: 200,
+                render: (_, record) => (
+                  <Space>
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => {
+                        approveForm.resetFields();
+                        setApproveModal({ open: true, user: record });
+                      }}
+                    >
+                      Approve
+                    </Button>
+                    <Popconfirm
+                      title="Reject this account request?"
+                      description="This will permanently delete the pending request."
+                      onConfirm={() => handleRejectAccount(record._id)}
+                      okText="Reject"
+                      okType="danger"
+                    >
+                      <Button danger size="small">Reject</Button>
+                    </Popconfirm>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        )}
+      </div>
+    ),
+  };
+
+  // ─── Activity Logs functions ───────────────────────────────
+  const fetchLogs = async (pg = logsPage) => {
+    setLogsLoading(true);
+    try {
+      const params = { page: pg, limit: logsLimit };
+      if (logModuleFilter) params.module = logModuleFilter;
+      if (logActionFilter) params.action = logActionFilter;
+      if (logSearch) params.search = logSearch;
+      const res = await api.get("/activity-logs", { params });
+      setLogs(res.data?.data || []);
+      setLogsTotal(res.data?.total || 0);
+      setLogsPage(pg);
+    } catch {
+      swalMessage.error("Failed to load activity logs");
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const fetchLogFilters = async () => {
+    try {
+      const res = await api.get("/activity-logs/filters");
+      setLogModules(res.data?.modules || []);
+      setLogActions(res.data?.actions || []);
+    } catch {}
+  };
+
+  const handleClearLogs = (days) => {
+    swalConfirm({
+      title: `Clear logs older than ${days} days?`,
+      text: "This action cannot be undone.",
+      confirmButtonText: "Clear",
+      confirmButtonColor: "#ff4d4f",
+      onOk: async () => {
+        try {
+          const res = await api.post("/activity-logs/clear", { olderThanDays: days });
+          swalMessage.success(`Cleared ${res.data?.deleted || 0} log entries.`);
+          fetchLogs(1);
+        } catch {
+          swalMessage.error("Failed to clear logs");
+        }
+      },
+    });
+  };
+
+  const ACTION_COLORS = {
+    LOGIN: "blue", CREATE: "green", UPDATE: "orange", DELETE: "red",
+    IMPORT: "purple", SEND: "cyan", VIEW: "default", APPROVE: "lime",
+    REJECT: "volcano", UPLOAD: "geekblue", EXPORT: "gold",
+    REGISTER: "magenta", CHANGE_PASSWORD: "orange", VERIFY: "cyan",
+    RESET_PASSWORD: "warning", ROUTE: "purple", EXECUTE: "red",
+  };
+
+  const logsPanel = {
+    key: "activity-logs",
+    label: (
+      <Space>
+        <span>Activity Logs</span>
+      </Space>
+    ),
+    children: (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <Space wrap>
+            <Input
+              placeholder="Search logs..."
+              size="small"
+              style={{ width: 180 }}
+              value={logSearch}
+              onChange={(e) => setLogSearch(e.target.value)}
+              onPressEnter={() => fetchLogs(1)}
+              allowClear
+            />
+            <Select
+              size="small"
+              placeholder="Module"
+              style={{ width: 130 }}
+              allowClear
+              value={logModuleFilter}
+              onChange={(v) => { setLogModuleFilter(v); }}
+              options={logModules.map((m) => ({ label: m, value: m }))}
+            />
+            <Select
+              size="small"
+              placeholder="Action"
+              style={{ width: 130 }}
+              allowClear
+              value={logActionFilter}
+              onChange={(v) => { setLogActionFilter(v); }}
+              options={logActions.map((a) => ({ label: a, value: a }))}
+            />
+            <Button size="small" type="primary" onClick={() => fetchLogs(1)}>Filter</Button>
+            <Button size="small" onClick={() => { setLogModuleFilter(undefined); setLogActionFilter(undefined); setLogSearch(""); fetchLogs(1); }}>Reset</Button>
+          </Space>
+          <Space>
+            <Button size="small" onClick={() => { fetchLogs(1); fetchLogFilters(); }}>Refresh</Button>
+            <Popconfirm title="Clear logs older than 90 days?" onConfirm={() => handleClearLogs(90)} okText="Clear" okType="danger">
+              <Button size="small" danger>Clear Old Logs</Button>
+            </Popconfirm>
+          </Space>
+        </div>
+        {logsLoading ? (
+          <div style={{ textAlign: "center", padding: 24 }}><Spin size="small" /> Loading logs...</div>
+        ) : (
+          <>
+            <Table
+              size="small"
+              rowKey="_id"
+              dataSource={logs}
+              pagination={false}
+              scroll={{ x: 800 }}
+              columns={[
+                {
+                  title: "Time",
+                  dataIndex: "createdAt",
+                  width: 150,
+                  render: (v) => v ? new Date(v).toLocaleString() : "—",
+                },
+                {
+                  title: "User",
+                  width: 140,
+                  render: (_, r) => r.fullName || r.username || "System",
+                },
+                {
+                  title: "Action",
+                  dataIndex: "action",
+                  width: 110,
+                  render: (v) => <Tag color={ACTION_COLORS[v] || "default"}>{v}</Tag>,
+                },
+                {
+                  title: "Module",
+                  dataIndex: "module",
+                  width: 100,
+                  render: (v) => <Tag>{v}</Tag>,
+                },
+                {
+                  title: "Description",
+                  dataIndex: "description",
+                  ellipsis: true,
+                },
+                {
+                  title: "Path",
+                  dataIndex: "path",
+                  width: 200,
+                  ellipsis: true,
+                  render: (v) => <Text type="secondary" style={{ fontSize: 11 }}>{v}</Text>,
+                },
+                {
+                  title: "Status",
+                  dataIndex: "statusCode",
+                  width: 70,
+                  render: (v) => v ? <Tag color={v < 400 ? "green" : "red"}>{v}</Tag> : "—",
+                },
+                {
+                  title: "IP",
+                  dataIndex: "ip",
+                  width: 120,
+                  render: (v) => <Text type="secondary" style={{ fontSize: 11 }}>{v || "—"}</Text>,
+                },
+              ]}
+            />
+            <div style={{ marginTop: 8, textAlign: "right" }}>
+              <Pagination
+                size="small"
+                current={logsPage}
+                pageSize={logsLimit}
+                total={logsTotal}
+                onChange={(p) => fetchLogs(p)}
+                showTotal={(t) => `${t} entries`}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    ),
+    onExpand: () => { if (logs.length === 0) { fetchLogs(1); fetchLogFilters(); } },
+  };
+
   const items = [
+    pendingAccountsPanel,
+    logsPanel,
     {
       key: "ui",
       label: "UI",
@@ -368,7 +686,7 @@ export default function DeveloperSettings() {
             checked={settings.compactUI}
             onChange={(v) => {
               setSetting("compactUI", v);
-              message.success("Compact UI setting updated");
+              swalMessage.success("Compact UI setting updated");
             }}
           />
           <Divider style={{ margin: "8px 0" }} />
@@ -383,8 +701,8 @@ export default function DeveloperSettings() {
                   setSetting("siderBg", preset.siderBg);
                   try {
                     await api.put("/theme/me", preset);
-                    message.success("Preset applied and saved (Light)");
-                  } catch { message.error("Failed to save preset"); }
+                    swalMessage.success("Preset applied and saved (Light)");
+                  } catch { swalMessage.error("Failed to save preset"); }
                 }}>Light</Button>
                 <Button size="small" onClick={async () => {
                   const preset = { headerBg: "#141414", siderBg: "#141414" };
@@ -392,8 +710,8 @@ export default function DeveloperSettings() {
                   setSetting("siderBg", preset.siderBg);
                   try {
                     await api.put("/theme/me", preset);
-                    message.success("Preset applied and saved (Dark)");
-                  } catch { message.error("Failed to save preset"); }
+                    swalMessage.success("Preset applied and saved (Dark)");
+                  } catch { swalMessage.error("Failed to save preset"); }
                 }}>Dark</Button>
                 <Button size="small" onClick={async () => {
                   const preset = { headerBg: "#1677ff", siderBg: "#001529" };
@@ -401,16 +719,16 @@ export default function DeveloperSettings() {
                   setSetting("siderBg", preset.siderBg);
                   try {
                     await api.put("/theme/me", preset);
-                    message.success("Preset applied and saved (Brand)");
-                  } catch { message.error("Failed to save preset"); }
+                    swalMessage.success("Preset applied and saved (Brand)");
+                  } catch { swalMessage.error("Failed to save preset"); }
                 }}>Brand</Button>
               </Space>
               <Button size="small" type="primary" onClick={async () => {
                 try {
                   await api.put("/theme/me", { headerBg: settings.headerBg, siderBg: settings.siderBg });
-                  message.success("Theme saved (Header + Sider)");
+                  swalMessage.success("Theme saved (Header + Sider)");
                 } catch {
-                  message.error("Failed to save theme");
+                  swalMessage.error("Failed to save theme");
                 }
               }}>Save Theme</Button>
             </div>
@@ -420,7 +738,7 @@ export default function DeveloperSettings() {
                 value={settings.siderBg}
                 onChangeComplete={(c) => {
                   setSetting("siderBg", c.toHexString());
-                  message.success("Sider color updated");
+                  swalMessage.success("Sider color updated");
                 }}
                 format="hex"
                 presets={[
@@ -434,7 +752,7 @@ export default function DeveloperSettings() {
                 {[
                   '#001529', '#141414', '#2f2f2f', '#003a8c', '#391085', '#1b5e20'
                 ].map((c) => (
-                  <Button key={c} size="small" onClick={() => { setSetting('siderBg', c); message.success('Sider color updated'); }} style={{ background: c, color: '#fff', borderColor: '#0002' }}>
+                  <Button key={c} size="small" onClick={() => { setSetting('siderBg', c); swalMessage.success('Sider color updated'); }} style={{ background: c, color: '#fff', borderColor: '#0002' }}>
                     {" "}
                   </Button>
                 ))}
@@ -442,9 +760,9 @@ export default function DeveloperSettings() {
               <Button size="small" onClick={async () => {
                 try {
                   await api.put("/theme/me", { siderBg: settings.siderBg });
-                  message.success("Sider theme saved");
+                  swalMessage.success("Sider theme saved");
                 } catch (e) {
-                  message.error("Failed to save theme");
+                  swalMessage.error("Failed to save theme");
                 }
               }}>Save</Button>
             </div>
@@ -454,7 +772,7 @@ export default function DeveloperSettings() {
                 value={settings.headerBg}
                 onChangeComplete={(c) => {
                   setSetting("headerBg", c.toHexString());
-                  message.success("Header color updated");
+                  swalMessage.success("Header color updated");
                 }}
                 format="hex"
                 presets={[
@@ -466,16 +784,16 @@ export default function DeveloperSettings() {
               <Button size="small" onClick={async () => {
                 try {
                   await api.put("/theme/me", { headerBg: settings.headerBg });
-                  message.success("Header theme saved");
+                  swalMessage.success("Header theme saved");
                 } catch (e) {
-                  message.error("Failed to save theme");
+                  swalMessage.error("Failed to save theme");
                 }
               }}>Save</Button>
               <Space size={4} wrap>
                 {[
                   '#ffffff', '#141414', '#1677ff', '#fa8c16', '#eb2f96', '#262626'
                 ].map((c) => (
-                  <Button key={c} size="small" onClick={() => { setSetting('headerBg', c); message.success('Header color updated'); }} style={{ background: c, color: '#000', borderColor: '#0002' }}>
+                  <Button key={c} size="small" onClick={() => { setSetting('headerBg', c); swalMessage.success('Header color updated'); }} style={{ background: c, color: '#000', borderColor: '#0002' }}>
                     {" "}
                   </Button>
                 ))}
@@ -661,15 +979,13 @@ export default function DeveloperSettings() {
                   type="primary"
                   onClick={() => {
                     if (!settings.autoLoanStatus) {
-                      message.info("Enable automated Loan Status first.");
+                      swalMessage.info("Enable automated Loan Status first.");
                       return;
                     }
-                    Modal.confirm({
+                    swalConfirm({
                       title: "Apply automated statuses to backend?",
-                      content:
-                        "This will compute automated statuses using the configured grace periods and update Loan Status in the database (non-CLOSED only). Continue?",
-                      okText: "Apply Now",
-                      cancelText: "Cancel",
+                      text: "This will compute automated statuses using the configured grace periods and update Loan Status in the database (non-CLOSED only). Continue?",
+                      confirmButtonText: "Apply Now",
                       onOk: async () => {
                         try {
                           setApplyingAutomation(true);
@@ -677,14 +993,14 @@ export default function DeveloperSettings() {
                             thresholds: settings.autoLoanStatusGrace || {},
                           });
                           const info = res?.data?.data;
-                          message.success(
+                          swalMessage.success(
                             info
                               ? `Applied automated statuses (computed: ${info.computed}, changed: ${info.changed}).`
                               : "Applied automated statuses."
                           );
                         } catch (err) {
                           const msg = err?.response?.data?.message || err?.message || "Failed to apply automated statuses";
-                          message.error(msg);
+                          swalMessage.error(msg);
                         } finally {
                           setApplyingAutomation(false);
                         }
@@ -779,11 +1095,16 @@ export default function DeveloperSettings() {
       <Divider />
       <Collapse
         items={items}
-        // collapse all panels by default
         defaultActiveKey={[]}
         accordion={false}
         size="small"
         style={{ background: "transparent" }}
+        onChange={(keys) => {
+          if (keys.includes("activity-logs") && logs.length === 0) {
+            fetchLogs(1);
+            fetchLogFilters();
+          }
+        }}
       />
       <Modal
         title={`Set Temporary Password${tempPwdModal.user ? ` — ${tempPwdModal.user.FullName || tempPwdModal.user.Username}` : ""}`}
@@ -882,6 +1203,68 @@ export default function DeveloperSettings() {
           <div>No permissions loaded.</div>
         )}
       </Modal>
+      <Modal
+        title={`Approve Account${approveModal.user ? ` — ${approveModal.user.FullName}` : ""}`}
+        open={approveModal.open}
+        onCancel={() => { setApproveModal({ open: false, user: null }); approveForm.resetFields(); }}
+        onOk={handleApprove}
+        okText="Approve & Send Credentials"
+        confirmLoading={approving}
+        width={480}
+      >
+        {approveModal.user && (
+          <Space direction="vertical" style={{ width: "100%" }}>
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary">
+                Set login credentials for <strong>{approveModal.user.FullName}</strong> ({approveModal.user.Email}).
+                They will receive an email with their username and temporary password.
+              </Text>
+            </div>
+            <Form form={approveForm} layout="vertical">
+              <Form.Item
+                name="Username"
+                label="Username"
+                rules={[
+                  { required: true, message: "Username is required" },
+                  { min: 3, message: "Username must be at least 3 characters" },
+                  { pattern: /^[a-zA-Z0-9_.-]+$/, message: "Only letters, numbers, dots, hyphens, and underscores" },
+                ]}
+              >
+                <Input placeholder="Set username" />
+              </Form.Item>
+              <Form.Item
+                name="Password"
+                label="Temporary Password"
+                rules={[
+                  { required: true, message: "Password is required" },
+                  { min: 8, message: "Password must be at least 8 characters" },
+                ]}
+              >
+                <Space.Compact style={{ width: "100%" }}>
+                  <Input.Password placeholder="Set temporary password" />
+                </Space.Compact>
+              </Form.Item>
+              <Button
+                size="small"
+                onClick={() => {
+                  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+                  const lower = "abcdefghijkmnopqrstuvwxyz";
+                  const digits = "23456789";
+                  const symbols = "!@#$%^&*()-_=+";
+                  const all = upper + lower + digits + symbols;
+                  const pick = (s) => s[Math.floor(Math.random() * s.length)];
+                  let pwd = pick(upper) + pick(lower) + pick(digits) + pick(symbols);
+                  for (let i = pwd.length; i < 12; i++) pwd += pick(all);
+                  pwd = pwd.split("").sort(() => Math.random() - 0.5).join("");
+                  approveForm.setFieldsValue({ Password: pwd });
+                }}
+              >
+                Generate Password
+              </Button>
+            </Form>
+          </Space>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -930,7 +1313,7 @@ function PasswordGeneratorCard() {
             if (genLower) pools.push("abcdefghijkmnopqrstuvwxyz");
             if (genDigits) pools.push("23456789");
             if (genSymbols) pools.push("!@#$%^&*()-_=+[]{}");
-            if (pools.length === 0) { message.error("Select at least one character set"); return; }
+            if (pools.length === 0) { swalMessage.error("Select at least one character set"); return; }
             const pick = (s) => s[Math.floor(Math.random() * s.length)];
             let pwd = pools.map(pick).join("");
             const all = pools.join("");
@@ -938,7 +1321,7 @@ function PasswordGeneratorCard() {
             pwd = pwd.split("").sort(() => Math.random() - 0.5).join("");
             setGenOutput(pwd);
           }}>Generate</Button>
-          <Button onClick={() => { navigator.clipboard.writeText(genOutput || ""); message.success("Copied to clipboard"); }} disabled={!genOutput}>Copy</Button>
+          <Button onClick={() => { navigator.clipboard.writeText(genOutput || ""); swalMessage.success("Copied to clipboard"); }} disabled={!genOutput}>Copy</Button>
         </Space>
         <Input.TextArea rows={3} value={genOutput} readOnly placeholder="Generated password will appear here" />
       </Space>

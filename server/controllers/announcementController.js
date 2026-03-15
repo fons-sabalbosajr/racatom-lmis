@@ -22,18 +22,37 @@ const pick = (obj, keys) =>
 export const getPublicAnnouncements = async (_req, res) => {
   try {
     const now = new Date();
-    const announcements = await Announcement.find({
-      isActive: true,
-      showOnLogin: true,
-      $and: [
-        { $or: [{ ExpirationDate: { $exists: false } }, { ExpirationDate: null }, { ExpirationDate: { $gt: now } }] },
-        { $or: [{ ValidFrom: { $exists: false } }, { ValidFrom: null }, { ValidFrom: { $lte: now } }] },
-      ],
-    })
-      .select("Title Content Priority PostedDate PostedBy")
-      .sort({ Priority: -1, PostedDate: -1 })
-      .limit(10)
-      .lean();
+    // Use aggregation to give a numeric weight to Priority for proper sorting
+    const announcements = await Announcement.aggregate([
+      {
+        $match: {
+          isActive: true,
+          showOnLogin: true,
+          $and: [
+            { $or: [{ ExpirationDate: { $exists: false } }, { ExpirationDate: null }, { ExpirationDate: { $gt: now } }] },
+            { $or: [{ ValidFrom: { $exists: false } }, { ValidFrom: null }, { ValidFrom: { $lte: now } }] },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          priorityWeight: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$Priority", "urgent"] }, then: 4 },
+                { case: { $eq: ["$Priority", "high"] }, then: 3 },
+                { case: { $eq: ["$Priority", "normal"] }, then: 2 },
+                { case: { $eq: ["$Priority", "low"] }, then: 1 },
+              ],
+              default: 0,
+            },
+          },
+        },
+      },
+      { $sort: { priorityWeight: -1, PostedDate: -1 } },
+      { $limit: 10 },
+      { $project: { Title: 1, Content: 1, Priority: 1, PostedDate: 1, PostedBy: 1 } },
+    ]);
 
     res.json({ success: true, announcements });
   } catch (err) {

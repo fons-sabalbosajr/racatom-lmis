@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Table, message, Pagination, Row, Col, Select, Tag, Button, Space } from 'antd';
+import { Modal, Table, Pagination, Row, Col, Select, Tag, Button, Space } from "antd";
 import api from '../../../utils/axios';
 import { getLoanStatusColor } from '../../../utils/statusColors';
+import { swalMessage } from "../../../utils/swal";
 
 const PAGE_SIZE_OPTIONS = ['10', '20', '50', '100'];
 
@@ -149,10 +150,10 @@ function ChartDetailsModal({ visible, onClose, title, filter, onViewLoan }) {
           total: Number(response.data.meta.total) || 0,
         });
       } else {
-        message.error('Failed to load loan details.');
+        swalMessage.error('Failed to load loan details.');
       }
     } catch (error) {
-      message.error('An error occurred while fetching loan details.');
+      swalMessage.error('An error occurred while fetching loan details.');
       console.error(error);
     } finally {
       setLoading(false);

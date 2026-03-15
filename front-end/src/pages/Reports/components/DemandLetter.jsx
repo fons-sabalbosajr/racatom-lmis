@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Table,
   Button,
-  message,
   Input,
   Card,
   Tag,
@@ -15,19 +14,28 @@ import {
   Descriptions,
   Row,
   Col,
+  Checkbox,
+  Image,
+  Tooltip,
+  Spin,
 } from "antd";
 import {
   PrinterOutlined,
   FilePdfOutlined,
   ReloadOutlined,
+  EditOutlined,
+  EyeOutlined,
+  UndoOutlined,
+  FileImageOutlined,
 } from "@ant-design/icons";
 import api from "../../../utils/axios";
 import dayjs from "dayjs";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getCache, setCache } from "../../../utils/simpleCache";
+import { swalMessage } from "../../../utils/swal";
 
-const { Search } = Input;
+const { Search, TextArea } = Input;
 const { Title, Text } = Typography;
 
 const STATUS_COLORS = {
@@ -65,8 +73,15 @@ const DemandLetter = () => {
   const [letterType, setLetterType] = useState("demand");
   const [letterDate, setLetterDate] = useState(dayjs());
   const [complianceDate, setComplianceDate] = useState(dayjs().add(7, "day"));
-  // Client data is now derived from loan records (no separate endpoint needed)
   const [loanClients, setLoanClients] = useState([]);
+  // Editable letter content
+  const [editableTitle, setEditableTitle] = useState("");
+  const [editableBody, setEditableBody] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  // Client documents (ID images etc.)
+  const [clientDocs, setClientDocs] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [selectedDocIds, setSelectedDocIds] = useState([]);
 
   // ─── Fetch overdue loans ────────────────────────────────────
   const fetchOverdueLoans = async () => {
@@ -81,7 +96,7 @@ const DemandLetter = () => {
       }
 
       const loansRes = await api.get("/loans");
-      const allLoans = loansRes.data || [];
+      const allLoans = Array.isArray(loansRes.data) ? loansRes.data : loansRes.data?.data || [];
 
       // Filter only overdue loans
       const overdue = allLoans.filter(
@@ -106,7 +121,7 @@ const DemandLetter = () => {
       setLoanClients(derivedClients);
       setCache("demand_letter_loans", { loans: overdue, clients: derivedClients }, 120);
     } catch (err) {
-      message.error("Failed to fetch overdue loans");
+      swalMessage.error("Failed to fetch overdue loans");
       console.error(err);
     } finally {
       setLoading(false);
@@ -202,6 +217,13 @@ const DemandLetter = () => {
             onClick={() => {
               setSelectedLoan(record);
               setPreviewVisible(true);
+              const client = clientMap[record.AccountId];
+              const letter = getLetterContent(record, client);
+              setEditableTitle(letter.title);
+              setEditableBody(letter.body.join("\n"));
+              setIsEditing(false);
+              setSelectedDocIds([]);
+              fetchClientDocs(record.AccountId);
             }}
           >
             Generate
@@ -238,7 +260,7 @@ const DemandLetter = () => {
           "",
           `Dear ${client?.FirstName || "Borrower"},`,
           "",
-          `This is to formally demand payment of your outstanding loan obligation with RACATOM Lending Management and Information System.`,
+          `This is to formally demand payment of your outstanding loan obligation with RACATOM Lending.`,
           "",
           `Your loan account (Loan Cycle No: ${loan.LoanCycleNo}) with an original amount of ${loanAmount} has a remaining balance of ${balance}. The maturity date was ${maturity} and your account is currently tagged as "${loan.LoanStatus}".`,
           "",
@@ -305,12 +327,64 @@ const DemandLetter = () => {
     };
   };
 
+  // ─── Initialize editable content from template ─────────────
+  const initEditableContent = useCallback((loan, client) => {
+    const letter = getLetterContent(loan, client);
+    setEditableTitle(letter.title);
+    setEditableBody(letter.body.join("\n"));
+    setIsEditing(false);
+    setSelectedDocIds([]);
+  }, [letterType, letterDate, complianceDate]);
+
+  // ─── Fetch client documents (ID images etc.) ──────────────
+  const fetchClientDocs = async (accountId) => {
+    setLoadingDocs(true);
+    try {
+      const res = await api.get(`/loans/account/${accountId}/documents`);
+      const docs = res.data?.data || res.data || [];
+      // Only include image types
+      const images = docs.filter(
+        (d) => d.type === "image" || (d.mimeType && d.mimeType.startsWith("image/"))
+      );
+      setClientDocs(images);
+    } catch {
+      setClientDocs([]);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  // ─── Reset editable content when letter type/dates change ─
+  useEffect(() => {
+    if (selectedLoan && previewVisible) {
+      const client = clientMap[selectedLoan.AccountId];
+      initEditableContent(selectedLoan, client);
+    }
+  }, [letterType, letterDate, complianceDate]);
+
+  // ─── Load image as base64 for PDF embedding ───────────────
+  const loadImageAsBase64 = (src) =>
+    new Promise((resolve) => {
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
   // ─── Generate PDF ──────────────────────────────────────────
-  const generatePDF = () => {
+  const generatePDF = async () => {
     if (!selectedLoan) return;
 
     const client = clientMap[selectedLoan.AccountId];
-    const letter = getLetterContent(selectedLoan, client);
+    const bodyLines = editableBody.split("\n");
+    const title = editableTitle;
 
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -321,7 +395,7 @@ const DemandLetter = () => {
     // Header
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text("RACATOM Lending Management and Information System", pageWidth / 2, y, {
+    doc.text("RACATOM Lending", pageWidth / 2, y, {
       align: "center",
     });
     y += 8;
@@ -330,7 +404,7 @@ const DemandLetter = () => {
     doc.setFontSize(16);
     doc.setFont(undefined, "bold");
     doc.setTextColor(0);
-    doc.text(letter.title, pageWidth / 2, y, { align: "center" });
+    doc.text(title, pageWidth / 2, y, { align: "center" });
     y += 5;
 
     // Decorative line
@@ -344,7 +418,7 @@ const DemandLetter = () => {
     doc.setFont(undefined, "normal");
     doc.setTextColor(30);
 
-    for (const line of letter.body) {
+    for (const line of bodyLines) {
       if (line === "") {
         y += 5;
         continue;
@@ -428,6 +502,35 @@ const DemandLetter = () => {
     doc.setFont(undefined, "normal");
     doc.text("Date: ___________________", margin, y);
 
+    // ─── Attached client document images ────────────────────
+    const selectedImages = clientDocs.filter((d) => selectedDocIds.includes(d._id));
+    for (const imgDoc of selectedImages) {
+      const imgSrc = imgDoc.url || imgDoc.link;
+      if (!imgSrc) continue;
+      const base64 = await loadImageAsBase64(imgSrc);
+      if (!base64) continue;
+      doc.addPage();
+      y = 25;
+      doc.setFontSize(10);
+      doc.setFont(undefined, "bold");
+      doc.text(`Attachment: ${imgDoc.name}`, margin, y);
+      y += 8;
+      try {
+        const imgProps = doc.getImageProperties(base64);
+        const ratio = imgProps.width / imgProps.height;
+        let imgW = maxWidth;
+        let imgH = imgW / ratio;
+        if (imgH > 220) {
+          imgH = 220;
+          imgW = imgH * ratio;
+        }
+        doc.addImage(base64, "JPEG", margin, y, imgW, imgH);
+      } catch {
+        doc.setFont(undefined, "normal");
+        doc.text("[Could not embed image]", margin, y);
+      }
+    }
+
     // Footer
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -445,15 +548,15 @@ const DemandLetter = () => {
     const borrowerName = client
       ? `${client.LastName}_${client.FirstName}`
       : selectedLoan.AccountId;
-    doc.save(`${letter.title.replace(/\s/g, "_")}_${borrowerName}_${letterDate.format("YYYYMMDD")}.pdf`);
-    message.success("PDF generated successfully!");
+    doc.save(`${title.replace(/\s/g, "_")}_${borrowerName}_${letterDate.format("YYYYMMDD")}.pdf`);
+    swalMessage.success("PDF generated successfully!");
   };
 
-  // ─── Preview content ──────────────────────────────────────
+  // ─── Preview & Edit content ────────────────────────────────
   const renderPreview = () => {
     if (!selectedLoan) return null;
     const client = clientMap[selectedLoan.AccountId];
-    const letter = getLetterContent(selectedLoan, client);
+    const bodyLines = editableBody.split("\n");
 
     return (
       <div>
@@ -520,33 +623,152 @@ const DemandLetter = () => {
 
         <Divider />
 
-        {/* Letter Preview */}
+        {/* Editing Toolbar */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <Space>
+            <Tooltip title={isEditing ? "Switch to Preview" : "Edit Letter Content"}>
+              <Button
+                type={isEditing ? "primary" : "default"}
+                icon={isEditing ? <EyeOutlined /> : <EditOutlined />}
+                onClick={() => setIsEditing(!isEditing)}
+              >
+                {isEditing ? "Preview" : "Edit"}
+              </Button>
+            </Tooltip>
+            <Tooltip title="Reset to Template">
+              <Button
+                icon={<UndoOutlined />}
+                onClick={() => initEditableContent(selectedLoan, client)}
+              >
+                Reset
+              </Button>
+            </Tooltip>
+          </Space>
+          {isEditing && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Edit the letter title and body text below. Use blank lines for paragraph spacing.
+            </Text>
+          )}
+        </div>
+
+        {/* Letter Content — Editable or Preview */}
+        {isEditing ? (
+          <Card
+            size="small"
+            style={{ border: "1px solid #d9d9d9" }}
+          >
+            <div style={{ marginBottom: 12 }}>
+              <Text strong style={{ display: "block", marginBottom: 4 }}>Letter Title</Text>
+              <Input
+                value={editableTitle}
+                onChange={(e) => setEditableTitle(e.target.value)}
+                style={{ fontWeight: "bold", fontSize: 14, textAlign: "center" }}
+              />
+            </div>
+            <div>
+              <Text strong style={{ display: "block", marginBottom: 4 }}>Letter Body</Text>
+              <TextArea
+                value={editableBody}
+                onChange={(e) => setEditableBody(e.target.value)}
+                autoSize={{ minRows: 12, maxRows: 30 }}
+                style={{
+                  fontFamily: "'Times New Roman', serif",
+                  fontSize: 13,
+                  lineHeight: 1.8,
+                }}
+              />
+            </div>
+          </Card>
+        ) : (
+          <Card
+            size="small"
+            title={editableTitle}
+            style={{
+              fontFamily: "'Times New Roman', serif",
+              border: "1px solid #d9d9d9",
+            }}
+          >
+            {bodyLines.map((line, idx) =>
+              line.trim() === "" ? (
+                <br key={idx} />
+              ) : (
+                <p key={idx} style={{ margin: "2px 0", lineHeight: 1.6 }}>
+                  {line}
+                </p>
+              )
+            )}
+            <Divider />
+            <p>
+              <strong>Respectfully,</strong>
+            </p>
+            <br />
+            <p>____________________________</p>
+            <p>
+              <strong>Authorized Representative</strong>
+            </p>
+          </Card>
+        )}
+
+        <Divider />
+
+        {/* Client Document Images (ID, etc.) */}
         <Card
           size="small"
-          title={letter.title}
-          style={{
-            fontFamily: "'Times New Roman', serif",
-            border: "1px solid #d9d9d9",
-          }}
+          title={
+            <Space>
+              <FileImageOutlined />
+              <span>Attach Client Documents / ID Images</span>
+            </Space>
+          }
+          style={{ border: "1px solid #d9d9d9" }}
         >
-          {letter.body.map((line, idx) =>
-            line === "" ? (
-              <br key={idx} />
-            ) : (
-              <p key={idx} style={{ margin: "2px 0", lineHeight: 1.6 }}>
-                {line}
-              </p>
-            )
+          {loadingDocs ? (
+            <div style={{ textAlign: "center", padding: 16 }}>
+              <Spin size="small" /> <Text type="secondary"> Loading documents...</Text>
+            </div>
+          ) : clientDocs.length === 0 ? (
+            <Text type="secondary">No image documents found for this client.</Text>
+          ) : (
+            <Checkbox.Group
+              value={selectedDocIds}
+              onChange={setSelectedDocIds}
+              style={{ width: "100%" }}
+            >
+              <Row gutter={[12, 12]}>
+                {clientDocs.map((d) => (
+                  <Col key={d._id} span={8}>
+                    <Card
+                      size="small"
+                      hoverable
+                      style={{
+                        border: selectedDocIds.includes(d._id)
+                          ? "2px solid #1677ff"
+                          : "1px solid #d9d9d9",
+                      }}
+                    >
+                      <Checkbox value={d._id} style={{ marginBottom: 8 }}>
+                        <Text ellipsis style={{ maxWidth: 140 }}>{d.name}</Text>
+                      </Checkbox>
+                      <Image
+                        src={d.url || d.link}
+                        alt={d.name}
+                        width="100%"
+                        height={80}
+                        style={{ objectFit: "cover", borderRadius: 4 }}
+                        preview={{ mask: "Preview" }}
+                        fallback="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iODAiIGZpbGw9IiNmMGYwZjAiLz48dGV4dCB4PSI1MCIgeT0iNDUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNjY2MiIGZvbnQtc2l6ZT0iMTIiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=="
+                      />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </Checkbox.Group>
           )}
-          <Divider />
-          <p>
-            <strong>Respectfully,</strong>
-          </p>
-          <br />
-          <p>____________________________</p>
-          <p>
-            <strong>Authorized Representative</strong>
-          </p>
+          {selectedDocIds.length > 0 && (
+            <Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+              {selectedDocIds.length} document(s) will be attached to the PDF.
+            </Text>
+          )}
         </Card>
       </div>
     );

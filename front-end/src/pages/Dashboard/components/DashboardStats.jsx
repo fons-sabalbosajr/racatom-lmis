@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, Col, Row, Statistic, Button, Progress, Tooltip } from "antd";
+import { Button, Card, Col, Row, Statistic, Tooltip } from "antd";
 import {
   UserOutlined,
   ScheduleOutlined,
@@ -108,7 +108,7 @@ function DashboardStats({ stats, loading, onShowUpcoming }) {
         </Col>
         <Col xs={24} sm={12} md={8}>
           <Card className="dashboard-card stat-card-secondary">
-            <div>
+            <Tooltip title={`${(stats.collectionRate || 0).toFixed(1)}% of total disbursed has been collected`}>
               <Statistic
                 title="Collection Rate"
                 value={stats.collectionRate}
@@ -118,17 +118,7 @@ function DashboardStats({ stats, loading, onShowUpcoming }) {
                 prefix={<CheckCircleOutlined style={{ marginRight: 4 }} />}
                 suffix="%"
               />
-              <Tooltip title={`${(stats.collectionRate || 0).toFixed(1)}% of total disbursed has been collected`}>
-                <Progress
-                  percent={Math.min(stats.collectionRate || 0, 100)}
-                  showInfo={false}
-                  strokeColor="#1890ff"
-                  trailColor="#e8e8e8"
-                  size="small"
-                  style={{ marginTop: 8 }}
-                />
-              </Tooltip>
-            </div>
+            </Tooltip>
           </Card>
         </Col>
       </Row>

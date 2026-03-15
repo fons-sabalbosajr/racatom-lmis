@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Typography, message, Row, Col, Button, Badge, Space } from "antd";
+import { Typography, Row, Col, Button, Badge, Space } from "antd";
 import api from "../../utils/axios";
 import { lsGetSession, lsGet } from "../../utils/storage";
 import LoanDetailsModal from "../../pages/Loans/components/LoanDetailsModal";
@@ -15,6 +15,8 @@ import MonthlyDisbursementChart from "./components/MonthlyDisbursementChart";
 import PaymentModeChart from "./components/PaymentModeChart";
 import RecentLoansTable from "./components/RecentLoansTable";
 import PendingApplication from "./components/PendingApplication/PendingApplication";
+import DashboardCollectionModal from "./components/DashboardCollectionModal";
+import { swalMessage } from "../../utils/swal";
 
 const { Title } = Typography;
 
@@ -57,6 +59,7 @@ function Dashboard() {
   const [pendingModalVisible, setPendingModalVisible] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [loanRates, setLoanRates] = useState([]);
+  const [collectionModalVisible, setCollectionModalVisible] = useState(false);
 
   // Fetch pending applications count
   const fetchPendingCount = useCallback(async () => {
@@ -80,7 +83,7 @@ function Dashboard() {
       const clientNo = record.loanInfo?.clientNo || record.clientNo;
 
       if (!clientNo) {
-        message.error("Could not find a client number for this record.");
+        swalMessage.error("Could not find a client number for this record.");
         setLoading(false);
         return;
       }
@@ -100,14 +103,14 @@ function Dashboard() {
           });
           setModalVisible(true);
         } else {
-          message.error("Loan details not found.");
+          swalMessage.error("Loan details not found.");
         }
       } else {
-        message.error("Failed to fetch client data.");
+        swalMessage.error("Failed to fetch client data.");
       }
     } catch (err) {
       console.error(err);
-      message.error("Error fetching client data.");
+      swalMessage.error("Error fetching client data.");
     } finally {
       setLoading(false);
     }
@@ -125,11 +128,11 @@ function Dashboard() {
         setMonthlyDisbursement(statsRes.data.data.monthlyDisbursement || []);
         setPaymentModeData(statsRes.data.data.paymentModeDistribution || []);
       } else {
-        message.error("Failed to load dashboard statistics.");
+        swalMessage.error("Failed to load dashboard statistics.");
       }
     } catch (err) {
       console.error(err);
-      message.error("An error occurred while fetching dashboard statistics.");
+      swalMessage.error("An error occurred while fetching dashboard statistics.");
     }
   }, []);
 
@@ -157,11 +160,11 @@ function Dashboard() {
             pageSizeOptions: ["5", "10", "20", "50"],
           });
         } else {
-          message.error("Failed to load recent loans data.");
+          swalMessage.error("Failed to load recent loans data.");
         }
       } catch (err) {
         console.error(err);
-        message.error("An error occurred while fetching recent loans.");
+        swalMessage.error("An error occurred while fetching recent loans.");
       } finally {
         setLoading(false);
       }
@@ -176,11 +179,11 @@ function Dashboard() {
         if (res.data.success) {
           setLoanRates(res.data.data);
         } else {
-          message.warning("Failed to load loan rates.");
+          swalMessage.warning("Failed to load loan rates.");
         }
       } catch (err) {
         console.error(err);
-        message.error("Error loading loan rates.");
+        swalMessage.error("Error loading loan rates.");
       }
     };
 
@@ -262,6 +265,13 @@ function Dashboard() {
             className="loan-applications-btn"
           >
             New Loan Application
+          </Button>
+          <Button
+            type="primary"
+            onClick={() => setCollectionModalVisible(true)}
+            className="loan-applications-btn"
+          >
+            Add Loan Collections
           </Button>
           <Space>
             <Badge count={pendingCount} offset={[2, 0]} color="red">
@@ -354,6 +364,11 @@ function Dashboard() {
           onViewLoan={(record) => viewLoan(record)}
         />
       )}
+
+      <DashboardCollectionModal
+        visible={collectionModalVisible}
+        onClose={() => setCollectionModalVisible(false)}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
-// src/pages/VerifyEmail/VerifyEmail.jsx
+// src/pages/Login/VerifyEmail.jsx
 import React, { useState } from "react";
-import { Form, Input, Button, Typography, Card, Divider, message } from "antd";
+import { Form, Input, Button, Typography, Card, Divider } from "antd";
 import { UserOutlined, MailOutlined } from "@ant-design/icons";
+import { swalMessage } from "../../utils/swal";
 import { useLocation, Link } from "react-router-dom";
 import api from "../../utils/axios";
 
@@ -16,7 +17,7 @@ function VerifyEmail() {
   const handleResend = async (values) => {
     const identifier = values.Identifier?.trim();
     if (!identifier) {
-      message.error("Please enter your username or email.");
+      swalMessage.error("Please enter your username or email.");
       return;
     }
 
@@ -25,16 +26,16 @@ function VerifyEmail() {
       const payload = identifier.includes("@") ? { email: identifier } : { username: identifier };
   const response = await api.post(`/auth/resend-verification`, payload);
 
-      message.success(response.data?.message || "✅ Verification email resent. Check your inbox.");
+      swalMessage.success(response.data?.message || "✅ Verification email resent. Check your inbox.");
     } catch (err) {
       const status = err.response?.status;
       // Generic messages to prevent user/email enumeration
       if (status === 404) {
-        message.info("If that account exists, a verification email has been sent.");
+        swalMessage.info("If that account exists, a verification email has been sent.");
       } else if (status === 400) {
-        message.info("That account may already be verified. Try logging in.");
+        swalMessage.info("That account may already be verified. Try logging in.");
       } else {
-        message.error("Failed to resend verification email. Please try again later.");
+        swalMessage.error("Failed to resend verification email. Please try again later.");
       }
     } finally {
       setLoading(false);
@@ -81,7 +82,7 @@ function VerifyEmail() {
         </div>
 
         <Text type="secondary" style={{ display: "block", textAlign: "center", marginTop: 16 }}>
-          © {new Date().getFullYear()} RCT Loan Management System
+          © {new Date().getFullYear()} RCT Loan Management Information System
         </Text>
       </Card>
     </div>

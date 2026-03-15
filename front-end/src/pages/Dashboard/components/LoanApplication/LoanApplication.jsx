@@ -4,7 +4,6 @@ import {
   Steps,
   Button,
   Form,
-  message,
   Descriptions,
   Card,
   Typography,
@@ -16,6 +15,8 @@ import Step1_GeneralInfo from "./components/Step1_GeneralInfo";
 import Step2_DocumentRequirements from "./components/Step2_DocumentRequirements";
 import Step3_LoanInfo from "./components/Step3_LoanInfo";
 import dayjs from "dayjs";
+import { swalMessage } from "../../../../utils/swal";
+import { SendOutlined } from "@ant-design/icons";
 
 const { Step } = Steps;
 const { Title, Text } = Typography;
@@ -32,6 +33,7 @@ const LoanApplication = ({
   const [formData, setFormData] = useState({});
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [routingToManager, setRoutingToManager] = useState(false);
 
   useEffect(() => {
     if (visible && initialData) {
@@ -103,19 +105,78 @@ const LoanApplication = ({
           `/loan_clients_application/${initialData._id}/reapply`,
           finalData
         );
-        message.success("Reapplication submitted successfully!");
+        swalMessage.success("Reapplication submitted successfully!");
       } else {
         await api.post(`/loans/loan_clients_application`, finalData);
-        message.success("Loan application submitted successfully!");
+        swalMessage.success("Loan application submitted successfully!");
       }
       onClose();
     } catch (err) {
       console.error("Submit failed", err);
       const errorMessage =
         err.response?.data?.message || "Failed to submit application";
-      message.error(errorMessage);
+      swalMessage.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitAndRoute = async () => {
+    setRoutingToManager(true);
+    try {
+      const values = await form.getFieldsValue(true);
+      const finalData = { ...formData, ...values };
+
+      let appId;
+      if (mode === "reapply" && initialData?._id) {
+        const res = await api.patch(
+          `/loan_clients_application/${initialData._id}/reapply`,
+          finalData
+        );
+        appId = res.data?.data?._id || initialData._id;
+      } else {
+        const res = await api.post(`/loans/loan_clients_application`, finalData);
+        appId = res.data?.data?._id;
+      }
+
+      if (!appId) {
+        swalMessage.warning("Application created but could not route — no application ID returned.");
+        onClose();
+        return;
+      }
+
+      // Find the Manager from staff users
+      const staffRes = await api.get("/messages/staff-users");
+      const manager = (staffRes.data.users || []).find(
+        (u) => String(u.Position || "").toLowerCase() === "manager"
+      );
+
+      if (!manager) {
+        swalMessage.warning("Application created but no Manager account found to route to.");
+        onClose();
+        return;
+      }
+
+      // Route the loan application to the Manager
+      const formDataRoute = new FormData();
+      formDataRoute.append("subject", `Loan Application - ${finalData.FirstName || ""} ${finalData.LastName || ""}`);
+      formDataRoute.append("body", "A new loan application has been submitted and routed for your review.");
+      formDataRoute.append("loanApplicationId", appId);
+      formDataRoute.append("recipients", manager._id);
+
+      await api.post("/messages/route-loan", formDataRoute, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      swalMessage.success("Loan application submitted and routed to Manager!");
+      onClose();
+    } catch (err) {
+      console.error("Submit & route failed", err);
+      const errorMessage =
+        err.response?.data?.message || "Failed to submit and route application";
+      swalMessage.error(errorMessage);
+    } finally {
+      setRoutingToManager(false);
     }
   };
 
@@ -327,9 +388,20 @@ const LoanApplication = ({
           </Button>
         )}
         {current === stepTitles.length - 1 && (
-          <Button type="primary" onClick={handleSubmit} loading={loading}>
-            Submit Application
-          </Button>
+          <>
+            <Button type="primary" onClick={handleSubmit} loading={loading}>
+              Submit Application
+            </Button>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSubmitAndRoute}
+              loading={routingToManager}
+              style={{ marginLeft: 8, background: "#52c41a", borderColor: "#52c41a" }}
+            >
+              Submit &amp; Route to Manager
+            </Button>
+          </>
         )}
       </div>
     </Modal>

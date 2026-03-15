@@ -5,7 +5,6 @@ import {
   Button,
   Input,
   Typography,
-  message,
   DatePicker,
   Modal,
   Upload,
@@ -38,6 +37,7 @@ import AddCollectionModal from "./components/AddCollectionModal";
 import EditCollectionModal from "./components/EditCollectionModal";
 import { exportData } from "../../utils/exportUtils";
 import { useDevSettings } from "../../context/DevSettingsContext";
+import { swalMessage } from "../../utils/swal";
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -170,12 +170,12 @@ const Collections = ({ loan, onAfterChange }) => {
           const hasImported = raw.some((c) => c.Source === "imported");
           setHasImportedCollections(hasImported);
         } else {
-          message.error("Failed to fetch collections.");
+          swalMessage.error("Failed to fetch collections.");
         }
       })
       .catch((error) => {
         console.error("Error fetching collections:", error);
-        message.error("Error fetching collections.");
+        swalMessage.error("Error fetching collections.");
       })
       .finally(() => {
         setLoading(false);
@@ -188,7 +188,7 @@ const Collections = ({ loan, onAfterChange }) => {
       if (res.data.success) {
         setCollectors(res.data.data);
       } else {
-        message.error("Failed to fetch collector names.");
+        swalMessage.error("Failed to fetch collector names.");
       }
     });
   }, [fetchCollections]);
@@ -259,7 +259,7 @@ const Collections = ({ loan, onAfterChange }) => {
       selectedRowKeys.includes(i)
     );
     if (selected.length === 0) {
-      message.warning("Please select at least one record to save.");
+      swalMessage.warning("Please select at least one record to save.");
       return;
     }
 
@@ -270,7 +270,7 @@ const Collections = ({ loan, onAfterChange }) => {
       // Auto-commit after save
       const commit = await api.post(`/loan-collections/commit/${loan.loanInfo.loanNo}`);
       if (commit.data?.success) {
-        message.success("Collections imported successfully!");
+        swalMessage.success("Collections imported successfully!");
         setIsPreviewModalVisible(false);
         if (settings.enableCollectionStatusCheck !== false) {
           try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } }); } catch {}
@@ -278,12 +278,12 @@ const Collections = ({ loan, onAfterChange }) => {
         fetchCollections();
         if (onAfterChange) onAfterChange();
       } else {
-        message.success("Saved to metadata. Nothing to commit.");
+        swalMessage.success("Saved to metadata. Nothing to commit.");
         setIsPreviewModalVisible(false);
       }
     } catch (err) {
       console.error(err);
-      message.error("Failed to save collections.");
+      swalMessage.error("Failed to save collections.");
     }
   };
 
@@ -293,18 +293,18 @@ const Collections = ({ loan, onAfterChange }) => {
         `/loan-collections/commit/${loan.loanInfo.loanNo}`
       );
       if (res.data.success) {
-        message.success("Collections imported successfully!");
+        swalMessage.success("Collections imported successfully!");
         if (settings.enableCollectionStatusCheck !== false) {
           try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan.loanInfo.loanNo } }); } catch {}
         }
         fetchCollections();
         if (onAfterChange) onAfterChange();
       } else {
-        message.warning(res.data.message || "Nothing to import.");
+        swalMessage.warning(res.data.message || "Nothing to import.");
       }
     } catch (err) {
       console.error(err);
-      message.error("Import failed.");
+      swalMessage.error("Import failed.");
     }
   };
 
@@ -319,25 +319,25 @@ const Collections = ({ loan, onAfterChange }) => {
       if (res.data?.success) {
         const ins = res.data?.data?.inserted || 0;
         const skipped = res.data?.data?.skipped || 0;
-        message.success(`Imported ${ins} from database${skipped ? `, skipped ${skipped}` : ""}.`);
+        swalMessage.success(`Imported ${ins} from database${skipped ? `, skipped ${skipped}` : ""}.`);
         if (settings.enableCollectionStatusCheck !== false) {
           try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } }); } catch {}
         }
         fetchCollections();
         if (onAfterChange) onAfterChange();
       } else {
-        message.warning(res.data?.message || "No collections imported from database.");
+        swalMessage.warning(res.data?.message || "No collections imported from database.");
       }
     } catch (e) {
       console.error(e);
-      message.error("Failed to import from collection database.");
+      swalMessage.error("Failed to import from collection database.");
     }
   };
 
   const handleDeleteCollection = async (record) => {
     try {
       await api.delete(`/loan-collections/${record._id}`);
-      message.success("Collection deleted successfully.");
+      swalMessage.success("Collection deleted successfully.");
       if (settings.enableCollectionStatusCheck !== false) {
         try { await api.post('/loans/apply-automated-statuses', { filter: { LoanCycleNo: loan?.loanInfo?.loanNo } }); } catch {}
       }
@@ -345,7 +345,7 @@ const Collections = ({ loan, onAfterChange }) => {
       if (onAfterChange) onAfterChange();
     } catch (error) {
       console.error("Error deleting collection:", error);
-      message.error("Failed to delete collection.");
+      swalMessage.error("Failed to delete collection.");
     }
   };
 
@@ -359,17 +359,17 @@ const Collections = ({ loan, onAfterChange }) => {
       if (res.data.success) {
         const deleted = res.data.deleted || 0;
         if (deleted > 0) {
-          message.success(`Removed ${deleted} duplicate collection(s).`);
+          swalMessage.success(`Removed ${deleted} duplicate collection(s).`);
         } else {
-          message.info("No duplicate collections found.");
+          swalMessage.info("No duplicate collections found.");
         }
         fetchCollections();
       } else {
-        message.error(res.data.message || "Dedupe failed.");
+        swalMessage.error(res.data.message || "Dedupe failed.");
       }
     } catch (err) {
       console.error("Dedupe error:", err);
-      message.error("Failed to dedupe collections.");
+      swalMessage.error("Failed to dedupe collections.");
     }
   };
 
@@ -380,7 +380,7 @@ const Collections = ({ loan, onAfterChange }) => {
         ids: selectedMainTableRowKeys,
         updates: { CollectorName: values.collectorName },
       });
-      message.success(
+      swalMessage.success(
         "Collector updated successfully for selected collections."
       );
       setIsUpdateCollectorModalVisible(false);
@@ -388,7 +388,7 @@ const Collections = ({ loan, onAfterChange }) => {
       fetchCollections();
     } catch (error) {
       console.error("Error updating collector:", error);
-      message.error("Failed to update collector.");
+      swalMessage.error("Failed to update collector.");
     }
   };
 
@@ -755,11 +755,11 @@ const Collections = ({ loan, onAfterChange }) => {
           beforeUpload={async (file) => {
             const ext = (file.name.split('.').pop() || '').toLowerCase();
             if (ext === 'doc') {
-              message.error('Old .doc files are not supported. Please upload a .docx or .csv file.');
+              swalMessage.error('Old .doc files are not supported. Please upload a .docx or .csv file.');
               return Upload.LIST_IGNORE;
             }
             if (!['docx','csv'].includes(ext)) {
-              message.error('Unsupported file type. Please upload a .docx or .csv file.');
+              swalMessage.error('Unsupported file type. Please upload a .docx or .csv file.');
               return Upload.LIST_IGNORE;
             }
             const formData = new FormData();
@@ -777,7 +777,7 @@ const Collections = ({ loan, onAfterChange }) => {
                 const info = res.data.info || {};
 
                 if (!parsed.length) {
-                  message.warning("No collection data found in the file.");
+                  swalMessage.warning("No collection data found in the file.");
                   return Upload.LIST_IGNORE;
                 }
 
@@ -787,13 +787,13 @@ const Collections = ({ loan, onAfterChange }) => {
                 setSelectedRowKeys(parsed.map((_, i) => i));
                 setIsUploadModalVisible(false);
                 setIsPreviewModalVisible(true);
-                message.success("File parsed successfully!");
+                swalMessage.success("File parsed successfully!");
               } else {
-                message.error("Parsing failed.");
+                swalMessage.error("Parsing failed.");
               }
             } catch (err) {
               console.error(err);
-              message.error("Upload or parse failed.");
+              swalMessage.error("Upload or parse failed.");
             }
 
             return Upload.LIST_IGNORE;

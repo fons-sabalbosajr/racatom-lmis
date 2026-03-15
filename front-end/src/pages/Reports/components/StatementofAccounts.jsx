@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Table,
   Button,
-  message,
   Input,
   Card,
   Tag,
@@ -16,6 +15,7 @@ import "../soa.css";
 import api from "../../../utils/axios";
 import ExportCollectionPDF from "../../../utils/ExportCollectionPDF";
 import { getCache, setCache } from "../../../utils/simpleCache";
+import { swalMessage } from "../../../utils/swal";
 
 const { Search } = Input;
 
@@ -113,10 +113,10 @@ const StatementofAccounts = () => {
           }
         }
       } else {
-        message.error("Failed to fetch loans");
+        swalMessage.error("Failed to fetch loans");
       }
     } catch (error) {
-      message.error("An error occurred while fetching loans");
+      swalMessage.error("An error occurred while fetching loans");
       console.error(error);
     }
     setLoading(false);
@@ -164,11 +164,11 @@ const StatementofAccounts = () => {
         // Do not fetch rows here; defer to Generate action to avoid timeouts
         setPreviewCollections([]);
       } else {
-        message.error("Failed to fetch collection summary");
+        swalMessage.error("Failed to fetch collection summary");
       }
     } catch (e) {
       console.error(e);
-      message.error("Failed to fetch collection data");
+      swalMessage.error("Failed to fetch collection data");
     } finally {
       setPreviewLoading(false);
     }
@@ -177,7 +177,7 @@ const StatementofAccounts = () => {
   const confirmGenerateSOA = async () => {
     if (!previewRecord) return;
     try {
-      message.loading({ content: "Generating PDF...", key: "pdf" });
+      swalMessage.info("Generating PDF...");
       // Ensure we have the rows. If not loaded, fetch them now in minimal mode
       let rows = previewCollections;
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -194,14 +194,14 @@ const StatementofAccounts = () => {
         rows = Array.isArray(rowsRes.data?.data) ? rowsRes.data.data : [];
       }
       ExportCollectionPDF(previewRecord, rows);
-      message.success({ content: "PDF Generated!", key: "pdf", duration: 2 });
+      swalMessage.success("PDF Generated!");
       setPreviewVisible(false);
       setPreviewRecord(null);
       setPreviewCollections([]);
       setPreviewSummary(null);
     } catch (e) {
       console.error(e);
-      message.error({ content: "Failed to generate PDF.", key: "pdf" });
+      swalMessage.error("Failed to generate PDF.");
     }
   };
 

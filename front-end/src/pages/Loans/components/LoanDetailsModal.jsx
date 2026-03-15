@@ -3,7 +3,6 @@ import {
   Modal,
   Button,
   Typography,
-  message,
   Tabs,
   Space,
   Row,
@@ -36,6 +35,7 @@ import LoanInfoTab from "./LoanInfoTab";
 import LoanDocumentsTab from "./LoanDocumentsTab";
 import LoanAccountSecurityTab from "./LoanAccountSecurityTab";
 import Collections from "../../Collections/Collections";
+import { swalMessage } from "../../../utils/swal";
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -207,7 +207,7 @@ export default function LoanDetailsModal({
         PaymentMode: mode,
         LoanTerm: termMonths ? `${termMonths} months` : prev.LoanTerm,
       }));
-      message.success("Imported loan rate to new loan record.");
+      swalMessage.success("Imported loan rate to new loan record.");
     } else if (isEditLoanRecordModalVisible) {
       setEditingLoanRecord((prev) => ({
         ...prev,
@@ -217,7 +217,7 @@ export default function LoanDetailsModal({
         PaymentMode: mode,
         LoanTerm: termMonths ? `${termMonths} months` : prev.LoanTerm,
       }));
-      message.success("Imported loan rate to existing loan record.");
+      swalMessage.success("Imported loan rate to existing loan record.");
     } else {
       // No active record form; ignore
     }
@@ -288,7 +288,7 @@ export default function LoanDetailsModal({
         })
         .catch((err) => {
           console.error("Error fetching loan rates:", err);
-          message.error("Could not load loan rate configurations.");
+          swalMessage.error("Could not load loan rate configurations.");
         });
 
       api
@@ -298,7 +298,7 @@ export default function LoanDetailsModal({
         })
         .catch((err) => {
           console.error("Error fetching collectors:", err);
-          message.error("Could not load collectors.");
+          swalMessage.error("Could not load collectors.");
         });
     }
   }, [visible]);
@@ -337,7 +337,7 @@ export default function LoanDetailsModal({
           setLoanCollections(allCollections);
         } catch (err) {
           console.error("Error fetching loan data:", err);
-          message.error("Error fetching loan data.");
+          swalMessage.error("Error fetching loan data.");
           setLoanDisbursed([]);
           setLoanCollections([]);
         }
@@ -363,7 +363,7 @@ export default function LoanDetailsModal({
 
       const res = await api.put(`/loans/${editedLoan._id}`, payload);
       if (res.data.success) {
-        message.success("Loan details updated successfully!");
+        swalMessage.success("Loan details updated successfully!");
         // Update local state with any normalized / updated values returned
         if (res.data.data) {
           setEditedLoan((prev) => ({ ...prev, ...res.data.data }));
@@ -371,12 +371,12 @@ export default function LoanDetailsModal({
         if (onLoanUpdate) onLoanUpdate();
         // Keep modal open; just exit edit mode
       } else {
-        message.error(res.data.message || "Failed to update loan details.");
+        swalMessage.error(res.data.message || "Failed to update loan details.");
         return;
       }
     } catch (err) {
       console.error("Error saving loan details:", err);
-      message.error("Error saving loan details.");
+      swalMessage.error("Error saving loan details.");
       return;
     } finally {
       setIsEditing(false);
@@ -458,7 +458,7 @@ export default function LoanDetailsModal({
     // Validate required fields
     if (loanNoError || !newLoanRecord.LoanNo) {
       if (!newLoanRecord.LoanNo) setLoanNoError("Loan Number cannot be empty.");
-      message.error("Please fix the errors before submitting.");
+      swalMessage.error("Please fix the errors before submitting.");
       return;
     }
 
@@ -481,7 +481,7 @@ export default function LoanDetailsModal({
       const res = await api.post("/loans/cycles", payload);
 
       if (res.data.success) {
-        message.success("New loan record added successfully!");
+        swalMessage.success("New loan record added successfully!");
         setIsAddLoanModalVisible(false);
         setLoanNoError("");
 
@@ -491,11 +491,11 @@ export default function LoanDetailsModal({
         // 🔄 Refresh parent data
         if (onLoanUpdate) onLoanUpdate();
       } else {
-        message.error(res.data.message || "Failed to add loan record.");
+        swalMessage.error(res.data.message || "Failed to add loan record.");
       }
     } catch (err) {
       console.error("Error adding loan record:", err);
-      message.error(err.response?.data?.message || "Error adding loan record.");
+      swalMessage.error(err.response?.data?.message || "Error adding loan record.");
     }
   };
 
@@ -524,7 +524,7 @@ export default function LoanDetailsModal({
           l?.LoanNo === editingLoanRecord?.LoanNo
       );
       if (dup) {
-        message.error(
+        swalMessage.error(
           "This Loan No already exists for this client. Please choose a unique Loan No."
         );
         return;
@@ -557,7 +557,7 @@ export default function LoanDetailsModal({
       }
 
       if (res.data.success) {
-        message.success("Loan record updated successfully.");
+        swalMessage.success("Loan record updated successfully.");
         setIsEditLoanRecordModalVisible(false);
 
         // 🔁 Use parent’s refresh callback instead of undefined local function
@@ -570,11 +570,11 @@ export default function LoanDetailsModal({
           }
         } catch {}
       } else {
-        message.error(res.data.message || "Failed to update loan record.");
+        swalMessage.error(res.data.message || "Failed to update loan record.");
       }
     } catch (error) {
       console.error("Error updating loan record:", error);
-      message.error("Failed to update loan record.");
+      swalMessage.error("Failed to update loan record.");
     }
   };
 
@@ -585,16 +585,16 @@ export default function LoanDetailsModal({
       } else if (record.Source === "Disbursed") {
         await api.delete(`/loan_disbursed/${record._id}`);
       } else {
-        message.error("Unknown loan source, cannot delete.");
+        swalMessage.error("Unknown loan source, cannot delete.");
         return;
       }
 
-      message.success("Loan record deleted successfully.");
+      swalMessage.success("Loan record deleted successfully.");
 
       setMergedLoans((prev) => prev.filter((item) => item._id !== record._id));
     } catch (err) {
       console.error("Error deleting loan record:", err);
-      message.error(
+      swalMessage.error(
         err.response?.data?.message || "Failed to delete loan record."
       );
     }
@@ -606,16 +606,16 @@ export default function LoanDetailsModal({
       const res = await api.put(`/loans/cycle/${record._id}`, payload);
 
       if (res.data.success) {
-        message.success("Loan marked as closed.");
+        swalMessage.success("Loan marked as closed.");
         if (onLoanUpdate) {
           onLoanUpdate();
         }
       } else {
-        message.error(res.data.message || "Failed to update loan status.");
+        swalMessage.error(res.data.message || "Failed to update loan status.");
       }
     } catch (err) {
       console.error("Error updating loan status:", err);
-      message.error("Error updating loan status.");
+      swalMessage.error("Error updating loan status.");
     }
   };
 

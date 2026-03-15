@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Tabs, Form, Input, Button, message, Popconfirm, Typography } from 'antd';
+import { Modal, Tabs, Form, Input, Button, Popconfirm, Typography } from "antd";
 import api from '../../../utils/axios';
 import './EditCollectionModal.css';
+import { swalMessage } from "../../../utils/swal";
 
 const { TabPane } = Tabs;
 const { Text } = Typography;
@@ -21,14 +22,14 @@ const EditCollectionModal = ({ visible, onCancel, collection, onSuccess }) => {
     try {
       const res = await api.put(`/loan-collections/${collection._id}`, values);
       if (res.data.success) {
-        message.success('Collection updated successfully');
+        swalMessage.success('Collection updated successfully');
         onSuccess();
       } else {
-        message.error('Failed to update collection');
+        swalMessage.error('Failed to update collection');
       }
     } catch (err) {
       console.error(err);
-      message.error('Error updating collection');
+      swalMessage.error('Error updating collection');
     }
   };
 
@@ -36,33 +37,33 @@ const EditCollectionModal = ({ visible, onCancel, collection, onSuccess }) => {
     try {
       const res = await api.delete(`/loan-collections/${collection._id}`);
       if (res.data.success) {
-        message.success('Collection deleted successfully');
+        swalMessage.success('Collection deleted successfully');
         onSuccess();
       } else {
-        message.error('Failed to delete collection');
+        swalMessage.error('Failed to delete collection');
       }
     } catch (err) {
       console.error(err);
-      message.error('Error deleting collection');
+      swalMessage.error('Error deleting collection');
     }
   };
 
   const handleChangeReference = async () => {
     if (!newReferenceNo) {
-      message.error('New Reference No cannot be empty');
+      swalMessage.error('New Reference No cannot be empty');
       return;
     }
     try {
       const res = await api.put(`/loan-collections/change-ref/${collection._id}`, { newReferenceNo });
       if (res.data.success) {
-        message.success('Reference number updated successfully');
+        swalMessage.success('Reference number updated successfully');
         onSuccess();
       } else {
-        message.error('Failed to update reference number');
+        swalMessage.error('Failed to update reference number');
       }
     } catch (err) {
       console.error(err);
-      message.error('Error updating reference number');
+      swalMessage.error('Error updating reference number');
     }
   };
 

@@ -1,4 +1,6 @@
 import LoanCollection from "../models/LoanCollection.js";
+import LoanClient from "../models/LoanClient.js";
+import LoanCycle from "../models/LoanCycle.js";
 import { escapeRegex } from "../middleware/validateFinancial.js";
 
 // Get all collections with optional filters/pagination
@@ -585,6 +587,109 @@ export const dedupeCollections = async (req, res) => {
     });
   } catch (err) {
     console.error("Dedupe failed:", err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+};
+
+/**
+ * Search loan clients by name for account detection.
+ * GET /loan-collections/search-clients?q=keyword&limit=10
+ */
+export const searchClientsByName = async (req, res) => {
+  try {
+    const { q = "", limit = 10 } = req.query;
+    const trimmed = q.trim();
+    if (!trimmed || trimmed.length < 2) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const limitVal = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
+    const escaped = escapeRegex(trimmed);
+    const rx = { $regex: escaped, $options: "i" };
+
+    // Search by name fields or account/client number
+    const clients = await LoanClient.find({
+      $or: [
+        { FirstName: rx },
+        { LastName: rx },
+        { MiddleName: rx },
+        { AccountId: rx },
+        { ClientNo: rx },
+      ],
+    })
+      .select("AccountId ClientNo FirstName MiddleName LastName")
+      .limit(limitVal)
+      .lean();
+
+    // Enrich with active loan cycle info
+    const accountIds = clients.map((c) => c.AccountId);
+    const cycles = await LoanCycle.find({
+      AccountId: { $in: accountIds },
+      LoanStatus: { $nin: ["Closed", "Cancelled"] },
+    })
+      .select("AccountId ClientNo LoanCycleNo LoanAmount PaymentMode LoanStatus LoanTerm PrincipalAmount")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const cycleMap = {};
+    for (const c of cycles) {
+      if (!cycleMap[c.AccountId]) cycleMap[c.AccountId] = [];
+      cycleMap[c.AccountId].push(c);
+    }
+
+    const result = clients.map((c) => ({
+      ...c,
+      fullName: [c.FirstName, c.MiddleName, c.LastName].filter(Boolean).join(" "),
+      loanCycles: cycleMap[c.AccountId] || [],
+    }));
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error("searchClientsByName error:", err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+};
+
+/**
+ * Bulk add collections from dashboard quick-entry.
+ * POST /loan-collections/bulk-add
+ * Body: { collections: [{ AccountId, ClientNo, LoanCycleNo, PaymentDate, CollectionPayment, ... }] }
+ */
+export const bulkAddCollections = async (req, res) => {
+  try {
+    const { collections } = req.body;
+    if (!Array.isArray(collections) || collections.length === 0) {
+      return res.status(400).json({ success: false, message: "No collections provided" });
+    }
+
+    // Validate required fields for each
+    const errors = [];
+    const validDocs = [];
+    for (let i = 0; i < collections.length; i++) {
+      const c = collections[i];
+      if (!c.AccountId || !c.ClientNo || !c.LoanCycleNo) {
+        errors.push({ index: i, message: "Missing AccountId, ClientNo, or LoanCycleNo" });
+        continue;
+      }
+      if (!c.CollectionPayment || Number(c.CollectionPayment) <= 0) {
+        errors.push({ index: i, message: "CollectionPayment must be greater than 0" });
+        continue;
+      }
+      validDocs.push(c);
+    }
+
+    let inserted = 0;
+    if (validDocs.length > 0) {
+      const result = await LoanCollection.insertMany(validDocs, { ordered: false });
+      inserted = result.length;
+    }
+
+    res.status(201).json({
+      success: true,
+      data: { inserted, errors: errors.length, errorDetails: errors },
+    });
+  } catch (err) {
+    console.error("bulkAddCollections error:", err);
     res.status(500).json({ success: false, message: err.message || "Server error" });
   }
 };

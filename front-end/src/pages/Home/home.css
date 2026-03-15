@@ -183,11 +183,27 @@
   }
   /* Add spacing at bottom for fixed footer */
   .home-scroll-area {
-    padding: 16px 16px calc(16px + var(--footer-h, 36px));
+    padding: 8px 6px calc(8px + var(--footer-h, 36px));
   }
   .home-footer-center { order: 2; }
   .home-footer-left { order: 1; }
   .home-footer-right { order: 3; }
+  /* Sider collapsed fully on small phones */
+  .home-header {
+    padding-left: calc(var(--sider-collapsed-width, 80px) + 4px) !important;
+    height: 44px;
+    gap: 6px;
+  }
+  .home-layout.collapsed .home-header {
+    padding-left: calc(var(--sider-collapsed-width, 80px) + 4px) !important;
+  }
+  .home-content-wrapper {
+    margin-left: var(--sider-collapsed-width, 80px) !important;
+    top: 44px;
+  }
+  .home-layout.collapsed .home-content-wrapper {
+    margin-left: var(--sider-collapsed-width, 80px) !important;
+  }
 }
 
 /* ✅ REMOVED: This rule is no longer needed as padding is handled by the scroll container */
@@ -414,6 +430,14 @@
   .notif-item-icon { width: 28px; height: 28px; }
   .notif-panel-header { padding: 10px 12px; }
   .notif-list .ant-list-item { padding: 6px 8px; }
+  .home-footer {
+    left: var(--sider-collapsed-width, 80px);
+  }
+  .home-layout.collapsed .home-footer {
+    left: var(--sider-collapsed-width, 80px);
+  }
+  /* Message popover */
+  .msg-popover { max-width: 280px; }
 }
 
 /* Tablet adjustments: keep sider width; reduce fonts and gaps for compactness */

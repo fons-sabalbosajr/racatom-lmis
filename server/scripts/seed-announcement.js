@@ -42,23 +42,45 @@ const Announcement =
   mongoose.model("Announcement", announcementSchema);
 
 const ANNOUNCEMENT = {
-  Title: "LMIS v2.5 — System Update (March 2026)",
+  Title: "LMIS v3.0 — System Update (March 2026)",
   Content:
-    "We've rolled out important improvements to the Loan Management Information System:\n\n" +
-    "• Enhanced security — encrypted authentication, idle auto-logout, and role-based access controls.\n" +
-    "• Faster page loads — optimized routing and data fetching across all modules.\n" +
-    "• Accounting Center — financial analytics dashboard with real-time summaries.\n" +
-    "• Reports — demand letters, account vouchers, and collection exports upgraded.\n" +
-    "• Announcement Manager — redesigned with scheduling, priority levels, and login-page posting.\n" +
-    "• Bug fixes — resolved console warnings and improved overall stability.\n\n" +
-    "If you experience any issues, please contact your system administrator.",
+    "Dear Team,\n\n" +
+    "We are pleased to announce the release of LMIS v3.0 for the RCT Loan Management Information System. " +
+    "This update introduces a range of enhancements designed to improve operational efficiency, security, and user experience across all modules.\n\n" +
+    "KEY UPDATES\n\n" +
+    "Dashboard & Analytics\n" +
+    "• Loan Collections summary is now accessible directly from the Dashboard.\n" +
+    "• Collection Rate and Loans by Collector cards have been redesigned with uniform card layouts.\n" +
+    "• Activity Logs are now available under Developer Settings for system auditing.\n" +
+    "• Accounting Center settings provide real-time financial analytics and summaries.\n\n" +
+    "Messaging & Collaboration\n" +
+    "• Group Chat functionality has been introduced, supporting group creation, member management, and admin controls.\n" +
+    "• All employees can now be added as Group Chat members regardless of role or position.\n" +
+    "• File and image attachments are now supported in Group Chat messages.\n" +
+    "• Route Loan feature now includes Manager-level accounts in the recipient dropdown.\n\n" +
+    "Loan Management\n" +
+    "• Manual Entry for collections has been improved with a structured two-row layout and labeled input fields.\n" +
+    "• Demand Letter generation and Account Voucher reports have been upgraded.\n" +
+    "• Collector selection in forms now groups options by Position for easier identification.\n\n" +
+    "Security & Authentication\n" +
+    "• JWT token handling has been optimized with extended session duration and silent token refresh.\n" +
+    "• Encrypted authentication, idle auto-logout, and role-based access controls remain in effect.\n\n" +
+    "User Interface\n" +
+    "• Responsive design improvements have been applied across all pages for mobile and tablet compatibility.\n" +
+    "• Consistent styling and layout adjustments have been made system-wide.\n\n" +
+    "Codebase\n" +
+    "• Debug artifacts and unused code have been removed for improved performance and maintainability.\n" +
+    "• System branding has been standardized to \"RCT Loan Management Information System\" across all modules.\n\n" +
+    "Should you encounter any issues or have feedback regarding these updates, please contact your system administrator.\n\n" +
+    "Thank you for your continued support.\n\n" +
+    "— RACATOM-LMIS Administration",
   Priority: "high",
   isActive: true,
   showOnLogin: true,
   PostedBy: "System Administrator",
-  PostedDate: new Date("2026-03-08T08:00:00.000Z"),
-  ValidFrom: new Date("2026-03-08T00:00:00.000Z"),
-  ExpirationDate: new Date("2026-04-30T23:59:59.000Z"),
+  PostedDate: new Date("2026-03-15T08:00:00.000Z"),
+  ValidFrom: new Date("2026-03-15T00:00:00.000Z"),
+  ExpirationDate: new Date("2026-05-31T23:59:59.000Z"),
 };
 
 async function run() {

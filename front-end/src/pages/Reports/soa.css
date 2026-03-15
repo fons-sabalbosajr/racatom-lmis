@@ -109,3 +109,38 @@
     line-height: 22px !important;
   }
 }
+
+/* Mobile */
+@media (max-width: 480px) {
+  .soa-card .ant-card-body {
+    padding: 8px !important;
+  }
+  .soa-extra {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .soa-extra span {
+    font-size: 10px !important;
+  }
+  .soa-table {
+    overflow-x: auto;
+  }
+  .soa-table .ant-table {
+    min-width: 600px;
+  }
+  .soa-table .ant-table-thead > tr > th {
+    font-size: 11px;
+    padding: 4px 4px !important;
+    white-space: nowrap;
+  }
+  .soa-table .ant-table-tbody > tr > td {
+    font-size: 10px;
+    padding: 4px 4px !important;
+  }
+  .soa-table .ant-tag {
+    font-size: 9px;
+    height: 16px;
+    line-height: 14px;
+    padding: 0 4px;
+  }
+}

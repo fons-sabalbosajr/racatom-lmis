@@ -7,7 +7,6 @@ import {
   Typography,
   Tabs,
   DatePicker,
-  message,
   Spin,
   Table,
   Tooltip,
@@ -17,6 +16,9 @@ import {
   Input,
   Select,
   Button,
+  Popconfirm,
+  Tag,
+  Space,
 } from "antd";
 import {
   DollarCircleOutlined,
@@ -25,6 +27,10 @@ import {
   RiseOutlined,
   FallOutlined,
   FileTextOutlined,
+  SettingOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import {
   AreaChart,
@@ -42,6 +48,7 @@ import {
 import dayjs from "dayjs";
 import isBetween from "dayjs/plugin/isBetween";
 import api from "../../../utils/axios";
+import { swalMessage } from "../../../utils/swal";
 import "./accountingCenter.css";
 
 dayjs.extend(isBetween);
@@ -308,6 +315,13 @@ const AccountingCenter = () => {
   const [pmodeOptions, setPmodeOptions] = useState([]);
   const [collectorOptions, setCollectorOptions] = useState([]);
 
+  // Accounting Terms Settings state
+  const [acctTerms, setAcctTerms] = useState([]);
+  const [acctTermsLoading, setAcctTermsLoading] = useState(false);
+  const [termModalOpen, setTermModalOpen] = useState(false);
+  const [editingTerm, setEditingTerm] = useState(null);
+  const [termForm] = Form.useForm();
+
   // Preload dropdown options for modal
   useEffect(() => {
     const loadLookups = async () => {
@@ -377,7 +391,7 @@ const AccountingCenter = () => {
       }));
     } catch (e) {
       console.error("Collections fetch failed:", e);
-      message.error(
+      swalMessage.error(
         e?.response?.data?.message || e?.message || "Failed to load collections"
       );
     } finally {
@@ -450,6 +464,114 @@ const AccountingCenter = () => {
       (a, b) => dayjs(b.PaymentDate).valueOf() - dayjs(a.PaymentDate).valueOf()
     );
   }, [allTransactions, filteredCollections]);
+
+  // --- Accounting Terms functions ---
+  const fetchAcctTerms = useCallback(async () => {
+    setAcctTermsLoading(true);
+    try {
+      const res = await api.get("/accounting-terms");
+      if (res.data?.success) setAcctTerms(res.data.data || []);
+    } catch {
+      // silent
+    } finally {
+      setAcctTermsLoading(false);
+    }
+  }, []);
+
+  const handleSaveTerm = async (values) => {
+    try {
+      if (editingTerm) {
+        const res = await api.put(`/accounting-terms/${editingTerm._id}`, values);
+        if (res.data?.success) {
+          swalMessage.success("Term updated");
+          setAcctTerms((prev) => prev.map((t) => (t._id === editingTerm._id ? res.data.data : t)));
+        }
+      } else {
+        const res = await api.post("/accounting-terms", values);
+        if (res.data?.success) {
+          swalMessage.success("Term added");
+          setAcctTerms((prev) => [...prev, res.data.data]);
+        }
+      }
+      setTermModalOpen(false);
+      setEditingTerm(null);
+      termForm.resetFields();
+    } catch (err) {
+      swalMessage.error(err?.response?.data?.message || "Failed to save term");
+    }
+  };
+
+  const handleDeleteTerm = async (id) => {
+    try {
+      await api.delete(`/accounting-terms/${id}`);
+      setAcctTerms((prev) => prev.filter((t) => t._id !== id));
+      swalMessage.success("Term deleted");
+    } catch {
+      swalMessage.error("Failed to delete term");
+    }
+  };
+
+  const handleSeedDefaults = async () => {
+    try {
+      const res = await api.post("/accounting-terms/seed-defaults");
+      if (res.data?.success) {
+        swalMessage.success(`Seeded ${res.data.data.inserted} default terms (${res.data.data.skipped} already existed)`);
+        fetchAcctTerms();
+      }
+    } catch {
+      swalMessage.error("Failed to seed defaults");
+    }
+  };
+
+  const CATEGORY_COLORS = {
+    Income: "green",
+    Expense: "red",
+    Asset: "blue",
+    Liability: "orange",
+    Equity: "purple",
+    Other: "default",
+  };
+
+  const termColumns = [
+    { title: "Code", dataIndex: "code", width: 120, sorter: (a, b) => a.code.localeCompare(b.code) },
+    { title: "Name", dataIndex: "name", width: 200 },
+    { title: "Description", dataIndex: "description", ellipsis: true },
+    {
+      title: "Category",
+      dataIndex: "category",
+      width: 120,
+      render: (v) => <Tag color={CATEGORY_COLORS[v] || "default"}>{v}</Tag>,
+      filters: ["Income", "Expense", "Asset", "Liability", "Equity", "Other"].map((c) => ({ text: c, value: c })),
+      onFilter: (value, record) => record.category === value,
+    },
+    {
+      title: "Status",
+      dataIndex: "isActive",
+      width: 80,
+      render: (v) => <Tag color={v ? "green" : "default"}>{v ? "Active" : "Inactive"}</Tag>,
+    },
+    {
+      title: "Actions",
+      width: 120,
+      render: (_, record) => (
+        <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setEditingTerm(record);
+              termForm.setFieldsValue(record);
+              setTermModalOpen(true);
+            }}
+          />
+          <Popconfirm title="Delete this term?" onConfirm={() => handleDeleteTerm(record._id)}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
 
   if (loading && allCollections.length === 0) {
     return (
@@ -529,6 +651,43 @@ const AccountingCenter = () => {
         />
       ),
     },
+    {
+      key: "3",
+      label: (
+        <span>
+          <SettingOutlined /> Settings
+        </span>
+      ),
+      children: (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <Title level={4} style={{ margin: 0 }}>Accounting Terms &amp; Codes</Title>
+            <Space>
+              <Button onClick={handleSeedDefaults}>Load Default Terms</Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditingTerm(null);
+                  termForm.resetFields();
+                  setTermModalOpen(true);
+                }}
+              >
+                Add Term
+              </Button>
+            </Space>
+          </div>
+          <Table
+            dataSource={acctTerms}
+            columns={termColumns}
+            rowKey="_id"
+            size="small"
+            loading={acctTermsLoading}
+            pagination={{ pageSize: 20 }}
+          />
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -552,16 +711,19 @@ const AccountingCenter = () => {
               if (res.data?.success) {
                 setAllTransactions(Array.isArray(res.data.data) ? res.data.data : []);
               } else {
-                message.error(res.data?.message || "Failed to load all transactions");
+                swalMessage.error(res.data?.message || "Failed to load all transactions");
               }
             } catch (e) {
               console.error("All transactions fetch failed:", e);
-              message.error(
+              swalMessage.error(
                 e?.response?.data?.message || e?.message || "Failed to load all transactions"
               );
             } finally {
               setTxLoading(false);
             }
+          }
+          if (key === "3" && acctTerms.length === 0) {
+            fetchAcctTerms();
           }
         }}
         style={{ marginTop: 20 }}
@@ -604,7 +766,7 @@ const AccountingCenter = () => {
             };
             const res = await api.put(`/loan-collections/${selectedTx._id}`, payload);
             if (res.data?.success) {
-              message.success("Transaction updated");
+              swalMessage.success("Transaction updated");
               const updated = { ...selectedTx, ...payload };
               setSelectedTx(updated);
               // Update in-memory arrays
@@ -623,11 +785,11 @@ const AccountingCenter = () => {
               }));
               setDetailsOpen(false);
             } else {
-              message.error(res.data?.message || "Update failed");
+              swalMessage.error(res.data?.message || "Update failed");
             }
           } catch (e) {
             console.error("Update failed", e);
-            message.error(e?.response?.data?.message || e?.message || "Update failed");
+            swalMessage.error(e?.response?.data?.message || e?.message || "Update failed");
           } finally {
             setDetailsSaving(false);
           }
@@ -708,6 +870,69 @@ const AccountingCenter = () => {
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={detailsSaving}>
               {detailsSaving ? "Updating..." : "Update"}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Accounting Term Modal */}
+      <Modal
+        title={editingTerm ? "Edit Accounting Term" : "Add Accounting Term"}
+        open={termModalOpen}
+        onCancel={() => {
+          setTermModalOpen(false);
+          setEditingTerm(null);
+          termForm.resetFields();
+        }}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={termForm} layout="vertical" onFinish={handleSaveTerm}>
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item name="code" label="Code" rules={[{ required: true, message: "Required" }]}>
+                <Input placeholder="e.g. INT-INC" />
+              </Form.Item>
+            </Col>
+            <Col span={16}>
+              <Form.Item name="name" label="Name" rules={[{ required: true, message: "Required" }]}>
+                <Input placeholder="e.g. Interest Income" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={2} placeholder="Brief description of this term" />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="category" label="Category" initialValue="Other">
+                <Select>
+                  <Select.Option value="Income">Income</Select.Option>
+                  <Select.Option value="Expense">Expense</Select.Option>
+                  <Select.Option value="Asset">Asset</Select.Option>
+                  <Select.Option value="Liability">Liability</Select.Option>
+                  <Select.Option value="Equity">Equity</Select.Option>
+                  <Select.Option value="Other">Other</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="sortOrder" label="Sort Order" initialValue={0}>
+                <InputNumber style={{ width: "100%" }} min={0} />
+              </Form.Item>
+            </Col>
+          </Row>
+          {editingTerm && (
+            <Form.Item name="isActive" label="Active" valuePropName="checked" initialValue={true}>
+              <Select>
+                <Select.Option value={true}>Active</Select.Option>
+                <Select.Option value={false}>Inactive</Select.Option>
+              </Select>
+            </Form.Item>
+          )}
+          <Form.Item>
+            <Button type="primary" htmlType="submit">
+              {editingTerm ? "Update" : "Add Term"}
             </Button>
           </Form.Item>
         </Form>
