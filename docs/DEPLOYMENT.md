@@ -15,7 +15,7 @@ racatom-lmis.cloud (HTTPS :443)
    [ Nginx reverse proxy ]
         │
         ├── /            → React static build (served by Nginx)
-        └── /api/*       → Node/Express backend (localhost:5000)
+        └── /api/*       → Node/Express backend (localhost:5002)
                               │
                           [ MongoDB Atlas ]
 ```
@@ -144,7 +144,7 @@ Create `/var/www/racatom-lmis/server/.env`:
 
 ```env
 NODE_ENV=production
-PORT=5000
+PORT=5002
 
 MONGO_URI=mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/db_rctlmis?retryWrites=true&w=majority
 
@@ -218,7 +218,7 @@ server {
 
     # Proxy API to Express
     location /api/ {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:5002;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
